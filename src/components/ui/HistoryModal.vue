@@ -138,7 +138,9 @@ function onKey(e: KeyboardEvent) {
               :title="entry.isFavorite ? t('history.unfavorite') : t('history.favorite')"
               :class="{ on: entry.isFavorite }"
               @click.stop="toggleFavorite(entry)"
-            >★</button>
+            >
+★
+</button>
             <button type="button" :title="t('history.copy')" @click.stop="copy(entry)">⎘</button>
             <button type="button" :title="t('history.delete')" class="danger" @click.stop="remove(entry)">×</button>
           </div>

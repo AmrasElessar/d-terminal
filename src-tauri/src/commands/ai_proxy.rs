@@ -19,10 +19,7 @@ use std::sync::Arc;
 use tauri::State;
 
 #[tauri::command]
-pub fn ai_key_masked(
-    state: State<'_, AppState>,
-    provider: String,
-) -> AppResult<Option<String>> {
+pub fn ai_key_masked(state: State<'_, AppState>, provider: String) -> AppResult<Option<String>> {
     let store = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
         state.storage.pool().clone(),
     )));
@@ -46,10 +43,7 @@ pub fn ai_key_masked(
 /// v1.1'de tam HTTP proxy ile değiştirilecek; v1.0'da Anthropic/Ollama
 /// fetch'leri renderer process'inden yapılır (Tauri allowlist + CSP korur).
 #[tauri::command]
-pub fn ai_key_reveal(
-    state: State<'_, AppState>,
-    provider: String,
-) -> AppResult<Option<String>> {
+pub fn ai_key_reveal(state: State<'_, AppState>, provider: String) -> AppResult<Option<String>> {
     let store = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
         state.storage.pool().clone(),
     )));

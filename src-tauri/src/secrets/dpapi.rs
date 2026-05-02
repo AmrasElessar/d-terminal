@@ -31,16 +31,8 @@ impl DpapiStore {
         let mut out_blob = CRYPT_INTEGER_BLOB::default();
         // SAFETY: in_blob ömrü çağrı süresince geçerli; out_blob LocalFree ile temizlenir.
         unsafe {
-            CryptProtectData(
-                &in_blob,
-                None,
-                None,
-                None,
-                None,
-                0,
-                &mut out_blob,
-            )
-            .map_err(|e| AppError::Secret(format!("CryptProtectData: {e}")))?;
+            CryptProtectData(&in_blob, None, None, None, None, 0, &mut out_blob)
+                .map_err(|e| AppError::Secret(format!("CryptProtectData: {e}")))?;
         }
         let result = unsafe {
             std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec()
@@ -58,16 +50,8 @@ impl DpapiStore {
         };
         let mut out_blob = CRYPT_INTEGER_BLOB::default();
         unsafe {
-            CryptUnprotectData(
-                &in_blob,
-                None,
-                None,
-                None,
-                None,
-                0,
-                &mut out_blob,
-            )
-            .map_err(|e| AppError::Secret(format!("CryptUnprotectData: {e}")))?;
+            CryptUnprotectData(&in_blob, None, None, None, None, 0, &mut out_blob)
+                .map_err(|e| AppError::Secret(format!("CryptUnprotectData: {e}")))?;
         }
         let plaintext = unsafe {
             std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec()

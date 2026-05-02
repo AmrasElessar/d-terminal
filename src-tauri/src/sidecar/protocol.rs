@@ -176,8 +176,7 @@ pub struct ErrorPayload {
 /// Tip-güvenli CBOR encode helper.
 pub fn encode_cbor<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolError> {
     let mut buf = Vec::new();
-    ciborium::into_writer(value, &mut buf)
-        .map_err(|e| ProtocolError::CborEncode(e.to_string()))?;
+    ciborium::into_writer(value, &mut buf).map_err(|e| ProtocolError::CborEncode(e.to_string()))?;
     Ok(buf)
 }
 
@@ -293,8 +292,8 @@ mod tests {
         // ANSI escape + null byte + UTF-8 emoji bayraklarıyla karışık.
         let payload: Vec<u8> = vec![
             0x1B, b'[', b'3', b'1', b'm', // \e[31m
-            0x00, 0xFF, 0xFE,             // null + non-printable
-            0xF0, 0x9F, 0x9A, 0x80,       // 🚀
+            0x00, 0xFF, 0xFE, // null + non-printable
+            0xF0, 0x9F, 0x9A, 0x80, // 🚀
         ];
         let frame = Frame::new(MsgType::Stdout, 99, payload.clone());
         let bytes = frame.to_bytes().unwrap();

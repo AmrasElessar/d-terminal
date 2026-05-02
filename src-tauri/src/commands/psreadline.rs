@@ -83,9 +83,8 @@ pub fn psreadline_import(state: State<'_, AppState>) -> AppResult<ImportSummary>
 }
 
 fn psreadline_history_path() -> AppResult<PathBuf> {
-    let appdata = dirs::config_dir().ok_or_else(|| {
-        crate::error::AppError::Internal("APPDATA path unresolved".into())
-    })?;
+    let appdata = dirs::config_dir()
+        .ok_or_else(|| crate::error::AppError::Internal("APPDATA path unresolved".into()))?;
     Ok(appdata
         .join("Microsoft")
         .join("Windows")

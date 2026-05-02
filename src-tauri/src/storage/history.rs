@@ -82,8 +82,10 @@ impl HistoryRepo {
         params.push(Box::new(q.limit.unwrap_or(100)));
 
         let mut stmt = conn.prepare(&sql)?;
-        let param_refs: Vec<&dyn rusqlite::ToSql> =
-            params.iter().map(|b| &**b as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params
+            .iter()
+            .map(|b| &**b as &dyn rusqlite::ToSql)
+            .collect();
         let rows = stmt.query_map(param_refs.as_slice(), |r| {
             Ok(HistoryEntry {
                 id: r.get(0)?,

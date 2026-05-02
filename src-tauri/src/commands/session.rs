@@ -13,10 +13,7 @@ pub fn session_save(
 }
 
 #[tauri::command]
-pub fn session_load(
-    state: State<'_, AppState>,
-    name: String,
-) -> AppResult<Option<SessionRecord>> {
+pub fn session_load(state: State<'_, AppState>, name: String) -> AppResult<Option<SessionRecord>> {
     state.storage.session.load(&name)
 }
 

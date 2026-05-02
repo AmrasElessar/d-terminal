@@ -133,7 +133,7 @@ void props.leaf; // ileride leaf.state restore burada
         <select v-model="ai.activeModel" :aria-label="t('ai.selectModel')">
           <option v-for="m in models" :key="m.id" :value="m.id">{{ m.label }}</option>
         </select>
-        <button type="button" class="link" @click="clearAll" :title="t('ai.clearHistory')">
+        <button type="button" class="link" :title="t('ai.clearHistory')" @click="clearAll">
           {{ t('ai.clearHistory') }}
         </button>
       </header>
@@ -151,8 +151,8 @@ void props.leaf; // ileride leaf.state restore burada
           v-model="input"
           :placeholder="t('ai.placeholder')"
           rows="3"
-          @keydown="onKeyDown"
           :disabled="streaming"
+          @keydown="onKeyDown"
         />
         <div class="ai-pane__actions">
           <button v-if="!streaming" type="submit" :disabled="!input.trim()">

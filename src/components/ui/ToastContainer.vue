@@ -23,7 +23,9 @@ const { t } = useI18n();
           :title="t('toast.dismiss')"
           :aria-label="t('toast.dismiss')"
           @click="toasts.dismiss(toast.id)"
-        >×</button>
+        >
+×
+</button>
       </div>
     </div>
   </Teleport>

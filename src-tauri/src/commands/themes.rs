@@ -65,8 +65,7 @@ fn bundled_themes_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
 }
 
 fn user_themes_dir() -> AppResult<PathBuf> {
-    let base = dirs::data_dir()
-        .ok_or_else(|| AppError::Internal("data_dir unresolved".into()))?;
+    let base = dirs::data_dir().ok_or_else(|| AppError::Internal("data_dir unresolved".into()))?;
     Ok(base.join("D-Terminal").join("themes"))
 }
 

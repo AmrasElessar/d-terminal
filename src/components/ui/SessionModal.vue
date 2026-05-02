@@ -68,8 +68,8 @@ onMounted(refresh);
             v-model="newName"
             type="text"
             :placeholder="t('session.namePlaceholder')"
-            @keydown.enter="save"
             autofocus
+            @keydown.enter="save"
           />
         </label>
         <button type="button" class="primary" :disabled="!newName.trim()" @click="save">

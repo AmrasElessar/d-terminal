@@ -25,10 +25,23 @@ const MAX_PANES_PER_SIDECAR: usize = 50;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PtyEvent {
-    Stdout { pane_id: String, data: Vec<u8> },
-    Exit { pane_id: String, exit_code: i32, signal: Option<String> },
-    Error { pane_id: Option<String>, code: String, message: String },
-    SidecarDown { reason: String },
+    Stdout {
+        pane_id: String,
+        data: Vec<u8>,
+    },
+    Exit {
+        pane_id: String,
+        exit_code: i32,
+        signal: Option<String>,
+    },
+    Error {
+        pane_id: Option<String>,
+        code: String,
+        message: String,
+    },
+    SidecarDown {
+        reason: String,
+    },
     SidecarUp,
 }
 
@@ -293,10 +306,7 @@ fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
         .expect("spawn stderr thread");
 }
 
-fn spawn_heartbeat_thread(
-    stdin: Arc<Mutex<ChildStdin>>,
-    weak: std::sync::Weak<SidecarManager>,
-) {
+fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<SidecarManager>) {
     thread::Builder::new()
         .name("dterm-sidecar-heartbeat".into())
         .spawn(move || loop {

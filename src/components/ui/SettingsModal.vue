@@ -87,7 +87,7 @@ void props.open;
         <label class="field">
           <span>{{ t('settings.appearance.theme') }}</span>
           <select :value="settings.state.themeName" @change="applyTheme(($event.target as HTMLSelectElement).value)">
-            <option v-for="t in themeStore.themes" :key="t.name" :value="t.name">{{ t.name }}</option>
+            <option v-for="theme in themeStore.themes" :key="theme.name" :value="theme.name">{{ theme.name }}</option>
           </select>
           <small>{{ t('settings.appearance.themeHint') }}</small>
         </label>

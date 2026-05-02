@@ -31,7 +31,9 @@ const title = computed(() => props.leaf.title || t('pane.untitled'));
       :title="t('pane.close')"
       :aria-label="t('pane.close')"
       @click.stop="emit('close')"
-    >×</button>
+    >
+×
+</button>
   </div>
 </template>
 
