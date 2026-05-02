@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { fileURLToPath, URL } from 'node:url';
@@ -38,5 +39,12 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    // Sidecar testleri node:test API'siyle yazılmış; vitest sadece src/ altında çalışır
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules', 'dist', 'src-tauri', 'sidecar', 'dist-ssr', '.idea', '.git', '.cache'],
+    environment: 'jsdom',
+    passWithNoTests: true,
   },
 });

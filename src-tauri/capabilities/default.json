@@ -19,11 +19,6 @@
           "name": "node",
           "cmd": "node",
           "args": true
-        },
-        {
-          "name": "pty-bridge",
-          "cmd": "binaries/dterminal-pty-bridge",
-          "args": true
         }
       ]
     }

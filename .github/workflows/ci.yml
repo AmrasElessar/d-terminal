@@ -34,7 +34,7 @@ jobs:
         run: pnpm lint
 
       - name: Test (Vitest)
-        run: pnpm test --run
+        run: pnpm test
 
       - name: Build
         run: pnpm build

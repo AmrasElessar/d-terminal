@@ -37,7 +37,6 @@
       "icons/icon.ico"
     ],
     "resources": [],
-    "externalBin": ["binaries/dterminal-pty-bridge"],
     "copyright": "Copyright © 2026 Engin Demirel",
     "category": "DeveloperTool",
     "shortDescription": "Agent-aware Windows terminal",
