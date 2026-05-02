@@ -18,9 +18,10 @@ out/
 
 # Tauri / Rust
 src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/WixTools/
 src-tauri/gen/
+# Cargo.lock binary uygulamalar için commit edilir — ilk `cargo build`'den sonra
+# kullanıcı `git add src-tauri/Cargo.lock` yapmalı.
 
 # IDE
 .idea/
