@@ -55,6 +55,14 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Tauri build script frontendDist klasörünü doğrular; clippy/test için
+      # gerçek frontend build'e gerek yok, sadece klasör mevcut olmalı.
+      - name: Stub frontend dist
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Set-Content -Path dist/index.html -Value '<!doctype html><html><head><meta charset="utf-8"><title>D-Terminal CI stub</title></head><body></body></html>'
+
       - name: Format check
         working-directory: src-tauri
         run: cargo fmt --check
