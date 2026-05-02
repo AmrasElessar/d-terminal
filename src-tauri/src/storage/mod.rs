@@ -9,5 +9,6 @@ pub mod migrations;
 pub mod secrets;
 pub mod session;
 pub mod settings;
+pub mod snippets;
 
 pub use db::Storage;

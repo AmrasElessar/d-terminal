@@ -212,8 +212,56 @@
       "settings": "Ayarlar",
       "themes": "Temalar",
       "ai": "AI",
-      "session": "Session"
+      "session": "Session",
+      "snippets": "Snippet'lar",
+      "history": "Geçmiş"
+    },
+    "actions": {
+      "newPanePowershell": "Yeni PowerShell pane",
+      "newPaneCmd": "Yeni CMD pane",
+      "newPaneAi": "Yeni AI Sohbet pane",
+      "newPaneWelcome": "Karşılama pane'i aç",
+      "splitHorizontal": "Aktif pane'i yatay böl",
+      "splitVertical": "Aktif pane'i dikey böl",
+      "closePane": "Aktif pane'i kapat",
+      "openSettings": "Ayarları aç",
+      "openHistory": "Komut geçmişini aç",
+      "openSnippets": "Snippet'ları yönet",
+      "saveSession": "Session kaydet",
+      "loadSession": "Session yükle",
+      "switchTheme": "Tema değiştir: {name}",
+      "switchLanguage": "Dili değiştir: {name}",
+      "importPsreadline": "PowerShell geçmişini içe aktar"
     }
+  },
+  "snippet": {
+    "title": "Snippet'lar",
+    "addNew": "Yeni Snippet",
+    "name": "İsim",
+    "namePlaceholder": "örn. git-status",
+    "command": "Komut",
+    "commandPlaceholder": "git status",
+    "description": "Açıklama",
+    "descriptionPlaceholder": "Repo durumunu göster",
+    "shortcut": "Kısayol (opsiyonel)",
+    "shortcutPlaceholder": "Ctrl+Alt+G",
+    "save": "Kaydet",
+    "delete": "Sil",
+    "deleteConfirm": "{name} snippet'ı silinsin mi?",
+    "run": "Çalıştır",
+    "edit": "Düzenle",
+    "empty": "Henüz snippet yok",
+    "saved": "Snippet kaydedildi: {name}",
+    "deleted": "Snippet silindi",
+    "noActivePane": "Çalıştırmak için aktif bir terminal pane'i seç"
+  },
+  "psreadline": {
+    "import": "PowerShell Geçmişini İçe Aktar",
+    "summary": "{imported} komut içe aktarıldı, {skipped} kopya atlandı",
+    "noFile": "PSReadLine geçmiş dosyası bulunamadı"
+  },
+  "toast": {
+    "dismiss": "Kapat"
   },
   "common": {
     "ok": "Tamam",

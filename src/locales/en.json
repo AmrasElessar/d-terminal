@@ -212,8 +212,56 @@
       "settings": "Settings",
       "themes": "Themes",
       "ai": "AI",
-      "session": "Session"
+      "session": "Session",
+      "snippets": "Snippets",
+      "history": "History"
+    },
+    "actions": {
+      "newPanePowershell": "New PowerShell pane",
+      "newPaneCmd": "New CMD pane",
+      "newPaneAi": "New AI Chat pane",
+      "newPaneWelcome": "Open welcome pane",
+      "splitHorizontal": "Split active pane horizontally",
+      "splitVertical": "Split active pane vertically",
+      "closePane": "Close active pane",
+      "openSettings": "Open settings",
+      "openHistory": "Open command history",
+      "openSnippets": "Manage snippets",
+      "saveSession": "Save session",
+      "loadSession": "Load session",
+      "switchTheme": "Switch theme: {name}",
+      "switchLanguage": "Switch language: {name}",
+      "importPsreadline": "Import PowerShell history"
     }
+  },
+  "snippet": {
+    "title": "Snippets",
+    "addNew": "New Snippet",
+    "name": "Name",
+    "namePlaceholder": "e.g. git-status",
+    "command": "Command",
+    "commandPlaceholder": "git status",
+    "description": "Description",
+    "descriptionPlaceholder": "Show repo status",
+    "shortcut": "Shortcut (optional)",
+    "shortcutPlaceholder": "Ctrl+Alt+G",
+    "save": "Save",
+    "delete": "Delete",
+    "deleteConfirm": "Delete snippet {name}?",
+    "run": "Run",
+    "edit": "Edit",
+    "empty": "No snippets yet",
+    "saved": "Snippet saved: {name}",
+    "deleted": "Snippet deleted",
+    "noActivePane": "Select an active terminal pane to run"
+  },
+  "psreadline": {
+    "import": "Import PowerShell History",
+    "summary": "{imported} commands imported, {skipped} duplicates skipped",
+    "noFile": "PSReadLine history file not found"
+  },
+  "toast": {
+    "dismiss": "Dismiss"
   },
   "common": {
     "ok": "OK",

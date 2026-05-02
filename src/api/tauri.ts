@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { HistoryEntry, HistoryQuery, NewHistoryEntry } from '@/types/history';
+import type { NewSnippet, Snippet } from '@/types/snippet';
 import type { SystemInfo } from '@/types/events';
 
 export interface SpawnArgs {
@@ -90,4 +91,19 @@ export const api = {
   themesList: () => invoke<ThemeFile[]>('themes_list'),
   themesSaveUser: (name: string, content: string) =>
     invoke<string>('themes_save_user', { name, content }),
+
+  // Snippets
+  snippetList: () => invoke<Snippet[]>('snippet_list'),
+  snippetUpsert: (snippet: NewSnippet) => invoke<number>('snippet_upsert', { snippet }),
+  snippetDelete: (id: number) => invoke<void>('snippet_delete', { id }),
+  snippetGet: (id: number) => invoke<Snippet | null>('snippet_get', { id }),
+
+  // PSReadLine
+  psreadlineImport: () =>
+    invoke<{
+      imported: number;
+      skipped_duplicates: number;
+      source_lines: number;
+      source_path: string;
+    }>('psreadline_import'),
 };

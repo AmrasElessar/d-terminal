@@ -1,12 +1,31 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "D-Terminal default capability set",
+  "description": "D-Terminal default capability set — pencere, event, shell sidecar, AI provider HTTP",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit-to",
     "core:window:default",
-    "shell:default"
+    "core:window:allow-set-title",
+    "core:window:allow-set-fullscreen",
+    "shell:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "node",
+          "cmd": "node",
+          "args": true
+        },
+        {
+          "name": "pty-bridge",
+          "cmd": "binaries/dterminal-pty-bridge",
+          "args": true
+        }
+      ]
+    }
   ]
 }

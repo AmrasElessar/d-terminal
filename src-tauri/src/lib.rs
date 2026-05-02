@@ -85,6 +85,13 @@ pub fn run() {
             // Themes
             commands::themes::themes_list,
             commands::themes::themes_save_user,
+            // Snippets
+            commands::snippets::snippet_list,
+            commands::snippets::snippet_upsert,
+            commands::snippets::snippet_delete,
+            commands::snippets::snippet_get,
+            // PSReadLine
+            commands::psreadline::psreadline_import,
         ])
         .run(tauri::generate_context!())
         .expect("D-Terminal Tauri runtime failed to start");

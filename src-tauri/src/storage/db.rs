@@ -1,7 +1,10 @@
 // SQLite connection pool + WAL setup.
 
 use crate::error::{AppError, AppResult};
-use crate::storage::{history::HistoryRepo, secrets::SecretsRepo, session::SessionRepo, settings::SettingsRepo};
+use crate::storage::{
+    history::HistoryRepo, secrets::SecretsRepo, session::SessionRepo, settings::SettingsRepo,
+    snippets::SnippetsRepo,
+};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -16,6 +19,7 @@ pub struct Storage {
     pub session: SessionRepo,
     pub settings: SettingsRepo,
     pub secrets: SecretsRepo,
+    pub snippets: SnippetsRepo,
 }
 
 impl Storage {
@@ -51,6 +55,7 @@ impl Storage {
             session: SessionRepo::new(pool_arc.clone()),
             settings: SettingsRepo::new(pool_arc.clone()),
             secrets: SecretsRepo::new(pool_arc.clone()),
+            snippets: SnippetsRepo::new(pool_arc.clone()),
             pool: pool_arc,
         };
         Ok(Arc::new(storage))
