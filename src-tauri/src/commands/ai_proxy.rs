@@ -48,7 +48,7 @@ pub fn ai_key_reveal(state: State<'_, AppState>, provider: String) -> AppResult<
         state.storage.pool().clone(),
     )));
     match store.retrieve("ai_provider", &provider) {
-        Ok(plain) => Ok(Some(String::from_utf8_lossy(&plain).to_string())),
+        Ok(plain) => Ok(Some(String::from_utf8_lossy(&plain).into_owned())),
         Err(AppError::Secret(msg)) if msg.contains("not found") => Ok(None),
         Err(e) => Err(e),
     }
