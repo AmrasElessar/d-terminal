@@ -1,0 +1,253 @@
+{
+  "app": {
+    "title": "D-Terminal",
+    "tagline": "Windows users deserve the matrix too."
+  },
+  "welcome": {
+    "title": "Welcome",
+    "subtitle": "Agent-aware Windows terminal — pre-alpha",
+    "openFirstPane": "Press {shortcut} to open your first pane",
+    "tip": "Tip"
+  },
+  "pane": {
+    "new": "New Pane",
+    "newWithType": "New {type}",
+    "close": "Close Pane",
+    "closeConfirm": "Close this pane? Running process will be terminated.",
+    "splitHorizontal": "Split Horizontal",
+    "splitVertical": "Split Vertical",
+    "focusNext": "Next Pane",
+    "focusPrev": "Previous Pane",
+    "maximize": "Maximize",
+    "duplicate": "Duplicate",
+    "rename": "Rename",
+    "untitled": "Untitled",
+    "type": {
+      "powershell": "PowerShell",
+      "cmd": "Command Prompt",
+      "wsl": "WSL",
+      "aiChat": "AI Chat",
+      "logStream": "Log Stream",
+      "welcome": "Welcome"
+    },
+    "status": {
+      "idle": "Idle",
+      "spawning": "Starting",
+      "running": "Running",
+      "suspended": "Suspended",
+      "exited": "Exited (code {code})",
+      "error": "Error"
+    },
+    "errors": {
+      "spawnFailed": "Failed to start pane",
+      "writeFailed": "Failed to write to pane",
+      "killFailed": "Failed to kill pane",
+      "sidecarDown": "PTY bridge is down: {reason}"
+    },
+    "actions": {
+      "retry": "Retry",
+      "kill": "Kill",
+      "copy": "Copy",
+      "paste": "Paste",
+      "clear": "Clear"
+    }
+  },
+  "ai": {
+    "title": "AI Chat",
+    "send": "Send",
+    "cancel": "Cancel",
+    "thinking": "Thinking…",
+    "newConversation": "New Conversation",
+    "clearHistory": "Clear History",
+    "selectProvider": "Select provider",
+    "selectModel": "Select model",
+    "noProvider": "No AI provider configured yet. Add an API key in settings.",
+    "openSettings": "Open Settings",
+    "placeholder": "Ask a question or give a task…",
+    "messageRole": {
+      "user": "You",
+      "assistant": "Assistant",
+      "system": "System"
+    },
+    "provider": {
+      "anthropic": "Anthropic Claude",
+      "ollama": "Ollama (local)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini"
+    },
+    "errors": {
+      "noKey": "API key not found",
+      "apiFailed": "API call failed: {message}",
+      "rateLimited": "Rate limited, please wait",
+      "networkFailed": "Network error: {message}",
+      "modelMissing": "Model not found: {model}",
+      "ollamaNotRunning": "Cannot reach Ollama local server (default: localhost:11434)"
+    },
+    "redact": {
+      "notice": "{count} lines redacted (secrets detected)",
+      "preview": "Preview text being sent to AI",
+      "confirm": "Send",
+      "cancel": "Cancel"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "general": "General",
+      "appearance": "Appearance",
+      "providers": "AI Providers",
+      "shortcuts": "Shortcuts",
+      "advanced": "Advanced"
+    },
+    "general": {
+      "language": "Language",
+      "languageHint": "Application interface language",
+      "startup": "On Startup",
+      "startupOptions": {
+        "welcome": "Open welcome pane",
+        "lastSession": "Restore last session",
+        "empty": "Empty start"
+      },
+      "telemetry": "Telemetry",
+      "telemetryHint": "D-Terminal collects no telemetry."
+    },
+    "appearance": {
+      "theme": "Theme",
+      "themeHint": "Color palette, font, and background effects",
+      "fontFamily": "Font Family",
+      "fontSize": "Font Size",
+      "ligatures": "Use ligatures",
+      "opacity": "Opacity",
+      "blur": "Background blur",
+      "preview": "Preview"
+    },
+    "providers": {
+      "title": "AI Provider Configuration",
+      "addKey": "Add Key",
+      "removeKey": "Remove Key",
+      "testConnection": "Test Connection",
+      "keyStored": "Key stored in local encrypted vault (Windows DPAPI)",
+      "keyNotSet": "No key set",
+      "endpoint": "Endpoint",
+      "endpointHint": "URL for OpenAI-compatible custom endpoint"
+    },
+    "shortcuts": {
+      "title": "Keyboard Shortcuts",
+      "search": "Search shortcuts",
+      "reset": "Reset to Defaults",
+      "edit": "Edit",
+      "conflict": "This shortcut is already used for {action}"
+    },
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved": "Settings saved",
+    "exportConfig": "Export Settings",
+    "importConfig": "Import Settings"
+  },
+  "history": {
+    "title": "Command History",
+    "search": "Search commands…",
+    "filter": {
+      "all": "All",
+      "thisPane": "This pane",
+      "favorites": "Favorites",
+      "today": "Today",
+      "thisWeek": "This week"
+    },
+    "favorite": "Favorite",
+    "unfavorite": "Remove favorite",
+    "rerun": "Re-run",
+    "copy": "Copy",
+    "delete": "Delete",
+    "empty": "History is empty",
+    "results": "{count} results"
+  },
+  "session": {
+    "save": "Save Session",
+    "load": "Load Session",
+    "list": "Saved Sessions",
+    "name": "Session name",
+    "namePlaceholder": "e.g. work-day",
+    "saved": "Session saved: {name}",
+    "loaded": "Session loaded: {name}",
+    "delete": "Delete Session",
+    "deleteConfirm": "Delete session {name}?",
+    "empty": "No saved sessions yet",
+    "lastUpdated": "Last updated: {date}"
+  },
+  "newPane": {
+    "title": "New Pane",
+    "selectType": "Select pane type",
+    "shellLabel": "Shell",
+    "cwdLabel": "Working directory",
+    "cwdPlaceholder": "default: home folder",
+    "create": "Create",
+    "cancel": "Cancel"
+  },
+  "dfetch": {
+    "title": "System Info",
+    "os": "Operating System",
+    "kernel": "Kernel",
+    "hostname": "Host",
+    "cpu": "CPU",
+    "cores": "{count} cores",
+    "ram": "RAM",
+    "ramFormat": "{used} / {total}",
+    "uptime": "Uptime",
+    "version": "D-Terminal version",
+    "refresh": "Refresh"
+  },
+  "statusBar": {
+    "panes": "{count} panes",
+    "activeProvider": "Active AI: {name}",
+    "noProvider": "No AI",
+    "ready": "Ready",
+    "sidecarDown": "PTY bridge down"
+  },
+  "commandPalette": {
+    "placeholder": "Search commands or panes…",
+    "noResults": "No matches",
+    "categories": {
+      "panes": "Pane",
+      "settings": "Settings",
+      "themes": "Themes",
+      "ai": "AI",
+      "session": "Session"
+    }
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "rename": "Rename",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading…",
+    "search": "Search",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "success": "Success",
+    "retry": "Retry",
+    "copy": "Copy",
+    "paste": "Paste",
+    "clear": "Clear"
+  },
+  "errors": {
+    "generic": "Something went wrong",
+    "io": "File/IO error: {message}",
+    "sqlite": "Database error: {message}",
+    "secret": "Secret store error: {message}",
+    "sidecar": "PTY bridge error: {message}",
+    "paneNotFound": "Pane not found: {id}",
+    "invalidArg": "Invalid argument: {message}",
+    "notImplemented": "Not implemented yet: {message}",
+    "internal": "Internal error: {message}"
+  }
+}

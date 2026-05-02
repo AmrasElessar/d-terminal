@@ -1,0 +1,44 @@
+{
+  "name": "D-Light",
+  "author": "Engin Demirel",
+  "version": "1.0.0",
+  "description": "Açık tema, ofis ortamı — yüksek kontrast WCAG AA",
+  "colors": {
+    "background": "#FAFBFC",
+    "foreground": "#1A1F2E",
+    "accent": "#0066B4",
+    "accent2": "#5B21B6",
+    "cursor": "#0066B4",
+    "selection": "#CCE4F5",
+    "black": "#1A1F2E",
+    "red": "#D02828",
+    "green": "#1E8E3E",
+    "yellow": "#B58A00",
+    "blue": "#0066B4",
+    "magenta": "#7C3AED",
+    "cyan": "#0891B2",
+    "white": "#E2E8F0",
+    "brightBlack": "#4A5568",
+    "brightRed": "#E53E3E",
+    "brightGreen": "#38A169",
+    "brightYellow": "#D69E2E",
+    "brightBlue": "#3182CE",
+    "brightMagenta": "#9F7AEA",
+    "brightCyan": "#0BC5EA",
+    "brightWhite": "#FFFFFF"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 0,
+    "opacity": 1.0,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#0066B4", "#5B21B6"]
+  }
+}

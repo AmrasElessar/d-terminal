@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "D-Terminal",
+  "version": "0.1.0",
+  "identifier": "dev.dbrand.dterminal",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "D-Terminal",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "decorations": true,
+        "transparent": false,
+        "fullscreen": false,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com http://localhost:11434"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "externalBin": ["binaries/dterminal-pty-bridge"],
+    "copyright": "Copyright © 2026 Engin Demirel",
+    "category": "DeveloperTool",
+    "shortDescription": "Agent-aware Windows terminal",
+    "longDescription": "D-Terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler. tmux benzeri çoklu pane deneyimi + evrensel AI entegrasyonu, Windows'a native."
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": [
+        "https://github.com/engin-demirel/d-terminal/releases/latest/download/update.json"
+      ],
+      "dialog": false,
+      "pubkey": ""
+    }
+  }
+}

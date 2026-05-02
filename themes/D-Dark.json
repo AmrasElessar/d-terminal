@@ -1,0 +1,44 @@
+{
+  "name": "D-Dark",
+  "author": "Engin Demirel",
+  "version": "1.0.0",
+  "description": "Koyu, neon cyan aksan — D Brand stili (varsayılan)",
+  "colors": {
+    "background": "#0A0E1A",
+    "foreground": "#E2E8F0",
+    "accent": "#00B4D8",
+    "accent2": "#7C3AED",
+    "cursor": "#00B4D8",
+    "selection": "#1E3A5F",
+    "black": "#1A1F2E",
+    "red": "#FF5F57",
+    "green": "#28C840",
+    "yellow": "#FFBD2E",
+    "blue": "#1E90FF",
+    "magenta": "#B47AEA",
+    "cyan": "#00B4D8",
+    "white": "#E2E8F0",
+    "brightBlack": "#4A5568",
+    "brightRed": "#FF7B7B",
+    "brightGreen": "#52E067",
+    "brightYellow": "#FFD45E",
+    "brightBlue": "#5BA8FF",
+    "brightMagenta": "#C99CFF",
+    "brightCyan": "#5BD9F0",
+    "brightWhite": "#FFFFFF"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 12,
+    "opacity": 0.92,
+    "borderRadius": 8,
+    "glowEffect": true
+  },
+  "paneTitle": {
+    "gradient": ["#00B4D8", "#7C3AED"]
+  }
+}

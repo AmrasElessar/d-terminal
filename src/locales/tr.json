@@ -1,0 +1,253 @@
+{
+  "app": {
+    "title": "D-Terminal",
+    "tagline": "Windows kullanıcıları da matrix'e layık."
+  },
+  "welcome": {
+    "title": "Hoş geldin",
+    "subtitle": "Agent-aware Windows terminali — pre-alpha",
+    "openFirstPane": "İlk pane'i açmak için {shortcut} tuşuna bas",
+    "tip": "İpucu"
+  },
+  "pane": {
+    "new": "Yeni Pane",
+    "newWithType": "Yeni {type}",
+    "close": "Pane'i Kapat",
+    "closeConfirm": "Bu pane kapatılsın mı? Çalışan process sonlandırılacak.",
+    "splitHorizontal": "Yatay Böl",
+    "splitVertical": "Dikey Böl",
+    "focusNext": "Sonraki Pane",
+    "focusPrev": "Önceki Pane",
+    "maximize": "Tam Ekran",
+    "duplicate": "Çoğalt",
+    "rename": "Yeniden Adlandır",
+    "untitled": "Adsız",
+    "type": {
+      "powershell": "PowerShell",
+      "cmd": "Komut İstemi",
+      "wsl": "WSL",
+      "aiChat": "AI Sohbet",
+      "logStream": "Log Akışı",
+      "welcome": "Karşılama"
+    },
+    "status": {
+      "idle": "Boşta",
+      "spawning": "Başlatılıyor",
+      "running": "Çalışıyor",
+      "suspended": "Beklemede",
+      "exited": "Sonlandı (kod {code})",
+      "error": "Hata"
+    },
+    "errors": {
+      "spawnFailed": "Pane başlatılamadı",
+      "writeFailed": "Pane'e yazılamadı",
+      "killFailed": "Pane kapatılamadı",
+      "sidecarDown": "PTY köprüsü düştü: {reason}"
+    },
+    "actions": {
+      "retry": "Yeniden Dene",
+      "kill": "Sonlandır",
+      "copy": "Kopyala",
+      "paste": "Yapıştır",
+      "clear": "Temizle"
+    }
+  },
+  "ai": {
+    "title": "AI Sohbet",
+    "send": "Gönder",
+    "cancel": "İptal",
+    "thinking": "Düşünüyor…",
+    "newConversation": "Yeni Sohbet",
+    "clearHistory": "Geçmişi Temizle",
+    "selectProvider": "Provider seç",
+    "selectModel": "Model seç",
+    "noProvider": "Henüz AI provider yapılandırılmadı. Ayarlardan API key ekle.",
+    "openSettings": "Ayarları Aç",
+    "placeholder": "Bir soru sor veya görev ver…",
+    "messageRole": {
+      "user": "Sen",
+      "assistant": "Asistan",
+      "system": "Sistem"
+    },
+    "provider": {
+      "anthropic": "Anthropic Claude",
+      "ollama": "Ollama (yerel)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini"
+    },
+    "errors": {
+      "noKey": "API key bulunamadı",
+      "apiFailed": "API çağrısı başarısız: {message}",
+      "rateLimited": "Hız limiti aşıldı, biraz bekle",
+      "networkFailed": "Ağ hatası: {message}",
+      "modelMissing": "Model bulunamadı: {model}",
+      "ollamaNotRunning": "Ollama yerel sunucusuna ulaşılamadı (varsayılan: localhost:11434)"
+    },
+    "redact": {
+      "notice": "{count} satır gizlendi (secret tespit edildi)",
+      "preview": "AI'a gönderilecek metni önizle",
+      "confirm": "Gönder",
+      "cancel": "Vazgeç"
+    }
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "tabs": {
+      "general": "Genel",
+      "appearance": "Görünüm",
+      "providers": "AI Sağlayıcılar",
+      "shortcuts": "Kısayollar",
+      "advanced": "Gelişmiş"
+    },
+    "general": {
+      "language": "Dil",
+      "languageHint": "Uygulama arayüz dili",
+      "startup": "Açılışta",
+      "startupOptions": {
+        "welcome": "Karşılama paneli aç",
+        "lastSession": "Son session'ı geri yükle",
+        "empty": "Boş başlat"
+      },
+      "telemetry": "Telemetri",
+      "telemetryHint": "D-Terminal hiçbir telemetri toplamaz."
+    },
+    "appearance": {
+      "theme": "Tema",
+      "themeHint": "Renk paleti, font ve arka plan efektleri",
+      "fontFamily": "Yazı Tipi",
+      "fontSize": "Yazı Boyutu",
+      "ligatures": "Ligature kullan",
+      "opacity": "Opaklık",
+      "blur": "Arka plan bulanıklığı",
+      "preview": "Önizleme"
+    },
+    "providers": {
+      "title": "AI Sağlayıcı Yapılandırması",
+      "addKey": "Anahtar Ekle",
+      "removeKey": "Anahtarı Sil",
+      "testConnection": "Bağlantıyı Test Et",
+      "keyStored": "Anahtar yerel şifreli depoya kaydedildi (Windows DPAPI)",
+      "keyNotSet": "Anahtar yok",
+      "endpoint": "Endpoint",
+      "endpointHint": "OpenAI-uyumlu özel endpoint için URL"
+    },
+    "shortcuts": {
+      "title": "Klavye Kısayolları",
+      "search": "Kısayol ara",
+      "reset": "Varsayılana Sıfırla",
+      "edit": "Düzenle",
+      "conflict": "Bu kısayol zaten {action} için kullanılıyor"
+    },
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "saved": "Ayarlar kaydedildi",
+    "exportConfig": "Ayarları Dışa Aktar",
+    "importConfig": "Ayarları İçe Aktar"
+  },
+  "history": {
+    "title": "Komut Geçmişi",
+    "search": "Komut ara…",
+    "filter": {
+      "all": "Tümü",
+      "thisPane": "Bu pane",
+      "favorites": "Favoriler",
+      "today": "Bugün",
+      "thisWeek": "Bu hafta"
+    },
+    "favorite": "Favori",
+    "unfavorite": "Favoriden kaldır",
+    "rerun": "Yeniden Çalıştır",
+    "copy": "Kopyala",
+    "delete": "Sil",
+    "empty": "Geçmiş boş",
+    "results": "{count} sonuç"
+  },
+  "session": {
+    "save": "Session Kaydet",
+    "load": "Session Yükle",
+    "list": "Kayıtlı Session'lar",
+    "name": "Session adı",
+    "namePlaceholder": "örn. work-day",
+    "saved": "Session kaydedildi: {name}",
+    "loaded": "Session yüklendi: {name}",
+    "delete": "Session Sil",
+    "deleteConfirm": "{name} session'ı silinsin mi?",
+    "empty": "Henüz kayıtlı session yok",
+    "lastUpdated": "Son güncelleme: {date}"
+  },
+  "newPane": {
+    "title": "Yeni Pane",
+    "selectType": "Pane tipini seç",
+    "shellLabel": "Shell",
+    "cwdLabel": "Çalışma dizini",
+    "cwdPlaceholder": "varsayılan: kullanıcı klasörü",
+    "create": "Oluştur",
+    "cancel": "Vazgeç"
+  },
+  "dfetch": {
+    "title": "Sistem Bilgisi",
+    "os": "İşletim Sistemi",
+    "kernel": "Çekirdek",
+    "hostname": "Bilgisayar Adı",
+    "cpu": "İşlemci",
+    "cores": "{count} çekirdek",
+    "ram": "RAM",
+    "ramFormat": "{used} / {total}",
+    "uptime": "Çalışma süresi",
+    "version": "D-Terminal sürümü",
+    "refresh": "Yenile"
+  },
+  "statusBar": {
+    "panes": "{count} pane",
+    "activeProvider": "Aktif AI: {name}",
+    "noProvider": "AI yok",
+    "ready": "Hazır",
+    "sidecarDown": "PTY köprüsü kapalı"
+  },
+  "commandPalette": {
+    "placeholder": "Komut veya pane ara…",
+    "noResults": "Eşleşme yok",
+    "categories": {
+      "panes": "Pane",
+      "settings": "Ayarlar",
+      "themes": "Temalar",
+      "ai": "AI",
+      "session": "Session"
+    }
+  },
+  "common": {
+    "ok": "Tamam",
+    "cancel": "Vazgeç",
+    "save": "Kaydet",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "rename": "Yeniden Adlandır",
+    "yes": "Evet",
+    "no": "Hayır",
+    "loading": "Yükleniyor…",
+    "search": "Ara",
+    "close": "Kapat",
+    "back": "Geri",
+    "next": "İleri",
+    "confirm": "Onayla",
+    "error": "Hata",
+    "warning": "Uyarı",
+    "info": "Bilgi",
+    "success": "Başarılı",
+    "retry": "Yeniden dene",
+    "copy": "Kopyala",
+    "paste": "Yapıştır",
+    "clear": "Temizle"
+  },
+  "errors": {
+    "generic": "Bir şeyler ters gitti",
+    "io": "Dosya/IO hatası: {message}",
+    "sqlite": "Veritabanı hatası: {message}",
+    "secret": "Güvenli depo hatası: {message}",
+    "sidecar": "PTY köprüsü hatası: {message}",
+    "paneNotFound": "Pane bulunamadı: {id}",
+    "invalidArg": "Geçersiz parametre: {message}",
+    "notImplemented": "Henüz implement edilmedi: {message}",
+    "internal": "İç hata: {message}"
+  }
+}

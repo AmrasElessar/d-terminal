@@ -1,0 +1,44 @@
+{
+  "name": "D-Matrix",
+  "author": "Engin Demirel",
+  "version": "1.0.0",
+  "description": "Yeşil karakterler, tam Matrix estetiği",
+  "colors": {
+    "background": "#000000",
+    "foreground": "#00FF41",
+    "accent": "#00FF41",
+    "accent2": "#008F11",
+    "cursor": "#00FF41",
+    "selection": "#003B00",
+    "black": "#000000",
+    "red": "#FF003C",
+    "green": "#00FF41",
+    "yellow": "#A8FF00",
+    "blue": "#00B7FF",
+    "magenta": "#FF00C8",
+    "cyan": "#00FFC8",
+    "white": "#B5FFB5",
+    "brightBlack": "#003B00",
+    "brightRed": "#FF6363",
+    "brightGreen": "#39FF14",
+    "brightYellow": "#DFFF00",
+    "brightBlue": "#5BC0EB",
+    "brightMagenta": "#FF6EC7",
+    "brightCyan": "#7FFFD4",
+    "brightWhite": "#E0FFE0"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": false
+  },
+  "ui": {
+    "blur": 0,
+    "opacity": 1.0,
+    "borderRadius": 0,
+    "glowEffect": true
+  },
+  "paneTitle": {
+    "gradient": ["#00FF41", "#008F11"]
+  }
+}

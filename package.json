@@ -1,0 +1,50 @@
+{
+  "name": "d-terminal",
+  "version": "0.1.0-alpha",
+  "description": "Agent-aware Windows terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler",
+  "private": true,
+  "type": "module",
+  "author": "Engin Demirel",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint src --ext .ts,.vue",
+    "format": "prettier --write \"src/**/*.{ts,vue,json}\"",
+    "sidecar:install": "cd sidecar && npm install"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "pinia": "^2.2.0",
+    "uuid": "^11.0.0",
+    "vue": "^3.5.0",
+    "vue-i18n": "^9.14.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/uuid": "^10.0.0",
+    "@tauri-apps/cli": "^2.0.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/tsconfig": "^0.7.0",
+    "eslint": "^9.16.0",
+    "eslint-plugin-vue": "^9.32.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0",
+    "vue-tsc": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
