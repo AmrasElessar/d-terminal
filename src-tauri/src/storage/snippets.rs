@@ -77,7 +77,10 @@ impl SnippetsRepo {
 
     pub fn delete(&self, id: i64) -> AppResult<()> {
         let conn = self.pool.get()?;
-        conn.execute("DELETE FROM snippets WHERE id = ?1", rusqlite::params![id])?;
+        conn.execute(
+            "DELETE FROM snippets WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
         Ok(())
     }
 

@@ -38,14 +38,14 @@ impl SecretsRepo {
 
     pub fn get_blob(&self, scope: &str, name: &str) -> AppResult<Option<Vec<u8>>> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare(
-            "SELECT ciphertext FROM secrets WHERE scope = ?1 AND name = ?2",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT ciphertext FROM secrets WHERE scope = ?1 AND name = ?2")?;
         let mut rows = stmt.query(rusqlite::params![scope, name])?;
         if let Some(row) = rows.next()? {
             // Erişim izlemesi
             conn.execute(
-                "UPDATE secrets SET last_used_at = CURRENT_TIMESTAMP WHERE scope = ?1 AND name = ?2",
+                "UPDATE secrets SET last_used_at = CURRENT_TIMESTAMP \
+                 WHERE scope = ?1 AND name = ?2",
                 rusqlite::params![scope, name],
             )?;
             Ok(Some(row.get::<_, Vec<u8>>(0)?))

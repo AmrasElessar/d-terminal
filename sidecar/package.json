@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node pty-bridge.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/protocol.test.js tests/i18n-parity.test.js"
   },
   "dependencies": {
     "node-pty": "^1.0.0"

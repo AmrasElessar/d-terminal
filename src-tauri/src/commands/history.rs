@@ -9,7 +9,10 @@ pub fn history_add(state: State<'_, AppState>, entry: NewHistoryEntry) -> AppRes
 }
 
 #[tauri::command]
-pub fn history_search(state: State<'_, AppState>, query: HistoryQuery) -> AppResult<Vec<HistoryEntry>> {
+pub fn history_search(
+    state: State<'_, AppState>,
+    query: HistoryQuery,
+) -> AppResult<Vec<HistoryEntry>> {
     state.storage.history.search(query)
 }
 

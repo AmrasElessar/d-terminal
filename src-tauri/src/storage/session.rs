@@ -61,7 +61,8 @@ impl SessionRepo {
     pub fn list(&self) -> AppResult<Vec<SessionRecord>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT id, name, layout_json, created_at, updated_at FROM sessions ORDER BY updated_at DESC",
+            "SELECT id, name, layout_json, created_at, updated_at \
+             FROM sessions ORDER BY updated_at DESC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(SessionRecord {
@@ -81,7 +82,10 @@ impl SessionRepo {
 
     pub fn delete(&self, name: &str) -> AppResult<()> {
         let conn = self.pool.get()?;
-        conn.execute("DELETE FROM sessions WHERE name = ?1", rusqlite::params![name])?;
+        conn.execute(
+            "DELETE FROM sessions WHERE name = ?1",
+            rusqlite::params![name],
+        )?;
         Ok(())
     }
 }

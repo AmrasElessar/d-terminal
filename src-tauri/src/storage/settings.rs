@@ -36,7 +36,10 @@ impl SettingsRepo {
 
     pub fn delete(&self, key: &str) -> AppResult<()> {
         let conn = self.pool.get()?;
-        conn.execute("DELETE FROM settings WHERE key = ?1", rusqlite::params![key])?;
+        conn.execute(
+            "DELETE FROM settings WHERE key = ?1",
+            rusqlite::params![key],
+        )?;
         Ok(())
     }
 

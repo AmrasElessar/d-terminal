@@ -4,12 +4,19 @@ use crate::storage::session::SessionRecord;
 use tauri::State;
 
 #[tauri::command]
-pub fn session_save(state: State<'_, AppState>, name: String, layout_json: String) -> AppResult<i64> {
+pub fn session_save(
+    state: State<'_, AppState>,
+    name: String,
+    layout_json: String,
+) -> AppResult<i64> {
     state.storage.session.save(&name, &layout_json)
 }
 
 #[tauri::command]
-pub fn session_load(state: State<'_, AppState>, name: String) -> AppResult<Option<SessionRecord>> {
+pub fn session_load(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<Option<SessionRecord>> {
     state.storage.session.load(&name)
 }
 

@@ -62,7 +62,8 @@ impl HistoryRepo {
     pub fn search(&self, q: HistoryQuery) -> AppResult<Vec<HistoryEntry>> {
         let conn = self.pool.get()?;
         let mut sql = String::from(
-            "SELECT id, command, pane_id, pane_type, exit_code, duration_ms, executed_at, is_favorite
+            "SELECT id, command, pane_id, pane_type, exit_code, \
+             duration_ms, executed_at, is_favorite \
              FROM command_history WHERE 1=1",
         );
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -81,7 +82,8 @@ impl HistoryRepo {
         params.push(Box::new(q.limit.unwrap_or(100)));
 
         let mut stmt = conn.prepare(&sql)?;
-        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| &**b as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|b| &**b as &dyn rusqlite::ToSql).collect();
         let rows = stmt.query_map(param_refs.as_slice(), |r| {
             Ok(HistoryEntry {
                 id: r.get(0)?,
@@ -112,7 +114,10 @@ impl HistoryRepo {
 
     pub fn delete(&self, id: i64) -> AppResult<()> {
         let conn = self.pool.get()?;
-        conn.execute("DELETE FROM command_history WHERE id = ?1", rusqlite::params![id])?;
+        conn.execute(
+            "DELETE FROM command_history WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
         Ok(())
     }
 }
