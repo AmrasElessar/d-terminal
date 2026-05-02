@@ -7,11 +7,10 @@ use crate::error::{AppError, AppResult};
 use crate::secrets::SecretStore;
 use crate::storage::secrets::{SecretRow, SecretsRepo};
 use std::sync::Arc;
-use windows::Win32::Foundation::LocalFree;
+use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPT_INTEGER_BLOB,
 };
-use windows::Win32::System::Memory::HLOCAL;
 use zeroize::Zeroizing;
 
 pub struct DpapiStore {
