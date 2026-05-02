@@ -8,9 +8,9 @@
 #[cfg(target_os = "windows")]
 pub mod dpapi;
 
-use crate::error::AppResult;
 #[cfg(not(target_os = "windows"))]
 use crate::error::AppError;
+use crate::error::AppResult;
 use crate::storage::secrets::{SecretRow, SecretsRepo};
 use std::sync::Arc;
 use zeroize::Zeroizing;
