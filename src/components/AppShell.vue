@@ -10,6 +10,7 @@ import { useTriggersStore } from '@/stores/triggers';
 import { useProfilesStore } from '@/stores/profiles';
 import { keybindings } from '@/keybindings/registry';
 import { fallbackChain } from '@/fonts';
+import { api } from '@/api/tauri';
 import { createLogger } from '@/utils/logger';
 import { useModals } from '@/composables/useModals';
 import PaneLayout from '@/components/layout/PaneLayout.vue';
@@ -162,6 +163,10 @@ onMounted(async () => {
 
   applyFontVars();
   applyChromeVars();
+  // İlk açılışta kullanıcının seçtiği vibrancy'i uygula (lib.rs'in default'unu override)
+  api.windowSetVibrancy(settings.state.windowVibrancy).catch((e) => {
+    log.warn('window vibrancy apply failed', { error: String(e) });
+  });
   log.info('shell ready', { panes: panes.paneCount, theme: themeStore.activeName });
 });
 
@@ -174,6 +179,14 @@ watch(
 watch(
   () => [settings.state.opacity, settings.state.blur] as const,
   applyChromeVars,
+);
+watch(
+  () => settings.state.windowVibrancy,
+  (mode) => {
+    api.windowSetVibrancy(mode).catch((e) => {
+      log.warn('window vibrancy switch failed', { error: String(e), mode });
+    });
+  },
 );
 </script>
 

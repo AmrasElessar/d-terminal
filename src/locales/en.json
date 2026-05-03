@@ -149,7 +149,13 @@
       "preview": "Preview",
       "renderer": "Renderer",
       "rendererHint": "GPU acceleration — fall back to Canvas/DOM on compat issues",
-      "unicode11": "Unicode 11 (emoji + CJK widths)"
+      "unicode11": "Unicode 11 (emoji + CJK widths)",
+      "vibrancy": "Window vibrancy",
+      "vibrancyAuto": "Auto (Mica if available, else flat)",
+      "vibrancyMica": "Mica (Win11 22H2+)",
+      "vibrancyAcrylic": "Acrylic (blur — may lag on resize)",
+      "vibrancyNone": "None (flat, fastest)",
+      "vibrancyHint": "Acrylic applies a GPU-heavy blur, may reduce FPS on window resize"
     },
     "providers": {
       "title": "AI Provider Configuration",

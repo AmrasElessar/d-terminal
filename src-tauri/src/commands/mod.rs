@@ -12,6 +12,7 @@ pub mod session;
 pub mod settings;
 pub mod snippets;
 pub mod themes;
+pub mod window;
 
 #[tauri::command]
 pub fn ping() -> &'static str {

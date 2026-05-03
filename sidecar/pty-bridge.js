@@ -226,15 +226,28 @@ function runMain() {
   const manager = new PtyManager({ writeFrame, log });
   const decoder = new FrameDecoder();
 
-  // Heartbeat: 5s interval, peer 15s içinde PONG göndermezse Tauri tarafı
-  // sidecar'ı dead sayar ve kill atar.
+  // Heartbeat (iki yönlü):
+  //  - Tauri 5s'de bir PING gönderir, sidecar PONG döner (dispatch'te).
+  //  - Sidecar 5s'de bir PING gönderir, Tauri PONG döner (manager.rs).
+  //  - Sidecar son Tauri PING/PONG'unu izler. 15s sessizlikte Tauri ölmüş
+  //    say ve exit et — yoksa zombi PTY'ler arkada çalışmaya devam eder.
+  let lastTauriContact = Date.now();
+  const HEARTBEAT_MS = 5000;
+  const PEER_TIMEOUT_MS = 15000;
+
   const heartbeat = setInterval(() => {
     try {
       writeFrame(MsgType.PING, 0n, Buffer.alloc(0));
     } catch (e) {
       log(`heartbeat write failed: ${e.message}`);
+      // stdout kapalıysa Tauri zaten yok — shutdown
+      shutdown('stdout write failed');
+      return;
     }
-  }, 5000);
+    if (Date.now() - lastTauriContact > PEER_TIMEOUT_MS) {
+      shutdown('peer (Tauri) heartbeat timeout');
+    }
+  }, HEARTBEAT_MS);
 
   const shutdown = (reason) => {
     clearInterval(heartbeat);
@@ -246,8 +259,15 @@ function runMain() {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.stdin.on('end', () => shutdown('stdin closed'));
+  // Pipe karşı tarafı yazılırken kapanırsa Node stdout'a yazma denemeleri
+  // EPIPE atar — yakalanmazsa default davranış crash. Açıkça yakala + shutdown.
+  process.stdout.on('error', (e) => {
+    if (e && e.code === 'EPIPE') shutdown('stdout EPIPE');
+  });
 
   process.stdin.on('data', (chunk) => {
+    // Herhangi bir veri Tauri'nin yaşadığını gösterir
+    lastTauriContact = Date.now();
     try {
       for (const frame of decoder.feed(chunk)) {
         dispatch(frame, manager, writeFrame, log);

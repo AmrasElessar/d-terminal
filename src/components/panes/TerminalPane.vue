@@ -25,6 +25,7 @@ import { createBlockTracker, registerBlockTracker, unregisterBlockTracker } from
 import { createSmartLinkProvider } from '@/composables/useSmartLinks';
 import { useTriggersStore } from '@/stores/triggers';
 import { useModals } from '@/composables/useModals';
+import { builtinShellInitArgs } from '@/shellInit';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { useI18n } from 'vue-i18n';
 
@@ -98,42 +99,13 @@ const searchOptions = computed<ISearchOptions>(() => ({
 const blockTracker = createBlockTracker();
 registerBlockTracker(props.leaf.id, blockTracker);
 
-// PowerShell init: renkli ANSI prompt + OSC 0 window title + OSC 133 shell integration.
-// OSC 133 marker'ları block-based UI için: A=prompt start, B=cmd input, D;<exit>=cmd end.
-// CMD init: PROMPT env var ile ANSI escape.
-// WSL: bash kullanıcının PS1'ini kullanır; OSC 133 modern bash/zsh integration script gerek.
-const PS_INIT = `
-function global:prompt {
-  $exit = $LASTEXITCODE
-  if ($null -eq $exit) { $exit = 0 }
-  $loc = (Get-Location).Path
-  $time = (Get-Date).ToString('HH:mm:ss')
-  $end = "$([char]27)]133;D;$exit$([char]7)"
-  $cwd = "$([char]27)]133;P;cwd=$loc$([char]7)"
-  $start = "$([char]27)]133;A$([char]7)"
-  $head = "$([char]27)]0;PS $loc$([char]7)"
-  $body = "$([char]27)[38;5;243m$time$([char]27)[0m $([char]27)[36m❯$([char]27)[0m $([char]27)[33m$loc$([char]27)[0m $([char]27)[35m›$([char]27)[0m "
-  $cmd_start = "$([char]27)]133;B$([char]7)"
-  return "$end$cwd$start$head$body$cmd_start"
-}
-Clear-Host
-Write-Host "$([char]27)[36m┌─ D-Terminal session ready$([char]27)[0m  $([char]27)[38;5;243m($([char]27)[35mpwsh$([char]27)[38;5;243m, ConPTY, OSC 133)$([char]27)[0m"
-Write-Host "$([char]27)[38;5;243m└─ ❯ type a command, $([char]27)[36mGet-Help$([char]27)[38;5;243m for built-ins$([char]27)[0m"
-Write-Host ""
-`.trim();
-
-const CMD_INIT = '@prompt $E[38;5;243m$T$E[0m $E[36m^>$E[0m $E[33m$P$E[35m^>$E[0m $S';
-
-// Pane tipine göre shell-init eklentisi (profilin args'ına injecte edilir).
-// Built-in PowerShell profili PS_INIT'i, CMD profili CMD_INIT'i gerektirir;
-// kullanıcı SSH veya farklı shell tanımlıyorsa init script'i atlanır.
+// Shell init script'leri src/shellInit/ altında ayrı dosyalara taşındı:
+//   powershell.ps1 → renkli prompt + OSC 0 title + OSC 133 shell integration
+//   cmd-prompt.txt → ANSI prompt setter
+// Kullanıcı tanımlı profiller (SSH, Docker vb.) için init script'i çalışmaz —
+// sadece built-in profiller için inject edilir (shellInitArgsFor altta).
 function shellInitArgsFor(paneType: PaneType, isBuiltin: boolean): string[] {
-  if (!isBuiltin) return [];
-  switch (paneType) {
-    case 'powershell': return ['-Command', PS_INIT];
-    case 'cmd':        return [CMD_INIT];
-    default:           return [];
-  }
+  return isBuiltin ? builtinShellInitArgs(paneType) : [];
 }
 
 async function spawn() {
@@ -461,12 +433,23 @@ onBeforeUnmount(() => {
   term?.dispose();
 });
 
-// Tema değişiminde xterm tema güncelle
+/** xterm cell metric'i font/tema/renderer değişiminde anında stabilize olmaz —
+ *  WebGL addon özellikle DOM layout'a bağlı. nextTick + microtask yield, yeni
+ *  metric hesaplandıktan sonra fit() çağrısının doğru cols/rows hesaplamasını
+ *  garantiler. setTimeout(0) bazı sürümlerde extra güvence. */
+async function refit() {
+  await nextTick();
+  setTimeout(() => handleResize(), 0);
+}
+
+// Tema değişiminde xterm tema güncelle (cell metric'i tema değiştirmez ama
+// font fallback chain bir yerde değişirse fit lazım — refit güvenli)
 watch(
   () => themeStore.active,
   (next) => {
     if (term && next) {
       term.options.theme = xtermThemeOf(next);
+      refit();
     }
   },
 );
@@ -477,13 +460,16 @@ watch(
     if (term) {
       term.options.fontFamily = buildFontFamily(family);
       term.options.fontSize = size;
-      handleResize();
+      refit();
     }
   },
 );
 
-// Renderer dinamik değişim
-watch(() => settings.state.renderer, (next) => applyRenderer(next));
+// Renderer değişiminde re-mount + refit
+watch(() => settings.state.renderer, async (next) => {
+  applyRenderer(next);
+  await refit();
+});
 
 // Unicode 11 dinamik (yalnızca aktifleştirme — devre dışı bırakmak için reload gerek)
 watch(() => settings.state.unicode11, (on) => {

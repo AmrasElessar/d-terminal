@@ -110,4 +110,8 @@ export const api = {
   // Logger (Rust file appender path bilgisi)
   logPaths: () =>
     invoke<{ directory: string; current_file: string }>('log_paths'),
+
+  // Window vibrancy runtime apply (Mica/Acrylic/none)
+  windowSetVibrancy: (mode: 'auto' | 'mica' | 'acrylic' | 'none') =>
+    invoke<void>('window_set_vibrancy', { mode }),
 };

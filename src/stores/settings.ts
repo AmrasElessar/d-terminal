@@ -22,6 +22,12 @@ export interface SettingsState {
   unicode11: boolean;
   /** Boş prompt'ta `#` tuşuna basıldığında AI komut üretici açılsın mı (Warp paritesi). */
   aiPrefixHash: boolean;
+  /** Pencere arka plan malzemesi.
+   *  - auto: Win11 22H2+ ise Mica, yoksa hiçbiri (Acrylic resize'da FPS düşürür).
+   *  - mica: zorla Mica (Win11 22H2+ gerekir).
+   *  - acrylic: blur efekti, resize'da yavaşlayabilir.
+   *  - none: opak — en hızlı, modern arayüz görünümü kapanır. */
+  windowVibrancy: 'auto' | 'mica' | 'acrylic' | 'none';
 }
 
 const DEFAULTS: SettingsState = {
@@ -36,6 +42,7 @@ const DEFAULTS: SettingsState = {
   renderer: 'auto',
   unicode11: true,
   aiPrefixHash: true,
+  windowVibrancy: 'auto',
 };
 
 const KEY_PREFIX = 'ui.';

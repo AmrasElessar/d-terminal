@@ -255,6 +255,16 @@ void props.open;
           <input v-model="settings.state.unicode11" type="checkbox" />
           <span>{{ t('settings.appearance.unicode11') }}</span>
         </label>
+        <label class="field">
+          <span>{{ t('settings.appearance.vibrancy') }}</span>
+          <select v-model="settings.state.windowVibrancy">
+            <option value="auto">{{ t('settings.appearance.vibrancyAuto') }}</option>
+            <option value="mica">{{ t('settings.appearance.vibrancyMica') }}</option>
+            <option value="acrylic">{{ t('settings.appearance.vibrancyAcrylic') }}</option>
+            <option value="none">{{ t('settings.appearance.vibrancyNone') }}</option>
+          </select>
+          <small>{{ t('settings.appearance.vibrancyHint') }}</small>
+        </label>
       </section>
 
       <section v-if="tab === 'providers'" class="section">

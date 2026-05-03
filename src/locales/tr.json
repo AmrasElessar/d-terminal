@@ -149,7 +149,13 @@
       "preview": "Önizleme",
       "renderer": "Render motoru",
       "rendererHint": "GPU hızlandırma — uyumluluk sorunu olursa Canvas/DOM'a geç",
-      "unicode11": "Unicode 11 (emoji + CJK genişliği)"
+      "unicode11": "Unicode 11 (emoji + CJK genişliği)",
+      "vibrancy": "Pencere efekti",
+      "vibrancyAuto": "Otomatik (Mica varsa, yoksa düz)",
+      "vibrancyMica": "Mica (Win11 22H2+)",
+      "vibrancyAcrylic": "Acrylic (blur — resize'da yavaşlayabilir)",
+      "vibrancyNone": "Yok (düz, en hızlı)",
+      "vibrancyHint": "Acrylic GPU yoğun blur uygular, pencere boyutlandırmada FPS düşürebilir"
     },
     "providers": {
       "title": "AI Sağlayıcı Yapılandırması",

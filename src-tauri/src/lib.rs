@@ -74,28 +74,29 @@ pub fn run() {
             app.manage(AppState::new(storage, sidecar));
             app.manage(logger::LogPaths::new(log_dir.clone()));
 
-            // Win11 22H2+ → Mica, öncesi → Acrylic. Hata sebebini log'la.
+            // Vibrancy stratejisi:
+            //  - Mica (Win11 22H2+) modern, GPU-friendly, resize'da pürüzsüz.
+            //  - Acrylic blur ağır → resize'da WebView2 ile FPS düşürür.
+            //  - Varsayılan davranış: Mica dene; başarısızsa transparent ama vibrancy
+            //    yok (opak üst katman). Kullanıcı isterse Settings'ten Acrylic'e geçer.
+            //
+            // Frontend ileride seçilen vibrancy'i Tauri command ile değiştirebilir;
+            // burada sadece initial setup. Settings UI buna göre uyarı gösterir.
             #[cfg(target_os = "windows")]
             {
-                use window_vibrancy::{apply_acrylic, apply_mica};
+                use window_vibrancy::apply_mica;
                 if let Some(window) = app.get_webview_window("main") {
-                    // WebView2'nin kendi opak bg'sini transparent yap — yoksa
-                    // mica/acrylic alt katmanda olmasına rağmen üstte WebView2
-                    // beyaz/koyu render eder, hiç şeffaflık görünmez.
-                    if let Err(e) = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0))) {
+                    if let Err(e) =
+                        window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)))
+                    {
                         tracing::warn!("set_background_color(transparent) failed: {e}");
                     }
                     match apply_mica(&window, Some(true)) {
                         Ok(_) => tracing::info!("vibrancy: Mica applied"),
-                        Err(mica_err) => {
-                            tracing::warn!("vibrancy: Mica failed: {mica_err}; trying Acrylic");
-                            match apply_acrylic(&window, Some((10, 14, 26, 180))) {
-                                Ok(_) => tracing::info!("vibrancy: Acrylic applied"),
-                                Err(acr_err) => tracing::error!(
-                                    "vibrancy: Acrylic also failed: {acr_err}; window will be opaque"
-                                ),
-                            }
-                        }
+                        Err(e) => tracing::info!(
+                            "vibrancy: Mica unavailable ({e}); window stays transparent — \
+                             user can switch to Acrylic from Settings (resize perf trade-off)"
+                        ),
                     }
                 } else {
                     tracing::error!("vibrancy: main window not found");
@@ -162,6 +163,8 @@ pub fn run() {
             // Logger
             commands::logger::log_event,
             commands::logger::log_paths,
+            // Window
+            commands::window::window_set_vibrancy,
         ])
         .run(tauri::generate_context!())
         .expect("D-Terminal Tauri runtime failed to start");

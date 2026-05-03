@@ -1,0 +1,1 @@
+@prompt $E[38;5;243m$T$E[0m $E[36m^>$E[0m $E[33m$P$E[35m^>$E[0m $S
