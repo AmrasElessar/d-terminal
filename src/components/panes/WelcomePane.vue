@@ -280,6 +280,34 @@ const isTypingHint = computed(() => {
 // Color blocks — neofetch standart: 2 satır × 8 sütun
 const COLOR_ROW_TOP    = [0, 1, 2, 3, 4, 5, 6, 7];
 const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
+
+// Klasik fastfetch/neofetch Windows logosu — wavy 4-pane.
+// Her satır left (sol yarı) + right (sağ yarı) olarak ayrı renklendirilir.
+// Üst 7 satır: sol kırmızı / sağ yeşil. Alt 9 satır: sol mavi / sağ sarı.
+// Sınır kolonu = ~22 (sol yarının doğal kesimi).
+const WIN_LOGO_RAW = [
+  '        ,.=:!!t3Z3z.,',
+  '       :tt:::tt333EE3',
+  '       Et:::ztt33EEEL @Ee.,      ..,',
+  '      ;tt:::tt333EE7 ;EEEEEEttttt33#',
+  '     :Et:::zt333EEQ. $EEEEEttttt33QL',
+  '     it::::tt333EEF @EEEEEEttttt33F',
+  '    ;3=*^```\'*4EEV :EEEEEEttttt33@.',
+  '    ,.=::::!t=., ` @EEEEEEtttz33QF',
+  '   ;::::::::zt33)   \'4EEEtttji3P*',
+  '  :t::::::::tt33.:Z3z..  `` ,..g.',
+  '  i::::::::zt33F AEEEtttt::::ztF',
+  ' ;:::::::::t33V ;EEEttttt::::t3',
+  ' E::::::::zt33L @EEEtttt::::z3F',
+  '{3=*^```\'*4E3) ;EEEtttt:::::tZ`',
+  '             ` :EEEEtttt::::z7',
+  '                 \'VEzjt:;;z>*`',
+];
+const WIN_LOGO_SPLIT = 22;
+const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
+  left: line.slice(0, WIN_LOGO_SPLIT),
+  right: line.slice(WIN_LOGO_SPLIT),
+}));
 </script>
 
 <template>
@@ -287,20 +315,10 @@ const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
     <div class="welcome__grid">
       <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
 
-      <!-- Windows OS logo — neofetch tarzı, Microsoft brand colors.
-           Stilize 4-pane (flat era) — birebir Microsoft logo değil,
-           open-source fetch araç (neofetch/fastfetch) konvansiyonu.
-           Statik (typewriter yok) — info ile aynı anda fade-in. -->
-      <div v-if="info && showColors" class="os-logo" aria-hidden="true">
-        <div class="os-logo__row">
-          <pre class="os-cell win-red">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
-          <pre class="os-cell win-green">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
-        </div>
-        <div class="os-logo__row">
-          <pre class="os-cell win-blue">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
-          <pre class="os-cell win-yellow">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
-        </div>
-      </div>
+      <!-- Windows OS logo — fastfetch/neofetch klasik wavy versiyon.
+           Microsoft brand colors (4 quadrant). Stilize representation,
+           open-source fetch araçlarında 10+ yıldır kullanılan format. -->
+      <pre v-if="info && showColors" class="os-logo" aria-hidden="true"><template v-for="(line, i) in WIN_LOGO_LINES" :key="i"><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span>{{ '\n' }}</template></pre>
 
       <div v-if="info" class="welcome__info">
         <div v-for="row in visibleRows" :key="row.id" class="row">
@@ -358,24 +376,17 @@ const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
   align-items: flex-start;
 }
 
-/* Windows OS logo — 2x2 flat-era, Microsoft brand renkleri */
+/* Windows OS logo — fastfetch klasik wavy, Microsoft brand renkleri.
+   Tek <pre> içinde span'larla 4 quadrant renklendirilir. */
 .os-logo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  animation: os-fade 0.6s ease-out;
-}
-.os-logo__row {
-  display: flex;
-  gap: 4px;
-}
-.os-cell {
   margin: 0;
   font-family: var(--font-family);
   font-size: 9px;
   line-height: 1;
-  letter-spacing: -1px;
+  letter-spacing: 0;
   white-space: pre;
+  animation: os-fade 0.6s ease-out;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
 }
 .win-red    { color: #F25022; }
 .win-green  { color: #7FBA00; }
