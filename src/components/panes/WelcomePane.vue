@@ -287,6 +287,21 @@ const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
     <div class="welcome__grid">
       <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
 
+      <!-- Windows OS logo — neofetch tarzı, Microsoft brand colors.
+           Stilize 4-pane (flat era) — birebir Microsoft logo değil,
+           open-source fetch araç (neofetch/fastfetch) konvansiyonu.
+           Statik (typewriter yok) — info ile aynı anda fade-in. -->
+      <div v-if="info && showColors" class="os-logo" aria-hidden="true">
+        <div class="os-logo__row">
+          <pre class="os-cell win-red">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
+          <pre class="os-cell win-green">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
+        </div>
+        <div class="os-logo__row">
+          <pre class="os-cell win-blue">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
+          <pre class="os-cell win-yellow">█████████&#10;█████████&#10;█████████&#10;█████████</pre>
+        </div>
+      </div>
+
       <div v-if="info" class="welcome__info">
         <div v-for="row in visibleRows" :key="row.id" class="row">
           <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
@@ -338,9 +353,37 @@ const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
 }
 .welcome__grid {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto auto 1fr;
   gap: 24px;
   align-items: flex-start;
+}
+
+/* Windows OS logo — 2x2 flat-era, Microsoft brand renkleri */
+.os-logo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: os-fade 0.6s ease-out;
+}
+.os-logo__row {
+  display: flex;
+  gap: 4px;
+}
+.os-cell {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: -1px;
+  white-space: pre;
+}
+.win-red    { color: #F25022; }
+.win-green  { color: #7FBA00; }
+.win-blue   { color: #00A4EF; }
+.win-yellow { color: #FFB900; }
+@keyframes os-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .welcome__logo {
   margin: 0;
