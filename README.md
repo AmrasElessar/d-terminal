@@ -71,6 +71,7 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 
 - **D-Player** — Android için kişisel müzik çalar, DSP motoru *(geliştirme aşamasında)*
 - **DCar Launcher** — Android Head Unit araç içi OS katmanı *(geliştirme aşamasında)*
+- **D-Watchtower** — gözetim ve izleme platformu *(geliştirme aşamasında)*
 - **D-Terminal** — Windows agent-aware terminal *(bu proje, pre-alpha)*
 
 ## Lisans
