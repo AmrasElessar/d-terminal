@@ -66,7 +66,8 @@ async function generate() {
     });
     generated.value = result;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const { formatError } = await import('@/utils/error');
+    const msg = formatError(e);
     errorMsg.value = msg === 'no-provider'
       ? t('ai.noProvider')
       : t('ai.suggest.failed', { message: msg });

@@ -26,6 +26,7 @@ import { createSmartLinkProvider } from '@/composables/useSmartLinks';
 import { useTriggersStore } from '@/stores/triggers';
 import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
+import { formatError } from '@/utils/error';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { useI18n } from 'vue-i18n';
 
@@ -219,8 +220,7 @@ async function spawn() {
     panes.setLeafState(props.leaf.id, { ptyId, status: 'running' });
     await listenStdout(ptyId);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    panes.setLeafState(props.leaf.id, { status: 'error', errorMessage: msg });
+    panes.setLeafState(props.leaf.id, { status: 'error', errorMessage: formatError(e) });
   }
 }
 

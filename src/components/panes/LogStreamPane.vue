@@ -6,6 +6,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import type { LeafNode } from '@/types/pane';
 import { api } from '@/api/tauri';
 import { useToastsStore } from '@/stores/toasts';
+import { formatError } from '@/utils/error';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const { t } = useI18n();
@@ -63,8 +64,7 @@ async function startWatch() {
     watching.value = true;
     toasts.success(t('logStream.started'));
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    toasts.error(t('logStream.failed', { message: msg }));
+    toasts.error(t('logStream.failed', { message: formatError(e) }));
   }
 }
 

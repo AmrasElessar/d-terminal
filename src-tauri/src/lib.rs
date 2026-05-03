@@ -60,7 +60,7 @@ pub fn run() {
             let db_path = data_dir.join("dterminal.db");
             let storage = Storage::open(db_path).expect("storage open");
 
-            let sidecar_path = resolve_sidecar_path();
+            let sidecar_path = resolve_sidecar_path(app.handle());
             let sidecar = SidecarManager::new(sidecar_path);
 
             // Sidecar event'lerini Tauri event olarak emit et.
@@ -190,21 +190,30 @@ fn forward_event(app: &tauri::AppHandle, event: &PtyEvent) {
     }
 }
 
-fn resolve_sidecar_path() -> PathBuf {
-    // Geliştirmede repo'daki sidecar/pty-bridge.js'i kullan
+fn resolve_sidecar_path(app: &tauri::AppHandle) -> PathBuf {
+    // Dev: repo'daki sidecar/pty-bridge.js'i kullan
     if let Ok(cwd) = std::env::current_dir() {
-        let dev_path = cwd.join("..").join("sidecar").join("pty-bridge.js");
-        if dev_path.exists() {
-            return dev_path;
-        }
-        let dev_path2 = cwd.join("sidecar").join("pty-bridge.js");
-        if dev_path2.exists() {
-            return dev_path2;
+        for candidate in [
+            cwd.join("..").join("sidecar").join("pty-bridge.js"),
+            cwd.join("sidecar").join("pty-bridge.js"),
+        ] {
+            if candidate.exists() {
+                return candidate;
+            }
         }
     }
-    // Prod: bundled binary
+    // Prod: Tauri resource_dir altında sidecar/pty-bridge.js
+    // (tauri.conf.json bundle.resources üzerinden eklenir; node_modules de
+    // yanında — sidecar/node_modules/node-pty/... bulunur).
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let prod = resource_dir.join("sidecar").join("pty-bridge.js");
+        if prod.exists() {
+            return prod;
+        }
+    }
+    // Son çare — exe yanı (genelde bulunmaz, error path'e düşer)
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join("dterminal-pty-bridge.exe")))
-        .unwrap_or_else(|| PathBuf::from("dterminal-pty-bridge"))
+        .and_then(|p| p.parent().map(|d| d.join("pty-bridge.js")))
+        .unwrap_or_else(|| PathBuf::from("pty-bridge.js"))
 }

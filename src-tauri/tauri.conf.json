@@ -37,11 +37,24 @@
       "icons/128x128.png",
       "icons/icon.ico"
     ],
-    "resources": ["../themes/*.json"],
+    "resources": [
+      "../themes/*.json",
+      "../sidecar/pty-bridge.js",
+      "../sidecar/node_modules/**/*"
+    ],
     "copyright": "Copyright © 2026 Orhan Engin OKAY",
     "category": "DeveloperTool",
     "shortDescription": "Agent-aware Windows terminal",
-    "longDescription": "D-Terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler. tmux benzeri çoklu pane deneyimi + evrensel AI entegrasyonu, Windows'a native."
+    "longDescription": "D-Terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler. Çoklu pane deneyimi + evrensel AI entegrasyonu, Windows'a native.",
+    "windows": {
+      "wix": {
+        "language": ["en-US", "tr-TR"]
+      },
+      "nsis": {
+        "languages": ["English", "Turkish"],
+        "displayLanguageSelector": true
+      }
+    }
   },
   "plugins": {
     "updater": {

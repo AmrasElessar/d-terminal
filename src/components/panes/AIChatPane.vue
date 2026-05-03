@@ -67,7 +67,8 @@ async function send() {
       // kullanıcı iptal etti — sonuncu mesajı kaldır
       messages.value.pop();
     } else {
-      const msg = e instanceof Error ? e.message : String(e);
+      const { formatError } = await import('@/utils/error');
+      const msg = formatError(e);
       error.value = t('ai.errors.apiFailed', { message: msg });
       messages.value.pop();
     }
