@@ -19,12 +19,12 @@ const visibleRowCount = ref(0); // info satırları line-by-line reveal
 let cursorTimer: number | undefined;
 let typeTimers: number[] = [];
 
-const LOGO = `       ████████╗
-       ╚══██╔══╝
-██████╗   ██║
-╚═════╝   ██║
-██████╗   ██║
-╚═════╝   ╚═╝`;
+const LOGO = `██████╗      ████████╗
+██╔══██╗     ╚══██╔══╝
+██║  ██║━━━     ██║
+██║  ██║        ██║
+██████╔╝        ██║
+╚═════╝         ╚═╝`;
 
 const LOGO_LINES = LOGO.split('\n');
 
