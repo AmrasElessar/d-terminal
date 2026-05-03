@@ -262,13 +262,22 @@ function attachInput() {
   }
 }
 
+/** Resize coalescing — split/window resize burst'lerinde fit() defalarca
+ *  tetiklenir, WebGL renderer'da siyah flicker'a sebep olur. rAF ile bir
+ *  frame içindeki tüm resize istekleri tek fit çağrısında toplanır. */
+let resizeRafId = 0;
 function handleResize() {
   if (!fit) return;
-  try {
-    fit.fit();
-  } catch {
-    /* container görünür değilse atla */
-  }
+  if (resizeRafId) return;
+  resizeRafId = requestAnimationFrame(() => {
+    resizeRafId = 0;
+    if (!fit) return;
+    try {
+      fit.fit();
+    } catch {
+      /* container görünür değilse atla */
+    }
+  });
 }
 
 // Xterm font yokluğunda yanlış cell-width metric'ine düşmesin diye

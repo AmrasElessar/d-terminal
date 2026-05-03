@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePanesStore } from '@/stores/panes';
 import { useSettingsStore } from '@/stores/settings';
@@ -15,17 +15,21 @@ import { createLogger } from '@/utils/logger';
 import { useModals } from '@/composables/useModals';
 import PaneLayout from '@/components/layout/PaneLayout.vue';
 import StatusBar from '@/components/ui/StatusBar.vue';
-import NewPaneDialog from '@/components/ui/NewPaneDialog.vue';
-import SettingsModal from '@/components/ui/SettingsModal.vue';
-import HistoryModal from '@/components/ui/HistoryModal.vue';
-import SessionModal from '@/components/ui/SessionModal.vue';
-import SnippetModal from '@/components/ui/SnippetModal.vue';
-import CommandPalette from '@/components/ui/CommandPalette.vue';
 import ContextMenu from '@/components/ui/ContextMenu.vue';
 import TabBar from '@/components/ui/TabBar.vue';
-import AboutModal from '@/components/ui/AboutModal.vue';
-import AISuggestModal from '@/components/ui/AISuggestModal.vue';
 import ToastContainer from '@/components/ui/ToastContainer.vue';
+
+// Modallar lazy load — v-if ile mount/destroy + dynamic import ile prod
+// build'de ayrı chunk'a düşer. İlk açılışta sadece shell + layout yüklenir,
+// modallar talep edildiğinde async fetch.
+const NewPaneDialog   = defineAsyncComponent(() => import('@/components/ui/NewPaneDialog.vue'));
+const SettingsModal   = defineAsyncComponent(() => import('@/components/ui/SettingsModal.vue'));
+const HistoryModal    = defineAsyncComponent(() => import('@/components/ui/HistoryModal.vue'));
+const SessionModal    = defineAsyncComponent(() => import('@/components/ui/SessionModal.vue'));
+const SnippetModal    = defineAsyncComponent(() => import('@/components/ui/SnippetModal.vue'));
+const CommandPalette  = defineAsyncComponent(() => import('@/components/ui/CommandPalette.vue'));
+const AboutModal      = defineAsyncComponent(() => import('@/components/ui/AboutModal.vue'));
+const AISuggestModal  = defineAsyncComponent(() => import('@/components/ui/AISuggestModal.vue'));
 import type { PaneType } from '@/types/pane';
 
 const { t, locale } = useI18n();
