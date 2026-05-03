@@ -164,7 +164,13 @@ impl SidecarManager {
             inner.panes.insert(id);
             id
         };
+        let shell_for_log = payload.shell.clone();
         let cbor = encode_cbor(&payload)?;
+        tracing::info!(
+            pane_id,
+            shell = %shell_for_log,
+            "→ SPAWN frame to sidecar"
+        );
         self.write_frame(&Frame::new(MsgType::Spawn, pane_id, cbor))?;
         Ok(pane_id)
     }
@@ -175,6 +181,7 @@ impl SidecarManager {
             return Err(AppError::PaneNotFound(pane_id.to_string()));
         }
         drop(inner);
+        tracing::trace!(pane_id, bytes = data.len(), "→ STDIN");
         self.write_frame(&Frame::new(MsgType::Stdin, pane_id, data.to_vec()))
     }
 
@@ -238,6 +245,12 @@ fn spawn_reader_thread(
 }
 
 fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame) {
+    tracing::trace!(
+        msg_type = ?frame.msg_type,
+        pane_id = frame.pane_id,
+        payload_len = frame.payload.len(),
+        "← from sidecar"
+    );
     match frame.msg_type {
         MsgType::Stdout => {
             let _ = tx.send(PtyEvent::Stdout {
@@ -296,7 +309,7 @@ fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
                     Ok(n) => {
                         let line = String::from_utf8_lossy(&buf[..n]);
                         for l in line.lines() {
-                            tracing::debug!(target: "sidecar", "{l}");
+                            tracing::info!(target: "sidecar", "{l}");
                         }
                     }
                     Err(_) => break,

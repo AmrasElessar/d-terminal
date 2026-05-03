@@ -2,7 +2,7 @@
 
 **Tarih**: 2026-05-02
 **Önceki sürüm**: `D-Terminal-Mimari-v1.0.docx`
-**Değişiklik sahibi**: Engin Demirel
+**Değişiklik sahibi**: Orhan Engin OKAY
 
 Bu belge v1.0 mimari belgesindeki tutarsızlıkları, eksikleri ve scope düzeltmelerini listeler. v1.1 belgesi yazılmadan önce kabul edilmesi gereken değişiklikler.
 

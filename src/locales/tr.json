@@ -6,19 +6,28 @@
   "welcome": {
     "title": "Hoş geldin",
     "subtitle": "Agent-aware Windows terminali — pre-alpha",
-    "openFirstPane": "İlk pane'i açmak için {shortcut} tuşuna bas",
+    "openFirstPane": "İlk paneli açmak için {shortcut} tuşuna bas",
     "tip": "İpucu"
   },
+  "tab": {
+    "new": "Yeni Sekme",
+    "close": "Sekmeyi Kapat",
+    "next": "Sonraki Sekme",
+    "prev": "Önceki Sekme",
+    "rename": "Sekmeyi Yeniden Adlandır",
+    "untitled": "Yeni Sekme"
+  },
   "pane": {
-    "new": "Yeni Pane",
+    "new": "Yeni Panel",
     "newWithType": "Yeni {type}",
-    "close": "Pane'i Kapat",
-    "closeConfirm": "Bu pane kapatılsın mı? Çalışan process sonlandırılacak.",
+    "close": "Paneli Kapat",
+    "closeConfirm": "Bu panel kapatılsın mı? Çalışan process sonlandırılacak.",
     "splitHorizontal": "Yatay Böl",
     "splitVertical": "Dikey Böl",
-    "focusNext": "Sonraki Pane",
-    "focusPrev": "Önceki Pane",
+    "focusNext": "Sonraki Panel",
+    "focusPrev": "Önceki Panel",
     "maximize": "Tam Ekran",
+    "zoomHint": "Zoom modu — geri dönmek için Ctrl+Shift+Z",
     "duplicate": "Çoğalt",
     "rename": "Yeniden Adlandır",
     "untitled": "Adsız",
@@ -39,9 +48,9 @@
       "error": "Hata"
     },
     "errors": {
-      "spawnFailed": "Pane başlatılamadı",
-      "writeFailed": "Pane'e yazılamadı",
-      "killFailed": "Pane kapatılamadı",
+      "spawnFailed": "Panel başlatılamadı",
+      "writeFailed": "Panele yazılamadı",
+      "killFailed": "Panel kapatılamadı",
       "sidecarDown": "PTY köprüsü düştü: {reason}"
     },
     "actions": {
@@ -88,6 +97,20 @@
       "preview": "AI'a gönderilecek metni önizle",
       "confirm": "Gönder",
       "cancel": "Vazgeç"
+    },
+    "suggest": {
+      "title": "AI Komut Üretici",
+      "promptLabel": "Ne yapmak istiyorsun?",
+      "promptPh": "örn: son 10 commit'i görmek istiyorum, sadece grafiksel",
+      "commandLabel": "Önerilen komut (Tab: yapıştır · Ctrl+Enter: çalıştır)",
+      "generate": "Üret",
+      "insert": "Yapıştır (Tab)",
+      "insertHint": "Komutu aktif terminale yapıştır, Enter göndermez",
+      "execute": "Çalıştır (Ctrl+⏎)",
+      "executeHint": "Aktif terminale yapıştır + Enter ile gönder",
+      "noTerminal": "Aktif bir terminal pane'i yok",
+      "failed": "Üretim başarısız: {message}",
+      "hint": "Aktif pane tipi (PowerShell/CMD/WSL) için uygun komut üretir. Komutu görmeden çalıştırma."
     }
   },
   "settings": {
@@ -96,6 +119,8 @@
       "general": "Genel",
       "appearance": "Görünüm",
       "providers": "AI Sağlayıcılar",
+      "profiles": "Profiller",
+      "triggers": "Tetikleyiciler",
       "shortcuts": "Kısayollar",
       "advanced": "Gelişmiş"
     },
@@ -109,7 +134,9 @@
         "empty": "Boş başlat"
       },
       "telemetry": "Telemetri",
-      "telemetryHint": "D-Terminal hiçbir telemetri toplamaz."
+      "telemetryHint": "D-Terminal hiçbir telemetri toplamaz.",
+      "aiPrefixHash": "Boş prompt'ta # ile AI komut üretici aç (Warp paritesi)",
+      "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır."
     },
     "appearance": {
       "theme": "Tema",
@@ -119,7 +146,10 @@
       "ligatures": "Ligature kullan",
       "opacity": "Opaklık",
       "blur": "Arka plan bulanıklığı",
-      "preview": "Önizleme"
+      "preview": "Önizleme",
+      "renderer": "Render motoru",
+      "rendererHint": "GPU hızlandırma — uyumluluk sorunu olursa Canvas/DOM'a geç",
+      "unicode11": "Unicode 11 (emoji + CJK genişliği)"
     },
     "providers": {
       "title": "AI Sağlayıcı Yapılandırması",
@@ -149,7 +179,7 @@
     "search": "Komut ara…",
     "filter": {
       "all": "Tümü",
-      "thisPane": "Bu pane",
+      "thisPane": "Bu panel",
       "favorites": "Favoriler",
       "today": "Bugün",
       "thisWeek": "Bu hafta"
@@ -176,13 +206,40 @@
     "lastUpdated": "Son güncelleme: {date}"
   },
   "newPane": {
-    "title": "Yeni Pane",
-    "selectType": "Pane tipini seç",
+    "title": "Yeni Panel",
+    "selectType": "Bir profil veya pane tipi seç",
     "shellLabel": "Shell",
     "cwdLabel": "Çalışma dizini",
     "cwdPlaceholder": "varsayılan: kullanıcı klasörü",
     "create": "Oluştur",
-    "cancel": "Vazgeç"
+    "cancel": "Vazgeç",
+    "profiles": "Shell Profilleri",
+    "special": "Özel Panel Tipleri",
+    "userBadge": "özel"
+  },
+  "profiles": {
+    "title": "Shell Profilleri",
+    "hint": "Built-in profiller (PowerShell/CMD/WSL) silinemez. Kendi profilini ekle: pwsh 7, SSH host, Docker exec, Python REPL, …",
+    "new": "Yeni Profil",
+    "add": "Ekle",
+    "edit": "Düzenle",
+    "duplicate": "Kopyala",
+    "field": {
+      "name": "İsim",
+      "namePh": "örn. SSH prod-server",
+      "icon": "İkon",
+      "shell": "Shell / Komut",
+      "shellPh": "ssh.exe veya pwsh.exe veya C:\\path\\to\\binary.exe",
+      "shellHint": "Çalıştırılacak binary. PATH'te varsa direkt isim, yoksa tam path.",
+      "args": "Argümanlar",
+      "argsPh": "user@host -p 22",
+      "argsHint": "Boşluk ayraçlı; \"x y\" veya 'x y' ile içinde boşluk olan argüman.",
+      "cwd": "Çalışma Dizini",
+      "cwdPh": "C:\\Projeler veya boş bırak",
+      "paneType": "Pane Tipi (shell-init için)",
+      "env": "Environment (KEY=VALUE / satır)",
+      "color": "Renk Badge"
+    }
   },
   "dfetch": {
     "title": "Sistem Bilgisi",
@@ -198,17 +255,33 @@
     "refresh": "Yenile"
   },
   "statusBar": {
-    "panes": "{count} pane",
+    "panes": "{count} panel",
     "activeProvider": "Aktif AI: {name}",
     "noProvider": "AI yok",
     "ready": "Hazır",
-    "sidecarDown": "PTY köprüsü kapalı"
+    "sidecarDown": "PTY köprüsü kapalı",
+    "broadcastOn": "yayın AÇIK",
+    "broadcastOff": "yayın",
+    "broadcastHint": "Aktif tab'daki tüm terminal panellerine paralel klavye girişi (Ctrl+Shift+B)"
+  },
+  "about": {
+    "title": "D-Terminal Hakkında",
+    "author": "Yapımcı",
+    "license": "Lisans",
+    "repo": "Depo",
+    "logs": "Log Dosyası",
+    "copyLogPath": "Log yolunu kopyala",
+    "credits": "Krediler",
+    "bundledFonts": "Dahili Fontlar"
+  },
+  "quake": {
+    "hint": "F1 ile pencereyi gizle/göster"
   },
   "commandPalette": {
-    "placeholder": "Komut veya pane ara…",
+    "placeholder": "Komut veya panel ara…",
     "noResults": "Eşleşme yok",
     "categories": {
-      "panes": "Pane",
+      "panes": "Panel",
       "settings": "Ayarlar",
       "themes": "Temalar",
       "ai": "AI",
@@ -217,13 +290,13 @@
       "history": "Geçmiş"
     },
     "actions": {
-      "newPanePowershell": "Yeni PowerShell pane",
-      "newPaneCmd": "Yeni CMD pane",
-      "newPaneAi": "Yeni AI Sohbet pane",
-      "newPaneWelcome": "Karşılama pane'i aç",
-      "splitHorizontal": "Aktif pane'i yatay böl",
-      "splitVertical": "Aktif pane'i dikey böl",
-      "closePane": "Aktif pane'i kapat",
+      "newPanePowershell": "Yeni PowerShell panel",
+      "newPaneCmd": "Yeni CMD panel",
+      "newPaneAi": "Yeni AI Sohbet panel",
+      "newPaneWelcome": "Karşılama paneli aç",
+      "splitHorizontal": "Aktif paneli yatay böl",
+      "splitVertical": "Aktif paneli dikey böl",
+      "closePane": "Aktif paneli kapat",
       "openSettings": "Ayarları aç",
       "openHistory": "Komut geçmişini aç",
       "openSnippets": "Snippet'ları yönet",
@@ -233,6 +306,42 @@
       "switchLanguage": "Dili değiştir: {name}",
       "importPsreadline": "PowerShell geçmişini içe aktar"
     }
+  },
+  "terminal": {
+    "search": {
+      "placeholder": "Tampon içinde ara…",
+      "next": "Sonraki eşleşme (Enter)",
+      "prev": "Önceki eşleşme (Shift+Enter)",
+      "caseSensitive": "Büyük/küçük harf duyarlı",
+      "wholeWord": "Tam kelime",
+      "regex": "Regex",
+      "noMatch": "eşleşme yok",
+      "open": "Tamponda Ara (Ctrl+F)"
+    },
+    "bufferCopied": "Tampon panoya kopyalandı",
+    "pathCopied": "Yol panoya kopyalandı",
+    "shaCopied": "SHA kopyalandı: {sha}",
+    "hostCopied": "Adres kopyalandı",
+    "renderer": {
+      "auto": "Otomatik (WebGL → Canvas → DOM)",
+      "webgl": "WebGL (GPU hızlandırmalı)",
+      "canvas": "Canvas (uyumlu)",
+      "dom": "DOM (yedek, en yavaş)"
+    }
+  },
+  "block": {
+    "title": "Komut Blokları",
+    "empty": "Henüz komut çalıştırılmadı (OSC 133 marker bekliyor)",
+    "copyCommand": "Komutu kopyala",
+    "copyOutput": "Çıktıyı kopyala",
+    "rerun": "Tekrar çalıştır",
+    "sendToAi": "AI'a gönder",
+    "commandCopied": "Komut kopyalandı",
+    "outputCopied": "Çıktı kopyalandı",
+    "sentToClipboardForAi": "AI prompt panoya kopyalandı; AI Sohbet panele yapıştır",
+    "noActivePane": "Aktif bir terminal panel yok",
+    "clearAll": "Tüm blokları temizle",
+    "clearConfirm": "Bu panelde kayıtlı tüm bloklar silinsin mi?"
   },
   "snippet": {
     "title": "Snippet'lar",
@@ -253,12 +362,39 @@
     "empty": "Henüz snippet yok",
     "saved": "Snippet kaydedildi: {name}",
     "deleted": "Snippet silindi",
-    "noActivePane": "Çalıştırmak için aktif bir terminal pane'i seç"
+    "noActivePane": "Çalıştırmak için aktif bir terminal paneli seç"
   },
   "psreadline": {
     "import": "PowerShell Geçmişini İçe Aktar",
     "summary": "{imported} komut içe aktarıldı, {skipped} kopya atlandı",
     "noFile": "PSReadLine geçmiş dosyası bulunamadı"
+  },
+  "triggers": {
+    "title": "Output Tetikleyicileri",
+    "hint": "Terminal çıktısında regex pattern eşleştiğinde aksiyon çalıştır (iTerm2 Triggers paritesi).",
+    "new": "Yeni Tetikleyici",
+    "add": "Ekle",
+    "edit": "Düzenle",
+    "empty": "Henüz tetikleyici yok",
+    "field": {
+      "name": "İsim",
+      "namePh": "örn. error-detector",
+      "pattern": "Regex Pattern",
+      "patternPh": "ERROR|FAIL|panic",
+      "flags": "Bayraklar",
+      "scope": "Kapsam",
+      "action": "Aksiyon",
+      "cooldown": "Cooldown (ms)",
+      "payload": "Payload / Şablon",
+      "payloadPh": "Hata: {{0}}",
+      "payloadHint": "{{0}} = tüm eşleşme, {{1}}, {{2}} = capture grupları"
+    },
+    "action": {
+      "toast": "Bildirim göster (toast)",
+      "sendToAi": "AI Chat'e gönder",
+      "runSnippet": "Snippet çalıştır (payload=snippet ID)",
+      "capture": "Logla (sadece kayıt)"
+    }
   },
   "toast": {
     "dismiss": "Kapat"
@@ -293,7 +429,7 @@
     "sqlite": "Veritabanı hatası: {message}",
     "secret": "Güvenli depo hatası: {message}",
     "sidecar": "PTY köprüsü hatası: {message}",
-    "paneNotFound": "Pane bulunamadı: {id}",
+    "paneNotFound": "Panel bulunamadı: {id}",
     "invalidArg": "Geçersiz parametre: {message}",
     "notImplemented": "Henüz implement edilmedi: {message}",
     "internal": "İç hata: {message}"

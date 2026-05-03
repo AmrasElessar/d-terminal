@@ -3,6 +3,10 @@ export type ProviderId = 'anthropic' | 'ollama' | 'openai' | 'gemini' | 'custom'
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  /** Sadece assistant mesajlarında doldurulur — yanıtı üreten model id'si. */
+  model?: string;
+  /** Hangi provider yanıtladı. Multi-pane karşılaştırmalarda kullanışlı. */
+  provider?: string;
 }
 
 export interface ChatOptions {

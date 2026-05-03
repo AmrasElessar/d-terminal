@@ -25,6 +25,15 @@ const sidecarLabel = computed(() =>
     <span class="status-bar__item">{{ t('statusBar.panes', { count: panes.paneCount }) }}</span>
     <span class="status-bar__item">{{ aiLabel }}</span>
     <span class="status-bar__item">{{ themeStore.activeName }}</span>
+    <button
+      type="button"
+      class="status-bar__item status-bar__broadcast"
+      :class="{ on: panes.broadcastInput }"
+      :title="t('statusBar.broadcastHint')"
+      @click="panes.toggleBroadcast()"
+    >
+      ⌘ {{ panes.broadcastInput ? t('statusBar.broadcastOn') : t('statusBar.broadcastOff') }}
+    </button>
     <span class="status-bar__sep" />
     <span
       class="status-bar__item status-bar__sidecar"
@@ -39,17 +48,21 @@ const sidecarLabel = computed(() =>
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 11px;
-  color: var(--color-fg);
+  gap: 14px;
+  padding: 1px 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border-top: 1px solid var(--color-line);
+  font-size: 10px;
+  color: var(--color-dim);
   user-select: none;
   flex-shrink: 0;
+  height: 18px;
+  font-family: var(--font-family);
 }
+.status-bar__item::before { content: '['; opacity: 0.4; margin-right: 2px; }
+.status-bar__item::after  { content: ']'; opacity: 0.4; margin-left: 2px; }
 .status-bar__item {
-  opacity: 0.7;
+  color: var(--color-dim);
 }
 .status-bar__sep {
   flex: 1;
@@ -57,5 +70,18 @@ const sidecarLabel = computed(() =>
 .status-bar__sidecar.down {
   color: var(--color-red);
   opacity: 1;
+}
+.status-bar__broadcast {
+  background: transparent;
+  border: none;
+  color: var(--color-dim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 0;
+}
+.status-bar__broadcast.on {
+  color: var(--color-yellow);
+  text-shadow: 0 0 4px var(--color-yellow);
 }
 </style>

@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod error;
+pub mod logger;
 pub mod secrets;
 pub mod session;
 pub mod sidecar;
@@ -16,19 +17,44 @@ use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    let data_dir = dirs::data_dir()
+        .map(|p| p.join("D-Terminal"))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let log_dir = data_dir.join("logs");
+
+    // tracing — hem stderr hem dosya (daily rotate). _guard drop edilirse async
+    // writer kapanır; bu yüzden static OnceLock'a yerleştir.
+    let _guard = logger::init_tracing(&log_dir);
+    std::mem::forget(_guard);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // Quake/dropdown — global hotkey ile pencere toggle
+                    if let Some(window) = app.get_webview_window("main") {
+                        match window.is_visible() {
+                            Ok(true) => {
+                                let _ = window.hide();
+                            }
+                            _ => {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                    let _ = shortcut;
+                })
+                .build(),
+        )
+        .setup(move |app| {
             let app_handle = app.handle().clone();
 
-            // %APPDATA%\D-Terminal\dterminal.db
-            let data_dir = dirs::data_dir()
-                .map(|p| p.join("D-Terminal"))
-                .unwrap_or_else(|| PathBuf::from("."));
             let db_path = data_dir.join("dterminal.db");
             let storage = Storage::open(db_path).expect("storage open");
 
@@ -46,6 +72,48 @@ pub fn run() {
             }
 
             app.manage(AppState::new(storage, sidecar));
+            app.manage(logger::LogPaths::new(log_dir.clone()));
+
+            // Win11 22H2+ → Mica, öncesi → Acrylic. Hata sebebini log'la.
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::{apply_acrylic, apply_mica};
+                if let Some(window) = app.get_webview_window("main") {
+                    // WebView2'nin kendi opak bg'sini transparent yap — yoksa
+                    // mica/acrylic alt katmanda olmasına rağmen üstte WebView2
+                    // beyaz/koyu render eder, hiç şeffaflık görünmez.
+                    if let Err(e) = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0))) {
+                        tracing::warn!("set_background_color(transparent) failed: {e}");
+                    }
+                    match apply_mica(&window, Some(true)) {
+                        Ok(_) => tracing::info!("vibrancy: Mica applied"),
+                        Err(mica_err) => {
+                            tracing::warn!("vibrancy: Mica failed: {mica_err}; trying Acrylic");
+                            match apply_acrylic(&window, Some((10, 14, 26, 180))) {
+                                Ok(_) => tracing::info!("vibrancy: Acrylic applied"),
+                                Err(acr_err) => tracing::error!(
+                                    "vibrancy: Acrylic also failed: {acr_err}; window will be opaque"
+                                ),
+                            }
+                        }
+                    }
+                } else {
+                    tracing::error!("vibrancy: main window not found");
+                }
+            }
+
+            // Quake hotkey — F1 ile pencereyi gizle/göster (Win11 + Linux + Mac)
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+                let quake = Shortcut::new(Some(Modifiers::empty()), Code::F1);
+                if let Err(e) = app.global_shortcut().register(quake) {
+                    tracing::warn!("global shortcut F1 register failed: {e}");
+                } else {
+                    tracing::info!("quake hotkey registered: F1 (toggle window)");
+                }
+            }
+
             tracing::info!("D-Terminal ready");
             Ok(())
         })
@@ -91,6 +159,9 @@ pub fn run() {
             commands::snippets::snippet_get,
             // PSReadLine
             commands::psreadline::psreadline_import,
+            // Logger
+            commands::logger::log_event,
+            commands::logger::log_paths,
         ])
         .run(tauri::generate_context!())
         .expect("D-Terminal Tauri runtime failed to start");

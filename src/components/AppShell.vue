@@ -6,7 +6,12 @@ import { useSettingsStore } from '@/stores/settings';
 import { useThemeStore } from '@/stores/theme';
 import { useAIStore } from '@/stores/ai';
 import { useSnippetsStore } from '@/stores/snippets';
+import { useTriggersStore } from '@/stores/triggers';
+import { useProfilesStore } from '@/stores/profiles';
 import { keybindings } from '@/keybindings/registry';
+import { fallbackChain } from '@/fonts';
+import { createLogger } from '@/utils/logger';
+import { useModals } from '@/composables/useModals';
 import PaneLayout from '@/components/layout/PaneLayout.vue';
 import StatusBar from '@/components/ui/StatusBar.vue';
 import NewPaneDialog from '@/components/ui/NewPaneDialog.vue';
@@ -15,6 +20,10 @@ import HistoryModal from '@/components/ui/HistoryModal.vue';
 import SessionModal from '@/components/ui/SessionModal.vue';
 import SnippetModal from '@/components/ui/SnippetModal.vue';
 import CommandPalette from '@/components/ui/CommandPalette.vue';
+import ContextMenu from '@/components/ui/ContextMenu.vue';
+import TabBar from '@/components/ui/TabBar.vue';
+import AboutModal from '@/components/ui/AboutModal.vue';
+import AISuggestModal from '@/components/ui/AISuggestModal.vue';
 import ToastContainer from '@/components/ui/ToastContainer.vue';
 import type { PaneType } from '@/types/pane';
 
@@ -24,53 +33,83 @@ const settings = useSettingsStore();
 const themeStore = useThemeStore();
 const ai = useAIStore();
 const snippets = useSnippetsStore();
+const triggers = useTriggersStore();
+const profiles = useProfilesStore();
+const log = createLogger('shell');
+const modals = useModals();
 
-const newPaneOpen = ref(false);
-const settingsOpen = ref(false);
-const historyOpen = ref(false);
-const snippetsOpen = ref(false);
-const paletteOpen = ref(false);
-const sessionOpen = ref(false);
-const sessionMode = ref<'save' | 'load'>('save');
-
-function closeAllModals() {
-  newPaneOpen.value = false;
-  settingsOpen.value = false;
-  historyOpen.value = false;
-  snippetsOpen.value = false;
-  paletteOpen.value = false;
-  sessionOpen.value = false;
+/** Aktif font + boyut'u CSS değişkenlerine yansıt — UI ile xterm aynı görünür. */
+function applyFontVars() {
+  const root = document.documentElement;
+  root.style.setProperty('--font-family', fallbackChain(settings.state.fontFamily));
+  root.style.setProperty('--font-size', `${settings.state.fontSize}px`);
 }
 
-function openNewPane() { newPaneOpen.value = true; }
-function openSettings() { closeAllModals(); settingsOpen.value = true; }
-function openHistory() { closeAllModals(); historyOpen.value = true; }
-function openSnippets() { closeAllModals(); snippetsOpen.value = true; }
-function openPalette() { closeAllModals(); paletteOpen.value = true; }
-function openSessionSave() { closeAllModals(); sessionMode.value = 'save'; sessionOpen.value = true; }
-function openSessionLoad() { closeAllModals(); sessionMode.value = 'load'; sessionOpen.value = true; }
+/** Pencere arka plan opaklığı + blur — Tauri window transparent ile birlikte çalışır. */
+function applyChromeVars() {
+  const root = document.documentElement;
+  root.style.setProperty('--bg-alpha', String(settings.state.opacity));
+  root.style.setProperty('--ui-blur', `${settings.state.blur}px`);
+}
 
-function createPane(type: PaneType) {
-  panes.openPane(type, t(`pane.type.${type}`));
-  newPaneOpen.value = false;
+/** WebView2 DevTools toggle (Tauri 2 debug feature ile çalışır; tip kütüphanesinde
+ * `openDevtools` yok ama runtime mevcut). */
+async function toggleDevTools() {
+  try {
+    const w = await import('@tauri-apps/api/webview');
+    const view = w.getCurrentWebview() as unknown as {
+      openDevtools?: () => Promise<void>;
+      closeDevtools?: () => Promise<void>;
+    };
+    if (view.openDevtools) await view.openDevtools();
+  } catch (e) {
+    log.warn('devtools open failed', { error: String(e) });
+  }
+}
+
+function openNewPane()    { modals.open('newPane'); }
+function openSettings()   { modals.open('settings'); }
+function openHistory()    { modals.open('history'); }
+function openSnippets()   { modals.open('snippets'); }
+function openPalette()    { modals.open('commandPalette'); }
+function openSessionSave() { modals.openSession('save'); }
+function openSessionLoad() { modals.openSession('load'); }
+
+function createPane(type: PaneType, profileId?: string) {
+  // Profil verilmişse onun adıyla başlık aç, yoksa pane tipi adı
+  const profile = profileId ? profiles.find(profileId) : null;
+  const title = profile?.name ?? t(`pane.type.${type}`);
+  panes.openPane(type, title, profileId);
+  modals.close('newPane');
 }
 
 function closeFocused() {
   if (panes.tree.focusedId) panes.closePane(panes.tree.focusedId);
 }
 
+/** Split: focused pane'in tipi/profilini koru — PowerShell pane'iyse PS, SSH ise SSH. */
 function splitH() {
-  panes.splitFocused('horizontal', 'powershell', t('pane.type.powershell'));
+  const f = panes.focused;
+  if (f && (f.type === 'powershell' || f.type === 'cmd' || f.type === 'wsl')) {
+    panes.splitFocused('horizontal', f.type, f.title, f.profileId);
+  } else {
+    panes.splitFocused('horizontal', 'powershell', t('pane.type.powershell'));
+  }
 }
 function splitV() {
-  panes.splitFocused('vertical', 'powershell', t('pane.type.powershell'));
+  const f = panes.focused;
+  if (f && (f.type === 'powershell' || f.type === 'cmd' || f.type === 'wsl')) {
+    panes.splitFocused('vertical', f.type, f.title, f.profileId);
+  } else {
+    panes.splitFocused('vertical', 'powershell', t('pane.type.powershell'));
+  }
 }
 function openAi() {
   panes.openPane('aiChat', t('pane.type.aiChat'));
 }
 
 function paletteNavigate(action: string) {
-  paletteOpen.value = false;
+  modals.close('commandPalette');
   switch (action) {
     case 'settings': openSettings(); break;
     case 'history': openHistory(); break;
@@ -87,6 +126,8 @@ onMounted(async () => {
   themeStore.setActive(settings.state.themeName);
   await ai.refresh();
   await snippets.load();
+  await triggers.load();
+  await profiles.load();
   await panes.startListening();
 
   if (settings.state.startup === 'welcome') {
@@ -106,11 +147,34 @@ onMounted(async () => {
   keybindings.register('session.save', openSessionSave);
   keybindings.register('session.load', openSessionLoad);
   keybindings.register('dfetch.run', () => panes.openPane('welcome', t('pane.type.welcome')));
+  keybindings.register('app.devTools', toggleDevTools);
+  // Tab kısayolları (browser standardı)
+  keybindings.register('tab.new',   () => panes.newTab());
+  keybindings.register('tab.close', () => panes.closeTab(panes.activeTabId));
+  keybindings.register('tab.next',  () => panes.nextTab());
+  keybindings.register('tab.prev',  () => panes.prevTab());
+  // About + broadcast input
+  keybindings.register('app.about', () => modals.open('about'));
+  keybindings.register('panes.broadcastToggle', () => panes.toggleBroadcast());
+  keybindings.register('pane.maximize', () => panes.toggleMaximize());
+  keybindings.register('ai.suggestCommand', () => modals.open('aiSuggest'));
   keybindings.attach();
+
+  applyFontVars();
+  applyChromeVars();
+  log.info('shell ready', { panes: panes.paneCount, theme: themeStore.activeName });
 });
 
 watch(() => settings.state.themeName, (n) => themeStore.setActive(n));
 watch(() => settings.state.language, (n) => { locale.value = n; });
+watch(
+  () => [settings.state.fontFamily, settings.state.fontSize] as const,
+  applyFontVars,
+);
+watch(
+  () => [settings.state.opacity, settings.state.blur] as const,
+  applyChromeVars,
+);
 </script>
 
 <template>
@@ -126,17 +190,22 @@ watch(() => settings.state.language, (n) => { locale.value = n; });
         <button type="button" @click="openSnippets">{{ t('snippet.title') }}</button>
         <span class="spacer" />
         <button type="button" @click="openPalette">⌘ {{ t('commandPalette.placeholder') }}</button>
+        <button type="button" :title="t('about.title')" @click="modals.open('about')">ℹ</button>
         <button type="button" @click="openSettings">{{ t('settings.title') }}</button>
       </nav>
     </header>
+    <TabBar />
     <PaneLayout />
     <StatusBar />
-    <NewPaneDialog :open="newPaneOpen" @close="newPaneOpen = false" @create="createPane" />
-    <SettingsModal :open="settingsOpen" @close="settingsOpen = false" />
-    <HistoryModal :open="historyOpen" @close="historyOpen = false" />
-    <SnippetModal :open="snippetsOpen" @close="snippetsOpen = false" />
-    <SessionModal :open="sessionOpen" :mode="sessionMode" @close="sessionOpen = false" />
-    <CommandPalette :open="paletteOpen" @close="paletteOpen = false" @navigate="paletteNavigate" />
+    <NewPaneDialog :open="modals.state.newPane" @close="modals.close('newPane')" @create="createPane" />
+    <SettingsModal :open="modals.state.settings" @close="modals.close('settings')" />
+    <HistoryModal :open="modals.state.history" @close="modals.close('history')" />
+    <SnippetModal :open="modals.state.snippets" @close="modals.close('snippets')" />
+    <SessionModal :open="modals.state.session.open" :mode="modals.state.session.mode" @close="modals.closeSession()" />
+    <CommandPalette :open="modals.state.commandPalette" @close="modals.close('commandPalette')" @navigate="paletteNavigate" />
+    <AboutModal :open="modals.state.about" @close="modals.close('about')" />
+    <AISuggestModal :open="modals.state.aiSuggest" @close="modals.close('aiSuggest')" />
+    <ContextMenu />
     <ToastContainer />
   </main>
 </template>
@@ -146,48 +215,55 @@ watch(() => settings.state.language, (n) => { locale.value = n; });
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--color-bg);
+  /* Background body'de color-mix ile alpha alıyor; .shell transparent kalır
+     ki pencere şeffaflığı (Mica/Acrylic) alttan görünsün. */
+  background: transparent;
   color: var(--color-fg);
   font-family: var(--font-family);
 }
 .shell__header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 12px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid var(--color-line);
   flex-shrink: 0;
   user-select: none;
+  font-size: 10px;
+  height: 22px;
 }
 .shell__brand {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   background: var(--pane-title-gradient, linear-gradient(90deg, var(--color-accent), var(--color-accent2)));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
+.shell__brand::before { content: '> '; }
 .shell__menu {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
 }
 .shell__menu button {
   background: transparent;
-  border: 1px solid transparent;
-  color: var(--color-fg);
-  padding: 4px 10px;
-  border-radius: 4px;
+  border: none;
+  color: var(--color-dim);
+  padding: 1px 8px;
+  border-radius: 0;
   cursor: pointer;
-  font-size: 12px;
-  opacity: 0.8;
+  font-size: 10px;
   font-family: inherit;
+  text-transform: lowercase;
 }
 .shell__menu button:hover {
-  background: rgba(255, 255, 255, 0.05);
-  opacity: 1;
+  color: var(--color-accent);
+  background: rgba(0, 180, 216, 0.08);
 }
 .shell__menu .spacer { flex: 1; }
 </style>

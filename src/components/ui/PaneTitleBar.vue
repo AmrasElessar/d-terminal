@@ -3,8 +3,13 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 
-const props = defineProps<{ leaf: LeafNode; focused: boolean }>();
-const emit = defineEmits<{ close: [] }>();
+const props = defineProps<{
+  leaf: LeafNode;
+  focused: boolean;
+  blockCount?: number;
+  blockPanelOpen?: boolean;
+}>();
+const emit = defineEmits<{ close: []; toggleBlocks: [] }>();
 
 const { t } = useI18n();
 
@@ -26,6 +31,16 @@ const title = computed(() => props.leaf.title || t('pane.untitled'));
     <div class="title-bar__title">{{ title }}</div>
     <div class="title-bar__status">{{ statusLabel }}</div>
     <button
+      v-if="blockCount && blockCount > 0"
+      type="button"
+      class="title-bar__blocks"
+      :class="{ active: blockPanelOpen }"
+      :title="t('block.title')"
+      @click.stop="emit('toggleBlocks')"
+    >
+▣ {{ blockCount }}
+</button>
+    <button
       type="button"
       class="title-bar__close"
       :title="t('pane.close')"
@@ -41,23 +56,26 @@ const title = computed(() => props.leaf.title || t('pane.untitled'));
 .title-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.025);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 11px;
+  gap: 6px;
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid var(--color-line);
+  font-size: 10px;
   user-select: none;
   flex-shrink: 0;
+  height: 18px;
+  font-family: var(--font-family);
 }
 .title-bar.focused {
-  background: rgba(0, 180, 216, 0.06);
+  background: rgba(0, 180, 216, 0.1);
+  border-bottom-color: var(--color-accent);
 }
 .title-bar__indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-fg);
-  opacity: 0.4;
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  background: var(--color-dim);
+  opacity: 0.6;
   flex-shrink: 0;
 }
 .title-bar__indicator[data-status="running"] {
@@ -84,31 +102,48 @@ const title = computed(() => props.leaf.title || t('pane.untitled'));
 .title-bar__type {
   font-weight: 600;
   color: var(--color-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 10px;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  font-size: 9px;
 }
+.title-bar__type::after { content: ':'; }
 .title-bar__title {
   flex: 1;
   font-family: var(--font-family);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--color-fg);
 }
 .title-bar__status {
-  opacity: 0.6;
-  font-size: 10px;
+  color: var(--color-dim);
+  font-size: 9px;
+}
+.title-bar__blocks {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  color: var(--color-dim);
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: inherit;
+}
+.title-bar__blocks:hover,
+.title-bar__blocks.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 .title-bar__close {
   background: transparent;
   border: none;
-  color: var(--color-fg);
+  color: var(--color-dim);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1;
-  padding: 0 6px;
-  border-radius: 3px;
-  opacity: 0.6;
+  padding: 0 4px;
+  border-radius: 0;
 }
 .title-bar__close:hover {
   background: var(--color-red);

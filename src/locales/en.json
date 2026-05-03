@@ -9,6 +9,14 @@
     "openFirstPane": "Press {shortcut} to open your first pane",
     "tip": "Tip"
   },
+  "tab": {
+    "new": "New Tab",
+    "close": "Close Tab",
+    "next": "Next Tab",
+    "prev": "Previous Tab",
+    "rename": "Rename Tab",
+    "untitled": "New Tab"
+  },
   "pane": {
     "new": "New Pane",
     "newWithType": "New {type}",
@@ -19,6 +27,7 @@
     "focusNext": "Next Pane",
     "focusPrev": "Previous Pane",
     "maximize": "Maximize",
+    "zoomHint": "Zoom mode — press Ctrl+Shift+Z to restore",
     "duplicate": "Duplicate",
     "rename": "Rename",
     "untitled": "Untitled",
@@ -88,6 +97,20 @@
       "preview": "Preview text being sent to AI",
       "confirm": "Send",
       "cancel": "Cancel"
+    },
+    "suggest": {
+      "title": "AI Command Generator",
+      "promptLabel": "What do you want to do?",
+      "promptPh": "e.g. show me the last 10 commits, graph view only",
+      "commandLabel": "Suggested command (Tab: insert · Ctrl+Enter: execute)",
+      "generate": "Generate",
+      "insert": "Insert (Tab)",
+      "insertHint": "Paste into active terminal, do not press Enter",
+      "execute": "Execute (Ctrl+⏎)",
+      "executeHint": "Paste + send Enter into active terminal",
+      "noTerminal": "No active terminal pane",
+      "failed": "Generation failed: {message}",
+      "hint": "Generates a command for the active pane type (PowerShell/CMD/WSL). Always review before executing."
     }
   },
   "settings": {
@@ -96,6 +119,8 @@
       "general": "General",
       "appearance": "Appearance",
       "providers": "AI Providers",
+      "profiles": "Profiles",
+      "triggers": "Triggers",
       "shortcuts": "Shortcuts",
       "advanced": "Advanced"
     },
@@ -109,7 +134,9 @@
         "empty": "Empty start"
       },
       "telemetry": "Telemetry",
-      "telemetryHint": "D-Terminal collects no telemetry."
+      "telemetryHint": "D-Terminal collects no telemetry.",
+      "aiPrefixHash": "Open AI command generator on # at empty prompt (Warp parity)",
+      "aiPrefixHashHint": "When enabled: typing # at the start of an empty prompt opens the AI suggester instead of writing # to the terminal. Disable to use # normally."
     },
     "appearance": {
       "theme": "Theme",
@@ -119,7 +146,10 @@
       "ligatures": "Use ligatures",
       "opacity": "Opacity",
       "blur": "Background blur",
-      "preview": "Preview"
+      "preview": "Preview",
+      "renderer": "Renderer",
+      "rendererHint": "GPU acceleration — fall back to Canvas/DOM on compat issues",
+      "unicode11": "Unicode 11 (emoji + CJK widths)"
     },
     "providers": {
       "title": "AI Provider Configuration",
@@ -177,12 +207,39 @@
   },
   "newPane": {
     "title": "New Pane",
-    "selectType": "Select pane type",
+    "selectType": "Pick a profile or pane type",
     "shellLabel": "Shell",
     "cwdLabel": "Working directory",
     "cwdPlaceholder": "default: home folder",
     "create": "Create",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "profiles": "Shell Profiles",
+    "special": "Special Pane Types",
+    "userBadge": "user"
+  },
+  "profiles": {
+    "title": "Shell Profiles",
+    "hint": "Built-in profiles (PowerShell/CMD/WSL) cannot be deleted. Add your own: pwsh 7, SSH host, Docker exec, Python REPL, …",
+    "new": "New Profile",
+    "add": "Add",
+    "edit": "Edit",
+    "duplicate": "Duplicate",
+    "field": {
+      "name": "Name",
+      "namePh": "e.g. SSH prod-server",
+      "icon": "Icon",
+      "shell": "Shell / Command",
+      "shellPh": "ssh.exe or pwsh.exe or C:\\path\\to\\binary.exe",
+      "shellHint": "Executable to run. Use plain name if on PATH, or full path.",
+      "args": "Arguments",
+      "argsPh": "user@host -p 22",
+      "argsHint": "Whitespace separated; quote with \"x y\" or 'x y' for args containing spaces.",
+      "cwd": "Working Directory",
+      "cwdPh": "C:\\Projects or leave empty",
+      "paneType": "Pane Type (for shell-init)",
+      "env": "Environment (KEY=VALUE per line)",
+      "color": "Color Badge"
+    }
   },
   "dfetch": {
     "title": "System Info",
@@ -202,7 +259,23 @@
     "activeProvider": "Active AI: {name}",
     "noProvider": "No AI",
     "ready": "Ready",
-    "sidecarDown": "PTY bridge down"
+    "sidecarDown": "PTY bridge down",
+    "broadcastOn": "broadcast ON",
+    "broadcastOff": "broadcast",
+    "broadcastHint": "Mirror keyboard input to all terminal panes in active tab (Ctrl+Shift+B)"
+  },
+  "about": {
+    "title": "About D-Terminal",
+    "author": "Author",
+    "license": "License",
+    "repo": "Repository",
+    "logs": "Log File",
+    "copyLogPath": "Copy log path",
+    "credits": "Credits",
+    "bundledFonts": "Bundled Fonts"
+  },
+  "quake": {
+    "hint": "F1 to toggle window visibility"
   },
   "commandPalette": {
     "placeholder": "Search commands or panes…",
@@ -234,6 +307,42 @@
       "importPsreadline": "Import PowerShell history"
     }
   },
+  "terminal": {
+    "search": {
+      "placeholder": "Search in buffer…",
+      "next": "Next match (Enter)",
+      "prev": "Previous match (Shift+Enter)",
+      "caseSensitive": "Case sensitive",
+      "wholeWord": "Whole word",
+      "regex": "Regex",
+      "noMatch": "no match",
+      "open": "Find in buffer (Ctrl+F)"
+    },
+    "bufferCopied": "Buffer copied to clipboard",
+    "pathCopied": "Path copied to clipboard",
+    "shaCopied": "SHA copied: {sha}",
+    "hostCopied": "Host copied to clipboard",
+    "renderer": {
+      "auto": "Auto (WebGL → Canvas → DOM)",
+      "webgl": "WebGL (GPU accelerated)",
+      "canvas": "Canvas (compatible)",
+      "dom": "DOM (fallback, slowest)"
+    }
+  },
+  "block": {
+    "title": "Command Blocks",
+    "empty": "No commands executed yet (waiting for OSC 133 markers)",
+    "copyCommand": "Copy command",
+    "copyOutput": "Copy output",
+    "rerun": "Re-run",
+    "sendToAi": "Send to AI",
+    "commandCopied": "Command copied",
+    "outputCopied": "Output copied",
+    "sentToClipboardForAi": "AI prompt copied to clipboard; paste into AI Chat pane",
+    "noActivePane": "No active terminal pane",
+    "clearAll": "Clear all blocks",
+    "clearConfirm": "Delete all recorded blocks in this pane?"
+  },
   "snippet": {
     "title": "Snippets",
     "addNew": "New Snippet",
@@ -259,6 +368,33 @@
     "import": "Import PowerShell History",
     "summary": "{imported} commands imported, {skipped} duplicates skipped",
     "noFile": "PSReadLine history file not found"
+  },
+  "triggers": {
+    "title": "Output Triggers",
+    "hint": "Run an action when a regex pattern matches in terminal output (iTerm2 Triggers parity).",
+    "new": "New Trigger",
+    "add": "Add",
+    "edit": "Edit",
+    "empty": "No triggers yet",
+    "field": {
+      "name": "Name",
+      "namePh": "e.g. error-detector",
+      "pattern": "Regex Pattern",
+      "patternPh": "ERROR|FAIL|panic",
+      "flags": "Flags",
+      "scope": "Scope",
+      "action": "Action",
+      "cooldown": "Cooldown (ms)",
+      "payload": "Payload / Template",
+      "payloadPh": "Error: {{0}}",
+      "payloadHint": "{{0}} = full match, {{1}}, {{2}} = capture groups"
+    },
+    "action": {
+      "toast": "Show toast",
+      "sendToAi": "Send to AI Chat",
+      "runSnippet": "Run snippet (payload=snippet ID)",
+      "capture": "Log only"
+    }
   },
   "toast": {
     "dismiss": "Dismiss"

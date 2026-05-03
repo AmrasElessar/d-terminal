@@ -3,7 +3,9 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { fileURLToPath, URL } from 'node:url';
 
-// https://vitejs.dev/config/
+// Not: vue-i18n için runtime compiler kullanıyoruz (CSP 'unsafe-eval' ile birlikte).
+// v1.0.5'te @intlify/unplugin-vue-i18n ile build-time AST'ye derlenip 'unsafe-eval'
+// kalkacak. Şu anki nested-key issue ile MVP'yi yavaşlatmamak için basit yol.
 export default defineConfig({
   plugins: [vue()],
   resolve: {

@@ -3,8 +3,10 @@
 import type { AIProvider, ProviderId } from '@/types/ai';
 import { AnthropicProvider } from './anthropic';
 import { OllamaProvider } from './ollama';
+import { OpenAIProvider } from './openai';
+import { GeminiProvider } from './gemini';
 
-export const ALL_PROVIDER_IDS: ProviderId[] = ['anthropic', 'ollama', 'openai', 'gemini'];
+export const ALL_PROVIDER_IDS: ProviderId[] = ['anthropic', 'gemini', 'openai', 'ollama'];
 
 const cache = new Map<ProviderId, AIProvider>();
 
@@ -19,7 +21,11 @@ export function getProvider(id: ProviderId): AIProvider | null {
       instance = new OllamaProvider();
       break;
     case 'openai':
+      instance = new OpenAIProvider();
+      break;
     case 'gemini':
+      instance = new GeminiProvider();
+      break;
     case 'custom':
       // v1.0.5 ile gelecek
       instance = null;

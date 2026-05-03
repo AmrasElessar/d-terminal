@@ -22,6 +22,24 @@ const PROPS_MAP: Record<string, (t: Theme) => string> = {
   '--ui-opacity': (t) => `${t.ui.opacity}`,
   '--ui-blur': (t) => `${t.ui.blur}px`,
   '--ui-radius': (t) => `${t.ui.borderRadius}px`,
+  // 16 ANSI rengi — neofetch color blocks ve ileride başka UI elementleri (block panel,
+  // prompt vs.) için. xterm.js tema mapping'iyle aynı kaynaktan beslenir.
+  '--ansi-black':     (t) => t.colors.black,
+  '--ansi-red':       (t) => t.colors.red,
+  '--ansi-green':     (t) => t.colors.green,
+  '--ansi-yellow':    (t) => t.colors.yellow,
+  '--ansi-blue':      (t) => t.colors.blue,
+  '--ansi-magenta':   (t) => t.colors.magenta,
+  '--ansi-cyan':      (t) => t.colors.cyan,
+  '--ansi-white':     (t) => t.colors.white,
+  '--ansi-brBlack':   (t) => t.colors.brightBlack ?? t.colors.black,
+  '--ansi-brRed':     (t) => t.colors.brightRed ?? t.colors.red,
+  '--ansi-brGreen':   (t) => t.colors.brightGreen ?? t.colors.green,
+  '--ansi-brYellow':  (t) => t.colors.brightYellow ?? t.colors.yellow,
+  '--ansi-brBlue':    (t) => t.colors.brightBlue ?? t.colors.blue,
+  '--ansi-brMagenta': (t) => t.colors.brightMagenta ?? t.colors.magenta,
+  '--ansi-brCyan':    (t) => t.colors.brightCyan ?? t.colors.cyan,
+  '--ansi-brWhite':   (t) => t.colors.brightWhite ?? t.colors.white,
 };
 
 export function applyTheme(theme: Theme) {

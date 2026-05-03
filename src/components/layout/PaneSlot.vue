@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import { usePanesStore } from '@/stores/panes';
+import { useContextMenu, type MenuEntry } from '@/composables/useContextMenu';
+import { useModals } from '@/composables/useModals';
+import { useToastsStore } from '@/stores/toasts';
+import { api } from '@/api/tauri';
 import PaneTitleBar from '@/components/ui/PaneTitleBar.vue';
 import TerminalPane from '@/components/panes/TerminalPane.vue';
 import AIChatPane from '@/components/panes/AIChatPane.vue';
@@ -10,6 +15,10 @@ import ErrorPane from '@/components/panes/ErrorPane.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const panes = usePanesStore();
+const { t } = useI18n();
+const ctx = useContextMenu();
+const modals = useModals();
+const toasts = useToastsStore();
 
 const isFocused = computed(() => panes.tree.focusedId === props.leaf.id);
 
@@ -24,6 +33,78 @@ function close() {
 const isTerminal = computed(() =>
   ['powershell', 'cmd', 'wsl'].includes(props.leaf.type),
 );
+
+async function copySelection() {
+  // xterm seçimini global Selection API üzerinden çek; xterm zaten DOM seçimi koruyor
+  const text = window.getSelection()?.toString() ?? '';
+  if (!text) {
+    toasts.warning(t('common.copy') + ': —');
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  toasts.success(t('common.copy') + ' ✓', 1200);
+}
+
+async function pasteIntoTerminal() {
+  if (!props.leaf.ptyId) return;
+  const text = await navigator.clipboard.readText();
+  if (!text) return;
+  await api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode(text));
+}
+
+function clearTerminal() {
+  if (!props.leaf.ptyId) return;
+  // ANSI clear screen + cursor home (\x1b[2J\x1b[H)
+  api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode('\x0c'));
+}
+
+function buildMenu(): MenuEntry[] {
+  const items: MenuEntry[] = [];
+
+  // Terminal-only items
+  if (isTerminal.value && props.leaf.status === 'running') {
+    items.push(
+      { id: 'copy',  label: t('pane.actions.copy'),  icon: '⎘', shortcut: 'Ctrl+Shift+C', onClick: copySelection },
+      { id: 'paste', label: t('pane.actions.paste'), icon: '⎗', shortcut: 'Ctrl+Shift+V', onClick: pasteIntoTerminal },
+      { id: 'clear', label: t('pane.actions.clear'), icon: '⌫', shortcut: 'Ctrl+L',       onClick: clearTerminal },
+      { kind: 'separator' },
+    );
+  }
+
+  // AI pane items
+  if (props.leaf.type === 'aiChat') {
+    items.push(
+      { id: 'copy', label: t('pane.actions.copy'), icon: '⎘', shortcut: 'Ctrl+Shift+C', onClick: copySelection },
+      { kind: 'separator' },
+    );
+  }
+
+  // Common pane items
+  items.push(
+    { id: 'splitH', label: t('pane.splitHorizontal'), icon: '┃', shortcut: 'Ctrl+Shift+\\', onClick: () => {
+      panes.splitFocused('horizontal', 'powershell', t('pane.type.powershell'));
+    }},
+    { id: 'splitV', label: t('pane.splitVertical'),   icon: '━', shortcut: 'Ctrl+Shift+-', onClick: () => {
+      panes.splitFocused('vertical', 'powershell', t('pane.type.powershell'));
+    }},
+    { id: 'newPane', label: t('pane.new'), icon: '＋', shortcut: 'Ctrl+Shift+T', onClick: () => {
+      // Tip seçim diyaloğunu aç — kullanıcı PowerShell/CMD/AI'dan birini seçer
+      modals.open('newPane');
+    }},
+    { id: 'newTab', label: t('tab.new'), icon: '⊞', shortcut: 'Ctrl+T', onClick: () => {
+      panes.newTab();
+    }},
+    { kind: 'separator' },
+    { id: 'close', label: t('pane.close'), icon: '×', shortcut: 'Ctrl+Shift+W', danger: true, onClick: close },
+  );
+
+  return items;
+}
+
+function onContextMenu(e: MouseEvent) {
+  focus();
+  ctx.show(e, buildMenu());
+}
 </script>
 
 <template>
@@ -31,6 +112,7 @@ const isTerminal = computed(() =>
     class="slot"
     :class="{ focused: isFocused, error: leaf.status === 'error' }"
     @mousedown="focus"
+    @contextmenu.prevent="onContextMenu"
   >
     <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close" />
     <div class="slot__body">
@@ -51,7 +133,9 @@ const isTerminal = computed(() =>
   min-height: 0;
   border: 1px solid transparent;
   transition: border-color 0.12s ease;
-  background: var(--color-bg);
+  /* Şeffaflık için transparent — pane içindeki TerminalPane / AIChatPane
+     kendi bg'sini render eder (terminal koyu, AI panel açık). */
+  background: transparent;
 }
 .slot.focused {
   border-color: var(--color-accent);

@@ -40,7 +40,12 @@ async function send() {
   }
   error.value = null;
   messages.value.push({ role: 'user', content: text });
-  messages.value.push({ role: 'assistant', content: '' });
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    model: ai.activeModel ?? undefined,
+    provider: provider.id,
+  });
   input.value = '';
   scrollToBottom();
 
@@ -140,7 +145,13 @@ void props.leaf; // ileride leaf.state restore burada
 
       <div ref="scrollContainer" class="ai-pane__messages">
         <article v-for="(m, idx) in messages" :key="idx" class="msg" :class="`msg--${m.role}`">
-          <div class="msg__role">{{ t(`ai.messageRole.${m.role}`) }}</div>
+          <div class="msg__role">
+            <template v-if="m.role === 'assistant' && m.model">
+              <span class="msg__model">{{ m.model }}</span>
+              <span v-if="m.provider" class="msg__provider">· {{ m.provider }}</span>
+            </template>
+            <template v-else>{{ t(`ai.messageRole.${m.role}`) }}</template>
+          </div>
           <pre class="msg__content">{{ m.content || (streaming && idx === messages.length - 1 ? t('ai.thinking') : '') }}</pre>
         </article>
         <p v-if="error" class="msg__error">{{ error }}</p>
@@ -174,7 +185,8 @@ void props.leaf; // ileride leaf.state restore burada
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--color-bg);
+  /* Transparent — pencere şeffaflığı (Mica/Acrylic) bu pane'den de görünür */
+  background: transparent;
   color: var(--color-fg);
 }
 .ai-pane__empty {
@@ -221,16 +233,27 @@ void props.leaf; // ileride leaf.state restore burada
 }
 .msg__role {
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.6;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  opacity: 0.85;
   margin-bottom: 4px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
 }
 .msg--user .msg__role {
   color: var(--color-accent);
 }
 .msg--assistant .msg__role {
   color: var(--color-accent2);
+}
+.msg__model {
+  font-weight: 600;
+}
+.msg__provider {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 400;
 }
 .msg__content {
   margin: 0;

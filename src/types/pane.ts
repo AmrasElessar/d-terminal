@@ -15,6 +15,9 @@ export interface LeafNode {
   id: string;                  // UI içi unique pane id
   type: PaneType;
   title: string;               // kullanıcının verdiği isim, yoksa varsayılan
+  /** Hangi shell profilinden spawn edildi (terminal pane'leri için). Built-in
+   *  profile id'si veya kullanıcı profil id'si. Boş ise paneType'a göre default. */
+  profileId?: string;
   /** Backend pane id (terminal pane'leri için sidecar id'si). */
   ptyId?: string;
   status: PaneStatus;
@@ -39,6 +42,15 @@ export type PaneNode = LeafNode | SplitNode;
 export interface PaneTree {
   root: PaneNode | null;
   focusedId: string | null;
+}
+
+/** Tab = bağımsız pane tree konteyneri.
+ *  Her tab kendi split layout'una sahip; tab içindeki split'ler eskisi gibi çalışır.
+ *  Backend için her tab içindeki pane'ler ayrı PTY'lere bağlanır. */
+export interface Tab {
+  id: string;
+  name: string;
+  tree: PaneTree;
 }
 
 /** UI seviyesinde leaf bul. */

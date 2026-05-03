@@ -7,7 +7,7 @@
 | Sürüm | 1.1 |
 | Tarih | 2026-05-02 |
 | Önceki | `D-Terminal-Mimari-v1.0.docx` |
-| Yapımcı | Engin Demirel |
+| Yapımcı | Orhan Engin OKAY |
 | Lisans | MIT |
 | D Brand Ailesi | D-Player · DCar Launcher · D-Terminal |
 
@@ -248,7 +248,7 @@ Tema sistemi JSON tabanlıdır. Kullanıcılar mevcut temaları özelleştirebil
 ```json
 {
   "name": "D-Terminal Dark",
-  "author": "Engin Demirel",
+  "author": "Orhan Engin OKAY",
   "version": "1.0.0",
   "colors": {
     "background": "#0A0E1A",
@@ -426,7 +426,7 @@ D-Terminal MIT lisansıyla yayınlanır. Topluluk katkıları şu alanlarda bekl
 | Pane plugin'leri | Plugin API kullanarak özel renderer (v1.1+) |
 | Bug report / PR | GitHub Issues ve Pull Request |
 
-Proje GitHub'da Engin Demirel (D Brand) tarafından yönetilir. README'de D Brand ailesinin hikayesi paylaşılır.
+Proje GitHub'da Orhan Engin OKAY (D Brand) tarafından yönetilir. README'de D Brand ailesinin hikayesi paylaşılır.
 
 ---
 

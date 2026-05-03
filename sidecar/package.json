@@ -9,11 +9,12 @@
     "test": "node --test tests/protocol.test.js tests/i18n-parity.test.js"
   },
   "dependencies": {
+    "cbor-x": "^1.6.4",
     "node-pty": "^1.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "license": "MIT",
-  "author": "Engin Demirel"
+  "author": "Orhan Engin OKAY"
 }

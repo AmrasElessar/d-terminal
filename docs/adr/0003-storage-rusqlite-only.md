@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 **Date**: 2026-05-02
-**Author**: Engin Demirel
+**Author**: Orhan Engin OKAY
 **Supersedes**: D-Terminal-Mimari-v1.0.docx Tablo 1 (Storage Layer = better-sqlite3)
 
 ## Context

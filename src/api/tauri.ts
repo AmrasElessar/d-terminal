@@ -106,4 +106,8 @@ export const api = {
       source_lines: number;
       source_path: string;
     }>('psreadline_import'),
+
+  // Logger (Rust file appender path bilgisi)
+  logPaths: () =>
+    invoke<{ directory: string; current_file: string }>('log_paths'),
 };

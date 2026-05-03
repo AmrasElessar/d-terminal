@@ -73,7 +73,7 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 
 ## Lisans
 
-MIT © Engin Demirel — bkz. [LICENSE](./LICENSE)
+MIT © Orhan Engin OKAY — bkz. [LICENSE](./LICENSE)
 
 ---
 

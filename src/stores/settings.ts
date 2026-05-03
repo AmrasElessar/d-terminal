@@ -5,6 +5,8 @@ import { computed, ref, watch } from 'vue';
 import { api } from '@/api/tauri';
 
 export type StartupMode = 'welcome' | 'lastSession' | 'empty';
+/** xterm.js render backend. `auto` → WebGL dene, başarısızsa canvas, o da olmazsa DOM. */
+export type RendererMode = 'auto' | 'webgl' | 'canvas' | 'dom';
 
 export interface SettingsState {
   language: 'tr' | 'en';
@@ -15,17 +17,25 @@ export interface SettingsState {
   opacity: number;
   blur: number;
   startup: StartupMode;
+  renderer: RendererMode;
+  /** Unicode 11 width tablosunu kullan — emoji + CJK genişliği daha doğru. */
+  unicode11: boolean;
+  /** Boş prompt'ta `#` tuşuna basıldığında AI komut üretici açılsın mı (Warp paritesi). */
+  aiPrefixHash: boolean;
 }
 
 const DEFAULTS: SettingsState = {
   language: 'tr',
   themeName: 'D-Dark',
   fontFamily: 'JetBrains Mono',
-  fontSize: 14,
+  fontSize: 12,
   ligatures: true,
-  opacity: 1.0,
-  blur: 0,
+  opacity: 0.92,
+  blur: 8,
   startup: 'welcome',
+  renderer: 'auto',
+  unicode11: true,
+  aiPrefixHash: true,
 };
 
 const KEY_PREFIX = 'ui.';

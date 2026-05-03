@@ -1,5 +1,6 @@
-// Pane tree store. Recursive split/leaf yapısını yönetir + backend sidecar
-// event'lerini dinleyip leaf state'ini günceller.
+// Pane tree store — tab'lar üzerinde organize.
+// Her tab bağımsız bir PaneTree'ye sahip; mevcut split sistemi tab içinde
+// aynen çalışır. Sidecar event'leri tüm tab'lardaki leaf'lerde aranır.
 
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
@@ -13,18 +14,28 @@ import {
   type PaneType,
   type SplitDirection,
   type SplitNode,
+  type Tab,
   findLeaf,
   listLeaves,
 } from '@/types/pane';
 
-function newLeaf(type: PaneType, title: string): LeafNode {
+function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
     kind: 'leaf',
     id: uuid(),
     type,
     title,
+    profileId,
     status: 'idle',
   };
+}
+
+function emptyTree(): PaneTree {
+  return { root: null, focusedId: null };
+}
+
+function newTab(name: string): Tab {
+  return { id: uuid(), name, tree: emptyTree() };
 }
 
 function replaceNode(
@@ -47,7 +58,6 @@ function replaceNode(
 function removeLeaf(root: PaneNode | null, targetId: string): PaneNode | null {
   if (!root) return null;
   if (root.kind === 'leaf') return root.id === targetId ? null : root;
-  // Split node — bir tarafı kaldırıyorsak diğer tarafı promote et
   const newFirst = removeLeaf(root.first, targetId);
   const newSecond = removeLeaf(root.second, targetId);
   if (!newFirst) return newSecond;
@@ -56,85 +66,175 @@ function removeLeaf(root: PaneNode | null, targetId: string): PaneNode | null {
 }
 
 export const usePanesStore = defineStore('panes', () => {
-  const tree = ref<PaneTree>({ root: null, focusedId: null });
+  const tabs = ref<Tab[]>([newTab('Tab 1')]);
+  const activeTabId = ref<string>(tabs.value[0]!.id);
   const sidecarAlive = ref(true);
+  /** Broadcast input — true ise aktif tab içindeki TÜM terminal pane'lerine
+   *  paralel stdin yazılır (tmux benzeri synchronize-panes). */
+  const broadcastInput = ref(false);
+  /** Zoom (tmux z, Warp ⌘⇧↵): aktif pane geçici tam ekran.
+   *  Tab başına ayrı state; kapanan pane otomatik restore. */
+  const maximizedByTab = ref<Record<string, string | null>>({});
 
   // --- queries ---
 
+  const activeTab = computed<Tab | null>(
+    () => tabs.value.find((t) => t.id === activeTabId.value) ?? null,
+  );
+  const tree = computed<PaneTree>(() => activeTab.value?.tree ?? emptyTree());
   const focused = computed<LeafNode | null>(() => {
-    if (!tree.value.focusedId) return null;
-    return findLeaf(tree.value.root, tree.value.focusedId);
+    const t = activeTab.value;
+    if (!t || !t.tree.focusedId) return null;
+    return findLeaf(t.tree.root, t.tree.focusedId);
   });
-
   const allLeaves = computed<LeafNode[]>(() => listLeaves(tree.value.root));
-
   const paneCount = computed(() => allLeaves.value.length);
+  const totalPaneCount = computed(() =>
+    tabs.value.reduce((sum, t) => sum + listLeaves(t.tree.root).length, 0),
+  );
 
   function getLeaf(id: string): LeafNode | null {
-    return findLeaf(tree.value.root, id);
+    // Tüm tab'larda ara — context menu/event'ler için
+    for (const t of tabs.value) {
+      const found = findLeaf(t.tree.root, id);
+      if (found) return found;
+    }
+    return null;
   }
 
-  // --- mutations ---
+  function findTabOfLeaf(leafId: string): Tab | null {
+    return tabs.value.find((t) => findLeaf(t.tree.root, leafId) !== null) ?? null;
+  }
+
+  // --- tab mutations ---
+
+  function newTabAction(name?: string): Tab {
+    const tab = newTab(name ?? `Tab ${tabs.value.length + 1}`);
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    return tab;
+  }
+
+  function setActiveTab(id: string) {
+    if (tabs.value.some((t) => t.id === id)) activeTabId.value = id;
+  }
+
+  function nextTab() {
+    const idx = tabs.value.findIndex((t) => t.id === activeTabId.value);
+    const next = tabs.value[(idx + 1) % tabs.value.length];
+    if (next) activeTabId.value = next.id;
+  }
+
+  function prevTab() {
+    const idx = tabs.value.findIndex((t) => t.id === activeTabId.value);
+    const prev = tabs.value[(idx - 1 + tabs.value.length) % tabs.value.length];
+    if (prev) activeTabId.value = prev.id;
+  }
+
+  async function closeTab(id: string) {
+    const idx = tabs.value.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    const tab = tabs.value[idx]!;
+    // Tab'daki tüm pane'lerin PTY'sini kill et
+    for (const leaf of listLeaves(tab.tree.root)) {
+      if (leaf.ptyId) {
+        try {
+          await api.ptyKill(leaf.ptyId);
+        } catch {
+          /* zaten ölmüş olabilir */
+        }
+      }
+    }
+    tabs.value.splice(idx, 1);
+    if (tabs.value.length === 0) {
+      // Son tab kapanırsa yeni boş tab aç (uygulama tab'sız kalmasın)
+      const fresh = newTab('Tab 1');
+      tabs.value.push(fresh);
+      activeTabId.value = fresh.id;
+    } else if (activeTabId.value === id) {
+      const next = tabs.value[idx] ?? tabs.value[idx - 1] ?? tabs.value[0]!;
+      activeTabId.value = next.id;
+    }
+  }
+
+  function renameTab(id: string, name: string) {
+    const tab = tabs.value.find((t) => t.id === id);
+    if (tab) tab.name = name;
+  }
+
+  // --- pane mutations (active tab'a yönlendirilir) ---
+
+  function withActiveTree(mut: (t: PaneTree) => void) {
+    const tab = activeTab.value;
+    if (!tab) return;
+    mut(tab.tree);
+  }
 
   function focus(id: string) {
-    if (findLeaf(tree.value.root, id)) {
-      tree.value.focusedId = id;
-    }
+    withActiveTree((t) => {
+      if (findLeaf(t.root, id)) t.focusedId = id;
+    });
   }
 
   function focusNext() {
     const leaves = allLeaves.value;
     if (leaves.length === 0) return;
-    const idx = leaves.findIndex((l) => l.id === tree.value.focusedId);
-    const next = leaves[(idx + 1) % leaves.length];
-    if (next) tree.value.focusedId = next.id;
+    withActiveTree((t) => {
+      const idx = leaves.findIndex((l) => l.id === t.focusedId);
+      const next = leaves[(idx + 1) % leaves.length];
+      if (next) t.focusedId = next.id;
+    });
   }
 
   function focusPrev() {
     const leaves = allLeaves.value;
     if (leaves.length === 0) return;
-    const idx = leaves.findIndex((l) => l.id === tree.value.focusedId);
-    const prev = leaves[(idx - 1 + leaves.length) % leaves.length];
-    if (prev) tree.value.focusedId = prev.id;
+    withActiveTree((t) => {
+      const idx = leaves.findIndex((l) => l.id === t.focusedId);
+      const prev = leaves[(idx - 1 + leaves.length) % leaves.length];
+      if (prev) t.focusedId = prev.id;
+    });
   }
 
-  function openPane(type: PaneType, title: string): LeafNode {
-    const leaf = newLeaf(type, title);
-    if (!tree.value.root) {
-      tree.value.root = leaf;
-    } else if (tree.value.focusedId) {
-      // Aktif pane'in yerine split koy ve sağa/aşağıya yeni leaf yerleştir
-      tree.value.root = replaceNode(tree.value.root, tree.value.focusedId, (focused) => ({
-        kind: 'split',
-        id: uuid(),
-        direction: 'horizontal',
-        ratio: 0.5,
-        first: focused,
-        second: leaf,
-      }));
-    } else {
-      // Hiçbir focus yoksa root'u split'le
-      tree.value.root = {
-        kind: 'split',
-        id: uuid(),
-        direction: 'horizontal',
-        ratio: 0.5,
-        first: tree.value.root,
-        second: leaf,
-      } satisfies SplitNode;
-    }
-    tree.value.focusedId = leaf.id;
+  function openPane(type: PaneType, title: string, profileId?: string): LeafNode {
+    const leaf = newLeaf(type, title, profileId);
+    withActiveTree((t) => {
+      if (!t.root) {
+        t.root = leaf;
+      } else if (t.focusedId) {
+        t.root = replaceNode(t.root, t.focusedId, (focused) => ({
+          kind: 'split',
+          id: uuid(),
+          direction: 'horizontal',
+          ratio: 0.5,
+          first: focused,
+          second: leaf,
+        }));
+      } else {
+        t.root = {
+          kind: 'split',
+          id: uuid(),
+          direction: 'horizontal',
+          ratio: 0.5,
+          first: t.root,
+          second: leaf,
+        } satisfies SplitNode;
+      }
+      t.focusedId = leaf.id;
+    });
     return leaf;
   }
 
-  function splitFocused(direction: SplitDirection, type: PaneType, title: string) {
-    const focusedId = tree.value.focusedId;
+  function splitFocused(direction: SplitDirection, type: PaneType, title: string, profileId?: string) {
+    const tab = activeTab.value;
+    if (!tab) return;
+    const focusedId = tab.tree.focusedId;
     if (!focusedId) {
-      openPane(type, title);
+      openPane(type, title, profileId);
       return;
     }
-    const leaf = newLeaf(type, title);
-    tree.value.root = replaceNode(tree.value.root, focusedId, (focused) => ({
+    const leaf = newLeaf(type, title, profileId);
+    tab.tree.root = replaceNode(tab.tree.root, focusedId, (focused) => ({
       kind: 'split',
       id: uuid(),
       direction,
@@ -142,37 +242,48 @@ export const usePanesStore = defineStore('panes', () => {
       first: focused,
       second: leaf,
     }));
-    tree.value.focusedId = leaf.id;
+    tab.tree.focusedId = leaf.id;
   }
 
   async function closePane(id: string) {
-    const leaf = getLeaf(id);
+    const tab = findTabOfLeaf(id);
+    if (!tab) return;
+    const leaf = findLeaf(tab.tree.root, id);
     if (leaf?.ptyId) {
       try {
         await api.ptyKill(leaf.ptyId);
       } catch {
-        // Pane çoktan ölmüş olabilir; sessiz geç
+        /* zaten ölmüş olabilir */
       }
     }
-    tree.value.root = removeLeaf(tree.value.root, id);
-    if (tree.value.focusedId === id) {
-      const remaining = listLeaves(tree.value.root);
-      tree.value.focusedId = remaining[0]?.id ?? null;
+    tab.tree.root = removeLeaf(tab.tree.root, id);
+    if (tab.tree.focusedId === id) {
+      const remaining = listLeaves(tab.tree.root);
+      tab.tree.focusedId = remaining[0]?.id ?? null;
+    }
+    // Maximize edilmiş pane kapandıysa zoom modunu çöz
+    if (maximizedByTab.value[tab.id] === id) {
+      maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
     }
   }
 
   function setLeafState(id: string, patch: Partial<LeafNode>) {
-    tree.value.root = replaceNode(tree.value.root, id, (n) => {
+    const tab = findTabOfLeaf(id);
+    if (!tab) return;
+    tab.tree.root = replaceNode(tab.tree.root, id, (n) => {
       if (n.kind !== 'leaf') return n;
       return { ...n, ...patch };
     });
   }
 
   function setSplitRatio(id: string, ratio: number) {
-    tree.value.root = replaceNode(tree.value.root, id, (n) => {
-      if (n.kind !== 'split') return n;
-      return { ...n, ratio: Math.max(0.1, Math.min(0.9, ratio)) };
-    });
+    // Hangi tab içindeki split — tüm tab'larda ara
+    for (const tab of tabs.value) {
+      tab.tree.root = replaceNode(tab.tree.root, id, (n) => {
+        if (n.kind !== 'split') return n;
+        return { ...n, ratio: Math.max(0.1, Math.min(0.9, ratio)) };
+      });
+    }
   }
 
   // --- backend events ---
@@ -188,30 +299,36 @@ export const usePanesStore = defineStore('panes', () => {
           break;
         case 'sidecar_down':
           sidecarAlive.value = false;
-          // Tüm terminal pane'lerini error state'e taşı
-          for (const leaf of listLeaves(tree.value.root)) {
-            if (leaf.ptyId) {
-              setLeafState(leaf.id, { status: 'error', errorMessage: evt.reason });
+          for (const tab of tabs.value) {
+            for (const leaf of listLeaves(tab.tree.root)) {
+              if (leaf.ptyId) {
+                setLeafState(leaf.id, { status: 'error', errorMessage: evt.reason });
+              }
             }
           }
           break;
         case 'exit': {
-          const target = listLeaves(tree.value.root).find((l) => l.ptyId === evt.pane_id);
-          if (target) {
-            setLeafState(target.id, { status: 'exited', exitCode: evt.exit_code });
+          for (const tab of tabs.value) {
+            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
+            if (target) {
+              setLeafState(target.id, { status: 'exited', exitCode: evt.exit_code });
+              break;
+            }
           }
           break;
         }
         case 'error': {
           if (!evt.pane_id) return;
-          const target = listLeaves(tree.value.root).find((l) => l.ptyId === evt.pane_id);
-          if (target) {
-            setLeafState(target.id, { status: 'error', errorMessage: evt.message });
+          for (const tab of tabs.value) {
+            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
+            if (target) {
+              setLeafState(target.id, { status: 'error', errorMessage: evt.message });
+              break;
+            }
           }
           break;
         }
         // 'stdout' event'i terminal komponenti tarafından doğrudan listen edilir
-        // (her pane kendi xterm.js instance'ına yazar)
       }
     });
     unlisteners = list;
@@ -222,12 +339,55 @@ export const usePanesStore = defineStore('panes', () => {
     unlisteners = [];
   }
 
+  function toggleBroadcast() {
+    broadcastInput.value = !broadcastInput.value;
+  }
+
+  // --- maximize / zoom ---
+
+  const maximizedId = computed<string | null>(
+    () => maximizedByTab.value[activeTabId.value] ?? null,
+  );
+  const maximizedLeaf = computed<LeafNode | null>(() => {
+    const id = maximizedId.value;
+    if (!id) return null;
+    return findLeaf(activeTab.value?.tree.root ?? null, id);
+  });
+
+  function toggleMaximize() {
+    const tabId = activeTabId.value;
+    const focusedId = activeTab.value?.tree.focusedId;
+    const current = maximizedByTab.value[tabId] ?? null;
+    if (current) {
+      // restore
+      maximizedByTab.value = { ...maximizedByTab.value, [tabId]: null };
+      return;
+    }
+    if (!focusedId) return;
+    // Yalnızca split varsa anlamlı (tek leaf zaten tam ekran)
+    if (allLeaves.value.length <= 1) return;
+    maximizedByTab.value = { ...maximizedByTab.value, [tabId]: focusedId };
+  }
+
+  function clearMaximize(tabId?: string) {
+    const id = tabId ?? activeTabId.value;
+    if (maximizedByTab.value[id]) {
+      maximizedByTab.value = { ...maximizedByTab.value, [id]: null };
+    }
+  }
+
   return {
+    tabs,
+    activeTabId,
+    activeTab,
     tree,
     sidecarAlive,
+    broadcastInput,
+    toggleBroadcast,
     focused,
     allLeaves,
     paneCount,
+    totalPaneCount,
     getLeaf,
     focus,
     focusNext,
@@ -239,5 +399,17 @@ export const usePanesStore = defineStore('panes', () => {
     setSplitRatio,
     startListening,
     stopListening,
+    // tab actions
+    newTab: newTabAction,
+    setActiveTab,
+    nextTab,
+    prevTab,
+    closeTab,
+    renameTab,
+    // maximize / zoom
+    maximizedId,
+    maximizedLeaf,
+    toggleMaximize,
+    clearMaximize,
   };
 });
