@@ -150,6 +150,20 @@ const searchOptions = computed<ISearchOptions>(() => ({
 const blockTracker = createBlockTracker();
 registerBlockTracker(props.leaf.id, blockTracker);
 
+/** PTY canlı kalsın diye global buffer cache.
+ *  Tree restructure (split kapatma) Vue komponentini destroy/remount ediyor.
+ *  Eski davranışta her remount'ta yeni pty_spawn çağrılır → çalışan komut
+ *  kayboluyordu. Şimdi:
+ *   - unmount öncesi xterm buffer'ını serialize et + cache'le
+ *   - mount sonrası leaf.ptyId varsa yeniden spawn ETME, sadece listener kur
+ *   - cached buffer'ı term.write ile geri yaz
+ *  Map global modül scope — komponent destroy'unda kaybolmaz. closePane
+ *  callback'i panes store içinde delete eder (memory leak önleme). */
+interface PaneBufferGlobal { __dtermPaneBuffer?: Map<string, string> }
+const _g = globalThis as unknown as PaneBufferGlobal;
+const paneBufferCache: Map<string, string> =
+  _g.__dtermPaneBuffer ?? (_g.__dtermPaneBuffer = new Map());
+
 // Shell init script'leri src/shellInit/ altında ayrı dosyalara taşındı:
 //   powershell.ps1 → renkli prompt + OSC 0 title + OSC 133 shell integration
 //   cmd-prompt.txt → ANSI prompt setter
@@ -163,6 +177,19 @@ async function spawn() {
   if (!term || !fit || !container.value) return;
   fit.fit();
   const { cols, rows } = term;
+
+  // Reattach senaryosu: Vue komponenti destroy/remount oldu (split tree
+  // restructure) ama backend PTY canlı. Yeniden spawn ETME — eski PTY'ye
+  // yeniden bağlan. Cache'lenmiş buffer'ı replay et ki kullanıcı tarihçeyi
+  // kaybetmesin. Sonraki output'lar listenStdout üzerinden gelmeye devam.
+  if (props.leaf.ptyId && props.leaf.status === 'running') {
+    const cached = paneBufferCache.get(props.leaf.id);
+    if (cached) term.write(cached);
+    await listenStdout(props.leaf.ptyId);
+    // Backend'e yeni cols/rows bildir — pencere boyutu değişmiş olabilir
+    api.ptyResize(props.leaf.ptyId, cols, rows).catch(() => {});
+    return;
+  }
 
   // Profil seçimi: leaf.profileId varsa onu kullan, yoksa paneType'ın varsayılan
   // built-in profili. Hiçbir terminal profili paneType'a uymuyorsa (aiChat, welcome
@@ -534,6 +561,15 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
+
+  // PTY hâlâ canlıysa (split kapatma sonrası tree restructure) buffer'ı
+  // cache'le ki remount'ta replay edilsin. PTY ölmüşse cache'lemenin anlamı yok.
+  if (props.leaf.ptyId && props.leaf.status === 'running' && term && serialize) {
+    try {
+      const snapshot = serialize.serialize({ excludeAltBuffer: true, excludeModes: true });
+      paneBufferCache.set(props.leaf.id, snapshot);
+    } catch { /* serialize hatası — cache atla */ }
+  }
 
   // xterm-addon-webgl 0.19 çökme önleme:
   // Pane çok hızlı open+close edilirse WebglAddon._renderer henüz initialize

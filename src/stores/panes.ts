@@ -265,6 +265,10 @@ export const usePanesStore = defineStore('panes', () => {
     if (maximizedByTab.value[tab.id] === id) {
       maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
     }
+    // PTY persistence cache'inden de sil (memory leak önleme)
+    const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
+      .__dtermPaneBuffer;
+    cache?.delete(id);
   }
 
   function setLeafState(id: string, patch: Partial<LeafNode>) {
