@@ -1,0 +1,44 @@
+{
+  "name": "D-TokyoNight",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Tokyo Night — neon şehir geceleri, modern dark",
+  "colors": {
+    "background": "#1A1B26",
+    "foreground": "#A9B1D6",
+    "accent": "#7AA2F7",
+    "accent2": "#BB9AF7",
+    "cursor": "#C0CAF5",
+    "selection": "#283457",
+    "black": "#15161E",
+    "red": "#F7768E",
+    "green": "#9ECE6A",
+    "yellow": "#E0AF68",
+    "blue": "#7AA2F7",
+    "magenta": "#BB9AF7",
+    "cyan": "#7DCFFF",
+    "white": "#A9B1D6",
+    "brightBlack": "#414868",
+    "brightRed": "#FF8FA3",
+    "brightGreen": "#B7E184",
+    "brightYellow": "#F2C078",
+    "brightBlue": "#9BBAFF",
+    "brightMagenta": "#D7B6FF",
+    "brightCyan": "#9DDCFF",
+    "brightWhite": "#C0CAF5"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 12,
+    "opacity": 0.93,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#7AA2F7", "#BB9AF7"]
+  }
+}

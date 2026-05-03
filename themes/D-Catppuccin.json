@@ -1,0 +1,44 @@
+{
+  "name": "D-Catppuccin",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Catppuccin Mocha — pastel sıcak kahve tonları, göz dostu",
+  "colors": {
+    "background": "#1E1E2E",
+    "foreground": "#CDD6F4",
+    "accent": "#89B4FA",
+    "accent2": "#F5C2E7",
+    "cursor": "#F5E0DC",
+    "selection": "#45475A",
+    "black": "#45475A",
+    "red": "#F38BA8",
+    "green": "#A6E3A1",
+    "yellow": "#F9E2AF",
+    "blue": "#89B4FA",
+    "magenta": "#F5C2E7",
+    "cyan": "#94E2D5",
+    "white": "#BAC2DE",
+    "brightBlack": "#585B70",
+    "brightRed": "#F38BA8",
+    "brightGreen": "#A6E3A1",
+    "brightYellow": "#F9E2AF",
+    "brightBlue": "#89B4FA",
+    "brightMagenta": "#F5C2E7",
+    "brightCyan": "#94E2D5",
+    "brightWhite": "#A6ADC8"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 10,
+    "opacity": 0.94,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#89B4FA", "#F5C2E7"]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "D-Nord",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Arctic North Bluish — soğuk ton, uzun çalışma için yumuşak (Nord palette)",
+  "colors": {
+    "background": "#2E3440",
+    "foreground": "#D8DEE9",
+    "accent": "#88C0D0",
+    "accent2": "#5E81AC",
+    "cursor": "#88C0D0",
+    "selection": "#434C5E",
+    "black": "#3B4252",
+    "red": "#BF616A",
+    "green": "#A3BE8C",
+    "yellow": "#EBCB8B",
+    "blue": "#81A1C1",
+    "magenta": "#B48EAD",
+    "cyan": "#88C0D0",
+    "white": "#E5E9F0",
+    "brightBlack": "#4C566A",
+    "brightRed": "#D08F92",
+    "brightGreen": "#B8D0A1",
+    "brightYellow": "#F0D8A0",
+    "brightBlue": "#9CB7DA",
+    "brightMagenta": "#C8A6C2",
+    "brightCyan": "#9FD0DE",
+    "brightWhite": "#ECEFF4"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 8,
+    "opacity": 0.94,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#88C0D0", "#5E81AC"]
+  }
+}

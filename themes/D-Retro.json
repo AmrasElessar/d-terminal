@@ -1,0 +1,44 @@
+{
+  "name": "D-Retro",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Sarı fosfor CRT — eski terminal estetiği, glow efektli",
+  "colors": {
+    "background": "#0A0A00",
+    "foreground": "#FFB000",
+    "accent": "#FFB000",
+    "accent2": "#FFE066",
+    "cursor": "#FFB000",
+    "selection": "#3D2C00",
+    "black": "#1A1500",
+    "red": "#FF6B35",
+    "green": "#FFB000",
+    "yellow": "#FFE066",
+    "blue": "#D4A14A",
+    "magenta": "#FF8C42",
+    "cyan": "#E8C170",
+    "white": "#FFB000",
+    "brightBlack": "#5C4400",
+    "brightRed": "#FF8C5C",
+    "brightGreen": "#FFD480",
+    "brightYellow": "#FFEE99",
+    "brightBlue": "#E0BC6B",
+    "brightMagenta": "#FFAB6E",
+    "brightCyan": "#FFD699",
+    "brightWhite": "#FFF8DC"
+  },
+  "font": {
+    "family": "VT323",
+    "size": 16,
+    "ligatures": false
+  },
+  "ui": {
+    "blur": 0,
+    "opacity": 1.0,
+    "borderRadius": 0,
+    "glowEffect": true
+  },
+  "paneTitle": {
+    "gradient": ["#FFB000", "#FFE066"]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "D-Gruvbox",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Gruvbox Dark — sıcak retro renkler, vintage terminal hissi",
+  "colors": {
+    "background": "#282828",
+    "foreground": "#EBDBB2",
+    "accent": "#FE8019",
+    "accent2": "#D3869B",
+    "cursor": "#EBDBB2",
+    "selection": "#3C3836",
+    "black": "#282828",
+    "red": "#CC241D",
+    "green": "#98971A",
+    "yellow": "#D79921",
+    "blue": "#458588",
+    "magenta": "#B16286",
+    "cyan": "#689D6A",
+    "white": "#A89984",
+    "brightBlack": "#928374",
+    "brightRed": "#FB4934",
+    "brightGreen": "#B8BB26",
+    "brightYellow": "#FABD2F",
+    "brightBlue": "#83A598",
+    "brightMagenta": "#D3869B",
+    "brightCyan": "#8EC07C",
+    "brightWhite": "#EBDBB2"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 6,
+    "opacity": 0.96,
+    "borderRadius": 6,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#FE8019", "#D3869B"]
+  }
+}

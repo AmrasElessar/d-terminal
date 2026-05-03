@@ -299,13 +299,48 @@ void props.open;
       </section>
 
       <section v-if="tab === 'appearance'" class="section">
-        <label class="field">
+        <div class="field">
           <span>{{ t('settings.appearance.theme') }}</span>
-          <select :value="settings.state.themeName" @change="applyTheme(($event.target as HTMLSelectElement).value)">
-            <option v-for="theme in themeStore.themes" :key="theme.name" :value="theme.name">{{ theme.name }}</option>
-          </select>
           <small>{{ t('settings.appearance.themeHint') }}</small>
-        </label>
+          <div class="theme-grid">
+            <button
+              v-for="theme in themeStore.themes"
+              :key="theme.name"
+              type="button"
+              class="theme-card"
+              :class="{ active: settings.state.themeName === theme.name }"
+              :title="theme.description"
+              :style="{
+                background: theme.colors.background,
+                color: theme.colors.foreground,
+                borderColor: settings.state.themeName === theme.name ? theme.colors.accent : 'transparent',
+              }"
+              @click="applyTheme(theme.name)"
+            >
+              <div class="theme-card__head">
+                <span class="theme-card__name" :style="{ color: theme.colors.accent }">{{ theme.name }}</span>
+                <span v-if="settings.state.themeName === theme.name" class="theme-card__check" :style="{ color: theme.colors.accent }">●</span>
+              </div>
+              <div class="theme-card__sample">
+                <span :style="{ color: theme.colors.red }">$</span>
+                <span :style="{ color: theme.colors.green }">git</span>
+                <span :style="{ color: theme.colors.yellow }">push</span>
+                <span :style="{ color: theme.colors.blue }">origin</span>
+                <span :style="{ color: theme.colors.magenta }">main</span>
+              </div>
+              <div class="theme-card__swatches">
+                <span :style="{ background: theme.colors.black }" />
+                <span :style="{ background: theme.colors.red }" />
+                <span :style="{ background: theme.colors.green }" />
+                <span :style="{ background: theme.colors.yellow }" />
+                <span :style="{ background: theme.colors.blue }" />
+                <span :style="{ background: theme.colors.magenta }" />
+                <span :style="{ background: theme.colors.cyan }" />
+                <span :style="{ background: theme.colors.white }" />
+              </div>
+            </button>
+          </div>
+        </div>
         <label class="field">
           <span>{{ t('settings.appearance.fontFamily') }}</span>
           <select v-model="settings.state.fontFamily">
@@ -852,6 +887,53 @@ void props.open;
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .mono { font-family: var(--font-family); font-size: 12px; }
 .profile-icon { font-size: 16px; text-align: center; }
+
+/* --- Theme grid --- */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-family: var(--font-family);
+  text-align: left;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+  outline: none;
+}
+.theme-card:hover { transform: translateY(-1px); }
+.theme-card.active { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+.theme-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+.theme-card__check { font-size: 10px; }
+.theme-card__sample {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-family);
+}
+.theme-card__swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  height: 8px;
+}
+.theme-card__swatches span {
+  display: block;
+  border-radius: 1px;
+}
 .field textarea {
   background: rgba(255, 255, 255, 0.03);
   color: var(--color-fg);

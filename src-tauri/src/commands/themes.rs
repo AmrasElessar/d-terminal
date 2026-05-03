@@ -3,6 +3,7 @@
 use crate::error::{AppError, AppResult};
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri::Manager;
 
 #[derive(Debug, Serialize)]
 pub struct ThemeFile {
@@ -45,19 +46,22 @@ pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
 }
 
 fn bundled_themes_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
-    // Önce dev: <project>/themes
-    if let Some(dir) = std::env::current_dir().ok().and_then(|cwd| {
-        let candidate = cwd.join("themes");
-        if candidate.exists() {
-            Some(candidate)
-        } else {
-            None
+    // Dev: <project>/themes — cargo run sırasında cwd src-tauri olabilir, bir yukarı bak.
+    if let Ok(cwd) = std::env::current_dir() {
+        for candidate in [cwd.join("themes"), cwd.join("..").join("themes")] {
+            if candidate.exists() {
+                return Ok(candidate);
+            }
         }
-    }) {
-        return Ok(dir);
     }
-    // Prod: app resource path
-    let _ = app;
+    // Prod: Tauri resource path (tauri.conf.json bundle.resources üzerinden eklenir)
+    if let Ok(resolver) = app.path().resource_dir() {
+        let prod = resolver.join("themes");
+        if prod.exists() {
+            return Ok(prod);
+        }
+    }
+    // Son çare: exe yanı
     Ok(std::env::current_exe()?
         .parent()
         .unwrap_or(std::path::Path::new("."))
