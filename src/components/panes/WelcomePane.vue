@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
-import type { SystemInfo, DiskInfo } from '@/types/events';
+import type { SystemInfo, DiskInfo, NetIface } from '@/types/events';
 import { keybindings } from '@/keybindings/registry';
 
 const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
 const newPaneCombo = computed(() => keybindings.getCombo('pane.new') ?? 'Ctrl+Shift+T');
 
-// Typewriter state
+// Typewriter (logo + hint) state
 const typedLogo = ref('');
-const typedDfetch = ref('');
 const typedHint = ref('');
 const showCursor = ref(true);
 const showColors = ref(false);
+const visibleRowCount = ref(0); // info satırları line-by-line reveal
 
 let cursorTimer: number | undefined;
 let typeTimers: number[] = [];
@@ -26,9 +26,50 @@ const LOGO = `       ████████╗
 ██████╗   ██║
 ╚═════╝   ╚═╝`;
 
-// Logo + dfetch satırlarını yan yana koymak için ASCII solda, info sağda 2-kolon birleşir.
 const LOGO_LINES = LOGO.split('\n');
-const LOGO_WIDTH = Math.max(...LOGO_LINES.map((l) => [...l].length));
+
+// --- KVKK/GDPR maskeleme ---
+//
+// Hassas alanlar (hostname, IP, MAC, kullanıcı adı) varsayılan olarak
+// maskelenir. Yanlarındaki 👁 butonuna tıklayınca kullanıcı kendi
+// sorumluluğunda açar/kapar. Reveal state OTURUM IÇIN yaşar — yeni pane
+// açılışında her şey yeniden maskeli (KVKK güvenli default).
+
+const revealed = reactive<Record<string, boolean>>({});
+
+function isRevealed(rowId: string): boolean {
+  return !!revealed[rowId];
+}
+function toggleReveal(rowId: string) {
+  revealed[rowId] = !revealed[rowId];
+}
+
+function maskHost(s: string): string {
+  if (!s) return '';
+  if (s.length <= 3) return '•'.repeat(s.length);
+  return s.slice(0, 2) + '•'.repeat(Math.max(3, s.length - 2));
+}
+function maskIPv4(ip: string): string {
+  // 192.168.1.42 → 192.168.•.•
+  const parts = ip.split('.');
+  if (parts.length !== 4) return '•'.repeat(ip.length);
+  return `${parts[0]}.${parts[1]}.•.•`;
+}
+function maskIPv6(ip: string): string {
+  // fe80::a1b2:c3d4:... → fe80::•:•:•:•
+  if (!ip.includes(':')) return '•'.repeat(ip.length);
+  const head = ip.split(':').slice(0, 2).join(':');
+  return `${head}::•:•:•:•`;
+}
+
+interface Row {
+  id: string;
+  key: string;
+  value: string;
+  sensitive?: boolean;
+  /** Maskeli halinin string'i — sensitive ise kullanılır. */
+  masked?: string;
+}
 
 function fmtBytes(n: number): string {
   if (!n) return '0 B';
@@ -64,92 +105,86 @@ function fmtBoot(unix: number): string {
   return d.toLocaleString();
 }
 
-function fmtMhz(): string {
-  // sysinfo cpu_freq atlandı (refresh kosa olabilir); kullanılmıyor
-  return '';
-}
-
 function fmtDisk(d: DiskInfo): string {
   const usage = fmtPct(d.used, d.total);
   return `${d.mount_point} ${fmtBytes(d.used)} / ${fmtBytes(d.total)} ${usage} [${d.fs_type}]`;
 }
 
-interface Row { key: string; value: string; }
+function fmtIface(n: NetIface): string {
+  return `${n.name}: ${n.ip}`;
+}
+
+function maskedIface(n: NetIface): string {
+  return `${n.name}: ${n.family === 'v4' ? maskIPv4(n.ip) : maskIPv6(n.ip)}`;
+}
 
 function buildRows(i: SystemInfo): Row[] {
   const rows: Row[] = [];
-  // Header (user@host) — neofetch ilk satırında bunu render eder
-  const user = (typeof navigator !== 'undefined' && navigator.userAgent) ? '' : '';
-  void user;
-
-  rows.push({ key: 'OS',         value: i.os });
-  rows.push({ key: 'Host',       value: i.hostname });
-  rows.push({ key: 'Kernel',     value: i.kernel });
-  rows.push({ key: 'Uptime',     value: fmtUptime(i.uptime_secs) });
-  rows.push({ key: 'Boot',       value: fmtBoot(i.boot_time_unix) });
-  if (i.shell) rows.push({ key: 'Shell',      value: i.shell });
-  rows.push({ key: 'Terminal',   value: i.terminal });
-  rows.push({ key: 'Desktop',    value: i.desktop });
-  rows.push({ key: 'Theme',      value: i.theme });
+  rows.push({ id: 'os', key: 'OS', value: i.os });
+  rows.push({
+    id: 'host',
+    key: 'Host',
+    value: i.hostname,
+    sensitive: true,
+    masked: maskHost(i.hostname),
+  });
+  rows.push({ id: 'kernel', key: 'Kernel', value: i.kernel });
+  rows.push({ id: 'uptime', key: 'Uptime', value: fmtUptime(i.uptime_secs) });
+  rows.push({ id: 'boot', key: 'Boot', value: fmtBoot(i.boot_time_unix) });
+  if (i.shell) rows.push({ id: 'shell', key: 'Shell', value: i.shell });
+  rows.push({ id: 'terminal', key: 'Terminal', value: i.terminal });
+  rows.push({ id: 'desktop', key: 'Desktop', value: i.desktop });
+  rows.push({ id: 'theme', key: 'Theme', value: i.theme });
   if (i.screen) {
     rows.push({
+      id: 'res',
       key: 'Resolution',
       value: `${i.screen.width}x${i.screen.height} @ ${i.screen.scale.toFixed(2)}x`,
     });
   }
-  rows.push({ key: 'CPU',        value: `${i.cpu} ×${i.cores}${fmtMhz()}` });
-  for (const g of i.gpus) {
-    const vram = g.vram ? `, ${fmtBytes(g.vram)}` : '';
-    rows.push({ key: 'GPU',      value: `${g.name}${vram}` });
+  rows.push({ id: 'cpu', key: 'CPU', value: `${i.cpu} ×${i.cores}` });
+  for (let g = 0; g < i.gpus.length; g++) {
+    const gpu = i.gpus[g]!;
+    const vram = gpu.vram ? `, ${fmtBytes(gpu.vram)}` : '';
+    rows.push({ id: `gpu-${g}`, key: 'GPU', value: `${gpu.name}${vram}` });
   }
   rows.push({
+    id: 'mem',
     key: 'Memory',
     value: `${fmtBytes(i.ram_used)} / ${fmtBytes(i.ram_total)} ${fmtPct(i.ram_used, i.ram_total)}`,
   });
   if (i.swap_total > 0) {
     rows.push({
+      id: 'swap',
       key: 'Swap',
       value: `${fmtBytes(i.swap_used)} / ${fmtBytes(i.swap_total)} ${fmtPct(i.swap_used, i.swap_total)}`,
     });
   }
-  for (const d of i.disks.slice(0, 4)) {
-    rows.push({ key: 'Disk', value: fmtDisk(d) });
+  for (let d = 0; d < Math.min(4, i.disks.length); d++) {
+    rows.push({ id: `disk-${d}`, key: 'Disk', value: fmtDisk(i.disks[d]!) });
+  }
+  for (let n = 0; n < i.local_ips.length; n++) {
+    const iface = i.local_ips[n]!;
+    rows.push({
+      id: `net-${n}`,
+      key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
+      value: fmtIface(iface),
+      sensitive: true,
+      masked: maskedIface(iface),
+    });
   }
   if (i.battery) {
     const ico = i.battery.full ? '⚡' : i.battery.charging ? '↑' : '↓';
-    rows.push({ key: 'Battery', value: `${i.battery.percent}% ${ico}` });
+    rows.push({ id: 'bat', key: 'Battery', value: `${i.battery.percent}% ${ico}` });
   }
-  rows.push({ key: 'Locale',     value: i.locale });
-  rows.push({ key: 'Timezone',   value: i.timezone });
-  rows.push({ key: 'Version',    value: `D-Terminal v${i.d_terminal_version}` });
+  rows.push({ id: 'locale', key: 'Locale', value: i.locale });
+  rows.push({ id: 'tz', key: 'Timezone', value: i.timezone });
+  rows.push({ id: 'ver', key: 'Version', value: `D-Terminal v${i.d_terminal_version}` });
   return rows;
 }
 
-function buildDfetch(i: SystemInfo): string {
-  const rows = buildRows(i);
-  const userHost = `${i.hostname}`;
-  const sep = '─'.repeat(Math.max(8, userHost.length));
-  const lines: string[] = [];
-  lines.push(userHost);
-  lines.push(sep);
-  for (const row of rows) {
-    lines.push(`${row.key.padEnd(11, ' ')} ${row.value}`);
-  }
-  return lines.join('\n');
-}
-
-/** Logo + info'yu yan yana 2-kolon halinde birleştir. */
-function buildSideBySide(i: SystemInfo): string {
-  const right = buildDfetch(i).split('\n');
-  const lineCount = Math.max(LOGO_LINES.length, right.length);
-  const out: string[] = [];
-  for (let idx = 0; idx < lineCount; idx++) {
-    const left = (LOGO_LINES[idx] ?? '').padEnd(LOGO_WIDTH, ' ');
-    const r = right[idx] ?? '';
-    out.push(`${left}    ${r}`);
-  }
-  return out.join('\n');
-}
+const allRows = computed<Row[]>(() => (info.value ? buildRows(info.value) : []));
+const visibleRows = computed<Row[]>(() => allRows.value.slice(0, visibleRowCount.value));
 
 function typeInto(target: { value: string }, text: string, charDelay: number, startDelay: number): Promise<void> {
   return new Promise((resolve) => {
@@ -171,6 +206,31 @@ function typeInto(target: { value: string }, text: string, charDelay: number, st
   });
 }
 
+/** Info satırlarını sırayla reveal (typewriter benzeri ama line-by-line). */
+function revealRowsAnimated(): Promise<void> {
+  return new Promise((resolve) => {
+    visibleRowCount.value = 0;
+    const total = allRows.value.length;
+    if (total === 0) {
+      resolve();
+      return;
+    }
+    let n = 0;
+    const tick = () => {
+      n += 1;
+      visibleRowCount.value = n;
+      if (n >= total) {
+        resolve();
+        return;
+      }
+      const id = window.setTimeout(tick, 35);
+      typeTimers.push(id);
+    };
+    const start = window.setTimeout(tick, 100);
+    typeTimers.push(start);
+  });
+}
+
 function clearTimers() {
   typeTimers.forEach((id) => window.clearTimeout(id));
   typeTimers = [];
@@ -183,10 +243,11 @@ async function refresh() {
 async function play() {
   clearTimers();
   showColors.value = false;
+  // Yeni oturum/refresh — reveal state sıfırla (KVKK güvenli default)
+  for (const k of Object.keys(revealed)) delete revealed[k];
+
   await typeInto(typedLogo, LOGO, 4, 0);
-  if (info.value) {
-    await typeInto(typedDfetch, buildDfetch(info.value), 2, 100);
-  }
+  await revealRowsAnimated();
   showColors.value = true;
   const hint = `› ${t('welcome.openFirstPane', { shortcut: newPaneCombo.value })}`;
   await typeInto(typedHint, hint, 12, 200);
@@ -211,29 +272,38 @@ onBeforeUnmount(() => {
 
 const cursor = computed(() => (showCursor.value ? '▋' : ' '));
 const isTypingLogo = computed(() => typedLogo.value.length < LOGO.length);
-const isTypingDfetch = computed(
-  () => info.value && typedDfetch.value.length < buildDfetch(info.value).length,
-);
 const isTypingHint = computed(() => {
   const target = `› ${t('welcome.openFirstPane', { shortcut: newPaneCombo.value })}`;
   return typedHint.value.length < target.length;
 });
 
-// Logo + dfetch yan yana — typewriter sonrası 2-kolon birleşik render için tek pre kullanabilirdik
-// ama her iki blok bağımsız typewriter için ayrı kalmalı. UI'da CSS grid ile yan yana koyacağız.
-
-// Color blocks — neofetch standart: 2 satır × 8 sütun (16 ANSI rengi)
+// Color blocks — neofetch standart: 2 satır × 8 sütun
 const COLOR_ROW_TOP    = [0, 1, 2, 3, 4, 5, 6, 7];
 const COLOR_ROW_BOTTOM = [8, 9, 10, 11, 12, 13, 14, 15];
-
-void buildSideBySide; // exported for potential alt mode
 </script>
 
 <template>
   <div class="welcome">
     <div class="welcome__grid">
       <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
-      <pre v-if="info" class="welcome__info">{{ typedDfetch }}<span v-if="isTypingDfetch" class="cursor">{{ cursor }}</span></pre>
+
+      <div v-if="info" class="welcome__info">
+        <div v-for="row in visibleRows" :key="row.id" class="row">
+          <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
+          <span class="row__value">{{ row.sensitive && !isRevealed(row.id) ? row.masked : row.value }}</span>
+          <button
+            v-if="row.sensitive"
+            type="button"
+            class="row__eye"
+            :class="{ active: isRevealed(row.id) }"
+            :title="t('welcome.maskHint')"
+            :aria-label="isRevealed(row.id) ? t('welcome.maskHide') : t('welcome.maskShow')"
+            @click="toggleReveal(row.id)"
+          >
+            {{ isRevealed(row.id) ? '🙈' : '👁' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Neofetch-tarzı 16 ANSI color block satırı -->
@@ -283,14 +353,48 @@ void buildSideBySide; // exported for potential alt mode
   min-height: 6em;
 }
 .welcome__info {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
   font-size: 11px;
-  line-height: 1.45;
-  color: var(--color-fg);
+  line-height: 1.55;
   font-family: var(--font-family);
-  white-space: pre;
   min-height: 14em;
 }
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px;
+  align-items: center;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.row:hover { background: rgba(255, 255, 255, 0.03); }
+.row__key {
+  color: var(--color-accent);
+  white-space: pre;
+}
+.row__value {
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}
+.row__eye {
+  background: transparent;
+  border: none;
+  color: var(--color-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.row:hover .row__eye,
+.row__eye.active {
+  opacity: 0.85;
+}
+.row__eye:hover {
+  opacity: 1;
+}
+
 .welcome__colors {
   display: flex;
   flex-direction: column;
@@ -304,7 +408,6 @@ void buildSideBySide; // exported for potential alt mode
   height: 14px;
   display: inline-block;
 }
-/* xterm.js standart 16 ANSI rengi — tema değişkenlerinden çek (D-Dark/Light/Matrix uyumlu) */
 .ansi-0  { background: var(--ansi-black,    #1d1f21); }
 .ansi-1  { background: var(--ansi-red,      #cc6666); }
 .ansi-2  { background: var(--ansi-green,    #b5bd68); }

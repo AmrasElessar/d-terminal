@@ -7,7 +7,10 @@
     "title": "Welcome",
     "subtitle": "Agent-aware Windows terminal — pre-alpha",
     "openFirstPane": "Press {shortcut} to open your first pane",
-    "tip": "Tip"
+    "tip": "Tip",
+    "maskHint": "Sensitive field (GDPR) — revealing it is your responsibility. Re-masked when the pane refreshes.",
+    "maskShow": "Show",
+    "maskHide": "Hide"
   },
   "tab": {
     "new": "New Tab",

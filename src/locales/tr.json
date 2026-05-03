@@ -7,7 +7,10 @@
     "title": "Hoş geldin",
     "subtitle": "Agent-aware Windows terminali — pre-alpha",
     "openFirstPane": "İlk paneli açmak için {shortcut} tuşuna bas",
-    "tip": "İpucu"
+    "tip": "İpucu",
+    "maskHint": "Hassas alan (KVKK/GDPR) — açma kullanıcı sorumluluğundadır. Pencere yenilenince yeniden maskelenir.",
+    "maskShow": "Göster",
+    "maskHide": "Gizle"
   },
   "tab": {
     "new": "Yeni Sekme",

@@ -33,6 +33,12 @@ export interface BatteryInfo {
   full: boolean;
 }
 
+export interface NetIface {
+  name: string;
+  ip: string;
+  family: 'v4' | 'v6';
+}
+
 export interface SystemInfo {
   os: string;
   kernel: string;
@@ -57,4 +63,5 @@ export interface SystemInfo {
   gpus: GpuInfo[];
   screen: ScreenInfo | null;
   battery: BatteryInfo | null;
+  local_ips: NetIface[];
 }

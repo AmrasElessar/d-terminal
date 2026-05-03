@@ -41,6 +41,13 @@ pub struct BatteryInfo {
 }
 
 #[derive(Debug, Serialize)]
+pub struct NetIface {
+    pub name: String,
+    pub ip: String,
+    pub family: &'static str, // "v4" veya "v6"
+}
+
+#[derive(Debug, Serialize)]
 pub struct SystemInfo {
     pub os: String,
     pub kernel: String,
@@ -66,6 +73,7 @@ pub struct SystemInfo {
     pub gpus: Vec<GpuInfo>,
     pub screen: Option<ScreenInfo>,
     pub battery: Option<BatteryInfo>,
+    pub local_ips: Vec<NetIface>,
 }
 
 #[tauri::command]
@@ -100,7 +108,38 @@ pub fn dfetch_get() -> SystemInfo {
         gpus: collect_gpus(),
         screen: detect_screen(),
         battery: detect_battery(),
+        local_ips: collect_local_ips(),
     }
+}
+
+/// Yerel IP toplama — public IP'ye dokunulmaz (offline-first, KVKK/GDPR).
+/// Loopback (127.x, ::1) ve link-local (169.254.x) hariç tutulur.
+fn collect_local_ips() -> Vec<NetIface> {
+    use std::net::IpAddr;
+    let Ok(ifaces) = local_ip_address::list_afinet_netifas() else {
+        return Vec::new();
+    };
+    ifaces
+        .into_iter()
+        .filter_map(|(name, ip)| {
+            let (family, is_useful) = match ip {
+                IpAddr::V4(v4) => {
+                    let octets = v4.octets();
+                    let useful = !v4.is_loopback() && octets[0] != 169;
+                    ("v4", useful)
+                }
+                IpAddr::V6(v6) => ("v6", !v6.is_loopback() && !v6.is_unspecified()),
+            };
+            if !is_useful {
+                return None;
+            }
+            Some(NetIface {
+                name,
+                ip: ip.to_string(),
+                family,
+            })
+        })
+        .collect()
 }
 
 fn detect_shell() -> String {
