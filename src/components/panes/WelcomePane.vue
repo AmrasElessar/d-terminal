@@ -384,7 +384,8 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   display: flex;
   flex-direction: column;
   gap: 16px;
-  align-items: flex-start;
+  /* D-T (~22 char) Windows logosuna (~38 char) göre yatay ortalı */
+  align-items: center;
 }
 
 /* Windows OS logo — fastfetch klasik wavy, Microsoft brand renkleri.
