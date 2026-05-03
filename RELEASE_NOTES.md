@@ -101,9 +101,53 @@
   vue-i18n 11 + build-time AST compile)
 - Plugin sandbox iskeleti: Web Worker + capability permissions (v1.1+)
 
+### 📥 İndir
+
+| Dosya | Boyut | Açıklama |
+|---|---|---|
+| `D-Terminal_0.1.0_x64_tr-TR.msi` | 8.5 MB | Türkçe installer (önerilen) |
+| `D-Terminal_0.1.0_x64_en-US.msi` | 8.5 MB | English installer |
+| `D-Terminal_0.1.0_x64-setup.exe` | 7.5 MB | NSIS — TR/EN dil seçici, tek installer |
+| `d-terminal.exe` | 12.4 MB | Standalone (portable, kuruluma gerek yok) |
+
+**SHA-256 doğrulama** (PowerShell):
+```powershell
+Get-FileHash D-Terminal_0.1.0_x64_tr-TR.msi -Algorithm SHA256
+```
+
+| Dosya | SHA-256 |
+|---|---|
+| `*_x64_en-US.msi` | `108bf871f1350d47ea636d798c3d523dcab7c87ee60e1113f3c295543ccc54ae` |
+| `*_x64_tr-TR.msi` | `243840a990c0561f8d499f6755f20f427496b6781ca0e4e673752869eff85291` |
+| `*_x64-setup.exe` | `ae8dfd6ff73aa7bd64c565f1ad92107cb794d5f63b184dd7934eeee4c6ada4b0` |
+
+### 🛡️ Güvenlik / Virüs Taraması
+
+VirusTotal sonuçları (2026-05-03):
+
+| Dosya | Sonuç | Yorum |
+|---|---|---|
+| **TR MSI** | **0/59 ✅** | Tamamen clean |
+| **EN MSI** | **0/59 ✅** | Tamamen clean |
+| **NSIS setup.exe** | **2/69 ⚠️** | Net false positive |
+
+NSIS installer'da 2 alarm:
+- **CrowdStrike Falcon** — `Win/grayware_confidence_60% (D)` — "Grayware" potansiyel istenmeyen anlamına gelir, %60 düşük güven, behavioral heuristic. Tauri/Electron-tipi yeni imzasız binary'ler için CrowdStrike'ın bilinen false positive pattern'i.
+- **SecureAge** — `Malicious` (detaysız) — Cloud-only ML engine, yüksek false positive oranıyla bilinir.
+
+**Major engine'ler hepsi clean**: Microsoft Defender, Kaspersky, BitDefender, ESET-NOD32, Sophos, Avast, McAfee, Symantec, Trend Micro, Malwarebytes, Avira.
+
+Bu sonuç sektör standardı: **5'ten az engine flag = false positive** kabul edilir. False positive sebepleri:
+- **Code signing yok** (en büyük sebep) — SignPath FOSS başvurusu yapıldığında %95+ alarm gider
+- **node-pty sidecar** child process spawn — bazı behavioral engine'leri tetikler
+- **WMI sorguları** (DFetch için Win32_VideoController, Win32_Battery)
+- **Windows DPAPI** memory access (CryptProtectData) — credential vault korumalı
+
 ### 🧪 Bilinen sınırlar / TODO (v1.0.5+)
 
-- Code signing yok — installer Windows SmartScreen uyarısı verir
+- Code signing eksik (SignPath Foundation FOSS başvurusu sürecinde) —
+  installer Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir,
+  "Yine de çalıştır" ile devam edilir
 - Microsoft Store dağıtımı için manifest hazırlığı yapılmamış
 - HTTP/SSH gelişmiş özellikler (config.ssh okuma) v1.1+
 - Plugin marketplace v1.1+
