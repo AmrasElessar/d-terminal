@@ -333,6 +333,9 @@
     "pathCopied": "Yol panoya kopyalandı",
     "shaCopied": "SHA kopyalandı: {sha}",
     "hostCopied": "Adres kopyalandı",
+    "suggest": {
+      "hint": "Geçmişten öneri — Tab veya → ile kabul et"
+    },
     "renderer": {
       "auto": "Otomatik (WebGL → Canvas → DOM)",
       "webgl": "WebGL (GPU hızlandırmalı)",
@@ -374,7 +377,14 @@
     "empty": "Henüz snippet yok",
     "saved": "Snippet kaydedildi: {name}",
     "deleted": "Snippet silindi",
-    "noActivePane": "Çalıştırmak için aktif bir terminal paneli seç"
+    "noActivePane": "Çalıştırmak için aktif bir terminal paneli seç",
+    "export": "Dışa Aktar",
+    "import": "İçe Aktar",
+    "exportHint": "Tüm snippet'ları JSON dosyası olarak indir (paylaşım için)",
+    "importHint": "JSON dosyasından snippet'ları içe aktar (Warp Drive lite)",
+    "exportDone": "{count} snippet dışa aktarıldı",
+    "importDone": "{added} snippet eklendi, {skipped} atlandı (boş veya çakışan)",
+    "importInvalid": "Geçersiz snippet dosyası"
   },
   "psreadline": {
     "import": "PowerShell Geçmişini İçe Aktar",

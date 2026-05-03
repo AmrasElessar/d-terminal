@@ -39,10 +39,61 @@ const profiles = useProfilesStore();
 const modals = useModals();
 const { t } = useI18n();
 
-/** Komut girdi buffer'ı — `#` prefix interception için. PROMPT'tan sonra sıfırlanır,
- *  Enter'da temizlenir, backspace'i kabul eder. blockTracker.inputAccumulator'dan ayrı
- *  tutuluyor çünkü bu sadece intercept kararı için lazım (block tracker ayrı amaca hizmet). */
+/** Komut girdi buffer'ı — `#` prefix interception + inline autocomplete için.
+ *  PROMPT'tan sonra sıfırlanır, Enter'da temizlenir, backspace'i kabul eder.
+ *  blockTracker.inputAccumulator'dan ayrı tutuluyor çünkü bu sadece intercept
+ *  kararı için lazım (block tracker ayrı amaca hizmet). */
 let cmdBuffer = '';
+
+// --- Inline autocomplete (history-based) ---
+const suggestion = ref<string | null>(null);
+let suggestDebounceTimer: number | undefined;
+async function refreshSuggestion() {
+  if (!settings.state.inlineAutocomplete) {
+    suggestion.value = null;
+    return;
+  }
+  const prefix = cmdBuffer.trim();
+  if (prefix.length < 2) {
+    suggestion.value = null;
+    return;
+  }
+  try {
+    const results = await api.historySearch({ text: prefix, limit: 20 });
+    // İlk prefix-match'i bul (search substring döner; biz başlangıçta eşleşeni isteriz)
+    const match = results.find((h) => h.command.startsWith(prefix) && h.command.length > prefix.length);
+    suggestion.value = match ? match.command : null;
+  } catch {
+    suggestion.value = null;
+  }
+}
+function scheduleSuggestion() {
+  if (suggestDebounceTimer) window.clearTimeout(suggestDebounceTimer);
+  suggestDebounceTimer = window.setTimeout(() => {
+    suggestDebounceTimer = undefined;
+    refreshSuggestion();
+  }, 80);
+}
+function clearSuggestion() {
+  suggestion.value = null;
+  if (suggestDebounceTimer) {
+    window.clearTimeout(suggestDebounceTimer);
+    suggestDebounceTimer = undefined;
+  }
+}
+/** Suffix'i (öneriden cmdBuffer'ı çıkar) PTY'ye yaz, cmdBuffer güncelle. */
+function acceptSuggestion(): boolean {
+  const s = suggestion.value;
+  if (!s || !s.startsWith(cmdBuffer)) return false;
+  const suffix = s.slice(cmdBuffer.length);
+  if (!suffix) return false;
+  const ptyId = panes.getLeaf(props.leaf.id)?.ptyId;
+  if (!ptyId) return false;
+  api.ptyWrite(ptyId, new TextEncoder().encode(suffix)).catch(() => {});
+  cmdBuffer = s;
+  clearSuggestion();
+  return true;
+}
 
 // Trigger matching: line-buffered. PTY chunk'ları '\n' içerir, eksik son parça
 // `pendingLine` içinde tutulur ve bir sonraki chunk ile birleştirilir. ANSI
@@ -184,17 +235,30 @@ function attachInput() {
       modals.open('aiSuggest');
       return;
     }
+
+    // Inline autocomplete kabul: Tab (\t) veya → (\x1b[C) ve aktif öneri varsa
+    // PTY'ye gitmeden suggestion suffix'ini yaz.
+    if (suggestion.value && (data === '\t' || data === '\x1b[C')) {
+      if (acceptSuggestion()) return;
+    }
+
     // Buffer güncelleme
+    let bufferChanged = false;
     if (data.includes('\r') || data.includes('\n')) {
       cmdBuffer = '';
+      clearSuggestion();
     } else if (data === '\x7f' || data === '\b') {
       cmdBuffer = cmdBuffer.slice(0, -1);
+      bufferChanged = true;
     } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
       cmdBuffer += data;
+      bufferChanged = true;
     } else if (data.length > 1) {
-      // Çok karakterli (paste vb.) — # interception devre dışı
+      // Çok karakterli (paste vb.) — # interception devre dışı, autocomplete de
       cmdBuffer += data;
+      bufferChanged = true;
     }
+    if (bufferChanged) scheduleSuggestion();
 
     // Block tracker — kullanıcı input'unu yakala (komut metni için)
     blockTracker.onUserInput(data);
@@ -236,12 +300,27 @@ function attachInput() {
     const cmd = semi >= 0 ? data.slice(0, semi) : data;
     const rest = semi >= 0 ? data.slice(semi + 1) : '';
     switch (cmd) {
-      case 'A': blockTracker.onPromptStart(); cmdBuffer = ''; break;
-      case 'B': blockTracker.onCommandStart(); cmdBuffer = ''; break;
+      case 'A': blockTracker.onPromptStart(); cmdBuffer = ''; clearSuggestion(); break;
+      case 'B': blockTracker.onCommandStart(); cmdBuffer = ''; clearSuggestion(); break;
       case 'C': blockTracker.onCommandRun(''); break;
       case 'D': {
         const exitCode = rest ? parseInt(rest, 10) : 0;
-        blockTracker.onCommandEnd(Number.isNaN(exitCode) ? 0 : exitCode);
+        const code = Number.isNaN(exitCode) ? 0 : exitCode;
+        blockTracker.onCommandEnd(code);
+        // Komutu geçmişe yaz — history-based autocomplete + Settings → History modal
+        const block = blockTracker.active();
+        if (block?.command) {
+          const dur = block.endedAt && block.startedAt
+            ? block.endedAt.getTime() - block.startedAt.getTime()
+            : undefined;
+          api.historyAdd({
+            command: block.command,
+            paneId: props.leaf.id,
+            paneType: props.leaf.type,
+            exitCode: code,
+            durationMs: dur,
+          }).catch(() => { /* offline / migration sırasında yutulur */ });
+        }
         break;
       }
       case 'P': {
@@ -554,6 +633,14 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
   <div class="terminal-host" @keydown="onContainerKeydown">
     <div ref="container" class="terminal" />
 
+    <!-- Inline autocomplete chip — history'den prefix-match öneri.
+         → veya Tab ile kabul, başka tuşa basınca güncellenir. -->
+    <div v-if="suggestion" class="suggest-chip" :title="t('terminal.suggest.hint')">
+      <span class="suggest-chip__arrow">→</span>
+      <code class="suggest-chip__text">{{ suggestion }}</code>
+      <span class="suggest-chip__key">⇥</span>
+    </div>
+
     <!-- Search overlay (Ctrl+F) — every modern terminal has this -->
     <div v-if="searchOpen" class="search-bar" @keydown.stop>
       <input
@@ -693,5 +780,46 @@ ab|
 .search-bar .close:hover {
   color: var(--color-red);
   border-color: var(--color-red);
+}
+
+/* Inline autocomplete chip — alt-sağda sticky, terminal cursor'una müdahale yok */
+.suggest-chip {
+  position: absolute;
+  bottom: 6px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 6px;
+  background: rgba(10, 14, 26, 0.85);
+  border: 1px solid var(--color-line);
+  border-left: 2px solid var(--color-accent);
+  border-radius: 3px;
+  font-family: var(--font-family);
+  font-size: 10px;
+  color: var(--color-dim);
+  pointer-events: none;
+  z-index: 25;
+  max-width: 60%;
+  backdrop-filter: blur(6px);
+}
+.suggest-chip__arrow {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+.suggest-chip__text {
+  color: var(--color-fg);
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+.suggest-chip__key {
+  color: var(--color-accent);
+  background: rgba(0, 180, 216, 0.15);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 9px;
 }
 </style>

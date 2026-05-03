@@ -52,6 +52,83 @@ function run(s: Snippet) {
   emit('close');
 }
 
+// --- Export / Import (Warp Drive lite — file-based snippet paylaşımı) ---
+const importInput = ref<HTMLInputElement>();
+
+interface ExportPayload {
+  format: 'd-terminal-snippets';
+  version: 1;
+  exportedAt: string;
+  snippets: Array<{ name: string; command: string; description: string | null; shortcut: string | null }>;
+}
+
+function exportSnippets() {
+  const payload: ExportPayload = {
+    format: 'd-terminal-snippets',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    snippets: snippets.items.map((s) => ({
+      name: s.name,
+      command: s.command,
+      description: s.description ?? null,
+      shortcut: s.shortcut ?? null,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `d-terminal-snippets-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toasts.success(t('snippet.exportDone', { count: snippets.items.length }));
+}
+
+function triggerImport() {
+  importInput.value?.click();
+}
+
+async function onImportFile(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text) as Partial<ExportPayload>;
+    if (parsed.format !== 'd-terminal-snippets' || !Array.isArray(parsed.snippets)) {
+      toasts.error(t('snippet.importInvalid'));
+      return;
+    }
+    let added = 0;
+    let skipped = 0;
+    const existingNames = new Set(snippets.items.map((s) => s.name));
+    for (const s of parsed.snippets) {
+      if (!s.name?.trim() || !s.command?.trim()) {
+        skipped++;
+        continue;
+      }
+      if (existingNames.has(s.name)) {
+        skipped++;
+        continue;
+      }
+      await snippets.upsert({
+        name: s.name.trim(),
+        command: s.command,
+        description: s.description ?? null,
+        shortcut: s.shortcut ?? null,
+      });
+      added++;
+    }
+    toasts.success(t('snippet.importDone', { added, skipped }));
+  } catch (err) {
+    toasts.error(t('snippet.importInvalid') + ': ' + String(err));
+  } finally {
+    input.value = ''; // aynı dosyayı tekrar seçebilmek için reset
+  }
+}
+
 void props.open;
 </script>
 
@@ -63,6 +140,19 @@ void props.open;
         <button v-if="!editing" type="button" class="primary small" @click="startNew">
           {{ t('snippet.addNew') }}
         </button>
+        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.exportHint')" @click="exportSnippets">
+          ⬇ {{ t('snippet.export') }}
+        </button>
+        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.importHint')" @click="triggerImport">
+          ⬆ {{ t('snippet.import') }}
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept="application/json,.json"
+          style="display:none"
+          @change="onImportFile"
+        />
         <button type="button" class="close" @click="emit('close')">×</button>
       </header>
 

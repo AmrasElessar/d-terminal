@@ -333,6 +333,9 @@
     "pathCopied": "Path copied to clipboard",
     "shaCopied": "SHA copied: {sha}",
     "hostCopied": "Host copied to clipboard",
+    "suggest": {
+      "hint": "Suggestion from history — accept with Tab or →"
+    },
     "renderer": {
       "auto": "Auto (WebGL → Canvas → DOM)",
       "webgl": "WebGL (GPU accelerated)",
@@ -374,7 +377,14 @@
     "empty": "No snippets yet",
     "saved": "Snippet saved: {name}",
     "deleted": "Snippet deleted",
-    "noActivePane": "Select an active terminal pane to run"
+    "noActivePane": "Select an active terminal pane to run",
+    "export": "Export",
+    "import": "Import",
+    "exportHint": "Download all snippets as JSON (for sharing)",
+    "importHint": "Import snippets from a JSON file (Warp Drive lite)",
+    "exportDone": "{count} snippets exported",
+    "importDone": "{added} snippets added, {skipped} skipped (empty or duplicate)",
+    "importInvalid": "Invalid snippet file"
   },
   "psreadline": {
     "import": "Import PowerShell History",

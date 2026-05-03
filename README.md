@@ -16,22 +16,77 @@ Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzer
 
 ## Öne Çıkan Özellikler
 
-- 🪟 **Çoklu pane**: yatay/dikey split, sekme başına bağımsız ağaç, zoom modu, broadcast input
-- 🤖 **AI yerleşik**: Anthropic, OpenAI, Gemini, Ollama (offline) ve OpenAI-uyumlu özel endpoint'ler
-- ⚡ **Komut üretici**: doğal dilden shell komutu (`Ctrl+Shift+G` veya boş prompt'ta `#`)
-- 📦 **Blok tabanlı tarih**: OSC 133 ile her komut + çıktı + exit kodu yakalanır, AI'a gönder/yeniden çalıştır
-- 🎯 **Output triggers**: regex eşleşmesinde toast / AI'a iletme / snippet çalıştırma
-- 🔌 **Shell profilleri**: PowerShell, CMD, WSL, SSH, Docker exec, Python REPL... profile-aware spawn
-- 🎨 **Tema sistemi**: 3 dahili tema + JSON ile özel tema, runtime renk değişimi
-- 🌍 **TR + EN**: tam yerelleştirme, topluluk dil paketi desteği
-- ⌨️ **Klavye-first**: 20+ varsayılan kısayol, command palette
-- 🔒 **Güvenli credential storage**: Windows DPAPI, master parola yok
-- 📊 **Yerleşik DFetch**: neofetch tarzı sistem bilgi (CPU, GPU, disk, ekran, batarya, tema, locale)
-- 🔍 **Modern xterm motoru**: WebGL renderer + canvas/DOM fallback, scrollback search, sixel + iTerm2 inline image
-- 💾 **Session restore**: layout + komut geçmişi kalıcı, oturum kaydet/yükle
-- 🪟 **Quake hotkey**: `F1` ile pencere göster/gizle (sistem tepsisinden bağımsız)
-- 🚀 **Tauri v2**: ~5 MB binary, ~80 MB RAM (Electron alternatiflerine göre 5x daha hafif)
-- 🧩 **Eklenti çerçevesi**: Web Worker sandbox + capability-based permission API (v1.1+)
+### 🤖 Yapay Zeka — kendi anahtarın, hiç buluta sızmadan
+- **4 sağlayıcı**: Anthropic, OpenAI, Gemini, Ollama (offline) + OpenAI-uyumlu özel endpoint
+- **Rust HTTP proxy**: API key Windows DPAPI vault'tan Rust tarafında alınır, frontend hiçbir zaman plaintext key görmez (XSS riski sıfırlandı)
+- **Komut üretici**: doğal dilden shell komutu (`Ctrl+Shift+G` modal veya boş prompt'ta `#` interception)
+- **Blok'tan AI'a**: terminal komut bloklarını tek tıkla AI Chat'e enjekte et
+
+### 📦 Blok Tabanlı Komut Tarihi (OSC 133)
+- Her komut + çıktı + exit kodu otomatik yakalanır
+- Renkli durum: ✓ success / ✗ error / ◌ running / ⊘ aborted
+- Komut yeniden çalıştır, çıktı kopyala, AI'a gönder
+- PowerShell shell-integration prompt yerleşik (CMD da)
+
+### 🎯 Output Triggers (iTerm2 paritesi)
+- Regex eşleşmesinde otomatik aksiyon: toast, AI'a iletme, snippet çalıştırma
+- Cooldown + scope (per shell tipi) kontrolü
+- `{{0}}`, `{{1}}` template ile match groups
+
+### 🪟 Pane Sistemi
+- Yatay/dikey split, **sekme başına bağımsız ağaç**
+- Pane zoom modu (tmux z paritesi, `Ctrl+Shift+Z`)
+- Broadcast input (tmux sync-panes — tüm pane'lere paralel klavye)
+- Context menu: kopya, yapıştır, temizle, böl, kapat
+
+### 🔌 Shell Profilleri (iTerm2/Tabby paritesi)
+- Built-in: PowerShell / CMD / WSL
+- Kullanıcı tanımlı: SSH host, Docker exec, pwsh 7, Python REPL...
+- Her profil: shell + args + cwd + env + ikon + renk badge
+
+### 🎨 Tema ve Görünüm
+- **14 dahili tema**: D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruvbox, D-Retro, D-Solarized-Dark/Light, D-OneDark, D-RosePine, D-GitHub-Dark
+- JSON ile özel tema, runtime renk değişimi
+- Mica / Acrylic / None — runtime vibrancy switch (Win11 22H2+)
+- Settings'te kart-grid önizleme + ANSI swatches
+
+### 📊 DFetch (neofetch paritesi)
+- Yerleşik sistem bilgi: CPU, GPU (WMI), disk, ekran + DPI, batarya, tema, locale, timezone, swap, boot time
+- **Yerel IP** (IPv4/IPv6) — public IP'ye dokunmaz (offline-first)
+- **KVKK/GDPR maskeleme**: hostname + IP varsayılan gizli, 👁 tıklayınca aç/kapa, oturum içi
+- 4-renkli Windows OS logosu (neofetch konvansiyonu)
+- 16 ANSI color blocks alttaki bant
+
+### 🔍 xterm Motoru
+- WebGL renderer + Canvas/DOM otomatik fallback
+- Scrollback search (`Ctrl+F`, regex/case/word, decoration highlight)
+- Sixel + iTerm2 inline image protokolleri
+- Unicode 11 (emoji + CJK doğru genişlik)
+- Smart link: file path, git SHA, IP/host tıklanabilir
+- Buffer serialize → clipboard
+
+### ⌨️ Klavye-first
+- 24 varsayılan kısayol, **kapsayıcı editör** (Settings → Kısayollar)
+- Tuş yakalama capture overlay, çakışma tespiti, override persist
+- Command palette (`Ctrl+Shift+P`)
+- Quake hotkey (`F1` — pencere göster/gizle)
+
+### 🔒 Güvenlik
+- Windows DPAPI ile credential storage (master parola yok)
+- AI key Rust tarafında, frontend'e sızmaz
+- Plugin sandbox iskeleti: Web Worker + capability-based permissions (v1.1+)
+- CSP enforced (script-src 'self'), wasm-unsafe-eval limited
+
+### 💾 Kalıcılık
+- Session restore (layout + komut geçmişi)
+- SQLite WAL mode, kullanıcı dosyalarına dokunmaz
+- Snippet & history full-text search
+- PSReadLine geçmiş içe aktarma
+
+### 🚀 Mimari
+- Tauri v2 — Rust core + WebView2, ~5 MB binary, ~100 MB RAM (Electron 5x daha hafif)
+- Length-prefixed binary IPC ile node-pty sidecar (ADR-0001)
+- Heartbeat tabanlı zombi-koruma (Tauri crash → sidecar otomatik kapanır)
 
 ## Teknoloji
 
@@ -50,10 +105,10 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 
 | Sürüm | Hedef | İçerik |
 |---|---|---|
-| **v1.0** | 3-4 ay | PowerShell + AI Chat pane, 4 AI provider, 3 tema, TR+EN |
-| **v1.0.5** | +2 ay | CMD + Log Stream, kalan temalar, snippet/grid, profil ek özellikleri |
-| **v1.1** | +3 ay | Plugin API, tema marketplace, HTTP/SSH pane gelişmiş özellikler |
-| **v2.0** | — | Multi-agent orkestrasyon, terminal AI assist, takım paylaşımı |
+| **v1.0** | 3-4 ay | Çoğu özellik mevcut; release polish + test + docs |
+| **v1.0.5** | +2 ay | vue-i18n 11 migration (CSP `unsafe-eval` kaldır), Log Stream pane, snippet senkron |
+| **v1.1** | +3 ay | Plugin API marketplace, gelişmiş SSH (config.ssh okuyucu), free-form grid, Lua/JS programmatic config |
+| **v2.0** | — | Multi-agent orkestrasyon, terminal AI assist (Warp Drive benzeri ekip paylaşımı), Kitty graphics protokolü |
 
 ## Kurulum
 

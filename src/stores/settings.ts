@@ -30,6 +30,9 @@ export interface SettingsState {
   windowVibrancy: 'auto' | 'mica' | 'acrylic' | 'none';
   /** Klavye kısayolu override'ları — id → combo. Boş ise default kullanılır. */
   shortcutOverrides: Record<string, string>;
+  /** History tabanlı inline öneri (fish/Warp tarzı) — boş prompt'ta yazarken
+   *  geçmişten en son eşleşen komut gri renkte gösterilir; → veya Tab ile kabul. */
+  inlineAutocomplete: boolean;
 }
 
 const DEFAULTS: SettingsState = {
@@ -46,6 +49,7 @@ const DEFAULTS: SettingsState = {
   aiPrefixHash: true,
   windowVibrancy: 'auto',
   shortcutOverrides: {},
+  inlineAutocomplete: true,
 };
 
 const KEY_PREFIX = 'ui.';
