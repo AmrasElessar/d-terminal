@@ -1,5 +1,6 @@
 // D-Terminal — kütüphane kökü.
 
+pub mod ai;
 pub mod commands;
 pub mod error;
 pub mod logger;
@@ -145,9 +146,10 @@ pub fn run() {
             commands::secrets::secrets_delete,
             commands::secrets::secrets_list,
             commands::secrets::secrets_has,
-            // AI proxy
+            // AI: maskeli key + Rust-side proxy (key frontend'e sızmaz)
             commands::ai_proxy::ai_key_masked,
-            commands::ai_proxy::ai_key_reveal,
+            commands::ai::ai_models,
+            commands::ai::ai_chat_stream,
             // DFetch
             commands::dfetch::dfetch_get,
             // Themes

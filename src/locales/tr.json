@@ -243,7 +243,7 @@
       "shellPh": "ssh.exe veya pwsh.exe veya C:\\path\\to\\binary.exe",
       "shellHint": "Çalıştırılacak binary. PATH'te varsa direkt isim, yoksa tam path.",
       "args": "Argümanlar",
-      "argsPh": "user@host -p 22",
+      "argsPh": "user{'@'}host -p 22",
       "argsHint": "Boşluk ayraçlı; \"x y\" veya 'x y' ile içinde boşluk olan argüman.",
       "cwd": "Çalışma Dizini",
       "cwdPh": "C:\\Projeler veya boş bırak",
@@ -398,8 +398,8 @@
       "action": "Aksiyon",
       "cooldown": "Cooldown (ms)",
       "payload": "Payload / Şablon",
-      "payloadPh": "Hata: {{0}}",
-      "payloadHint": "{{0}} = tüm eşleşme, {{1}}, {{2}} = capture grupları"
+      "payloadPh": "Hata: {'{{0}}'}",
+      "payloadHint": "{'{{0}}'} = tüm eşleşme, {'{{1}}'}, {'{{2}}'} = capture grupları"
     },
     "action": {
       "toast": "Bildirim göster (toast)",

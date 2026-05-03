@@ -78,11 +78,15 @@ export const api = {
   secretsHas: (scope: string, name: string) =>
     invoke<boolean>('secrets_has', { scope, name }),
 
-  // AI proxy
+  // AI: maskeli key bilgisi UI için. Asıl çağrılar Rust proxy üzerinden,
+  // key frontend'e hiçbir zaman ulaşmaz.
   aiKeyMasked: (provider: string) =>
     invoke<string | null>('ai_key_masked', { provider }),
-  aiKeyReveal: (provider: string) =>
-    invoke<string | null>('ai_key_reveal', { provider }),
+  aiModels: (provider: string) =>
+    invoke<Array<{ id: string; label: string; context_window?: number; supports_streaming: boolean }>>(
+      'ai_models',
+      { provider },
+    ),
 
   // DFetch
   dfetchGet: () => invoke<SystemInfo>('dfetch_get'),

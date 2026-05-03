@@ -38,18 +38,5 @@ pub fn ai_key_masked(state: State<'_, AppState>, provider: String) -> AppResult<
     }
 }
 
-/// Frontend'in proxy'siz çağrı için kullanabileceği şifresiz key dönüşü.
-/// **DİKKAT**: Bu API frontend bellekte plaintext key bulundurmasına yol açar.
-/// v1.1'de tam HTTP proxy ile değiştirilecek; v1.0'da Anthropic/Ollama
-/// fetch'leri renderer process'inden yapılır (Tauri allowlist + CSP korur).
-#[tauri::command]
-pub fn ai_key_reveal(state: State<'_, AppState>, provider: String) -> AppResult<Option<String>> {
-    let store = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
-        state.storage.pool().clone(),
-    )));
-    match store.retrieve("ai_provider", &provider) {
-        Ok(plain) => Ok(Some(String::from_utf8_lossy(&plain).into_owned())),
-        Err(AppError::Secret(msg)) if msg.contains("not found") => Ok(None),
-        Err(e) => Err(e),
-    }
-}
+// ai_key_reveal KALDIRILDI — API key artık frontend'e sızmıyor.
+// AI çağrıları commands::ai::ai_chat_stream üzerinden Rust'tan yapılır.

@@ -1,13 +1,20 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite';
 import { fileURLToPath, URL } from 'node:url';
+import { resolve } from 'node:path';
 
-// Not: vue-i18n için runtime compiler kullanıyoruz (CSP 'unsafe-eval' ile birlikte).
-// v1.0.5'te @intlify/unplugin-vue-i18n ile build-time AST'ye derlenip 'unsafe-eval'
-// kalkacak. Şu anki nested-key issue ile MVP'yi yavaşlatmamak için basit yol.
+// vue-i18n locale JSON'ları build-time AST'ye derlenir → runtime compiler
+// devre dışı, eval() çağrısı yok. CSP 'unsafe-eval' kaldırılabilir.
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    VueI18nPlugin({
+      include: [resolve(__dirname, './src/locales/**')],
+      runtimeOnly: true,
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

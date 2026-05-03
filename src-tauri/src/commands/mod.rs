@@ -1,6 +1,7 @@
 // Tauri IPC komut handler'ları.
 // Frontend `invoke('command_name', args)` ile çağırır.
 
+pub mod ai;
 pub mod ai_proxy;
 pub mod dfetch;
 pub mod history;
