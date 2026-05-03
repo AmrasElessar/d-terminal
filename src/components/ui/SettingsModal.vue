@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '@/stores/settings';
 import { useThemeStore } from '@/stores/theme';
@@ -12,6 +12,8 @@ import type { ProviderId } from '@/types/ai';
 import { defaultTrigger, type TriggerActionKind, type TriggerScope } from '@/types/trigger';
 import { defaultProfile } from '@/types/profile';
 import type { PaneType } from '@/types/pane';
+import { keybindings } from '@/keybindings/registry';
+import { DEFAULT_SHORTCUTS } from '@/keybindings/defaults';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -94,6 +96,104 @@ function saveProfile() {
 }
 function duplicateProfile(id: string) {
   profiles.duplicate(id);
+}
+
+// --- Shortcuts editor state ---
+interface ShortcutRow {
+  id: string;
+  combo: string;
+  labelKey: string;
+  defaultCombo: string;
+  isOverridden: boolean;
+}
+
+const shortcutsSearch = ref('');
+const shortcutEditingId = ref<string | null>(null);
+const shortcutCaptureCombo = ref<string | null>(null);
+const shortcutConflictWith = ref<string | null>(null);
+// Tepki gözlemi için tick — registry mutate olduğunda recompute zorla
+const shortcutsTick = ref(0);
+
+const shortcutRows = computed<ShortcutRow[]>(() => {
+  void shortcutsTick.value;
+  const q = shortcutsSearch.value.trim().toLowerCase();
+  return DEFAULT_SHORTCUTS.map((def) => {
+    const current = keybindings.getCombo(def.id) ?? def.combo;
+    return {
+      id: def.id,
+      combo: current,
+      labelKey: def.labelKey,
+      defaultCombo: def.combo,
+      isOverridden: !!settings.state.shortcutOverrides[def.id],
+    };
+  }).filter((r) => {
+    if (!q) return true;
+    const label = t(r.labelKey).toLowerCase();
+    return r.id.toLowerCase().includes(q) || label.includes(q) || r.combo.toLowerCase().includes(q);
+  });
+});
+
+function startEditShortcut(id: string) {
+  shortcutEditingId.value = id;
+  shortcutCaptureCombo.value = null;
+  shortcutConflictWith.value = null;
+  // Window-level keydown ile tuş yakala
+  window.addEventListener('keydown', captureShortcutKey, true);
+}
+function cancelEditShortcut() {
+  shortcutEditingId.value = null;
+  shortcutCaptureCombo.value = null;
+  shortcutConflictWith.value = null;
+  window.removeEventListener('keydown', captureShortcutKey, true);
+}
+function captureShortcutKey(e: KeyboardEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') { cancelEditShortcut(); return; }
+  // Modifier-only basıldıysa atla
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+  const parts: string[] = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Meta');
+  let key = e.key;
+  if (key === ' ') key = 'Space';
+  if (key.length === 1) key = key.toUpperCase();
+  parts.push(key);
+  shortcutCaptureCombo.value = parts.join('+');
+}
+function applyShortcut() {
+  if (!shortcutEditingId.value || !shortcutCaptureCombo.value) return;
+  const id = shortcutEditingId.value;
+  const combo = shortcutCaptureCombo.value;
+  const conflict = keybindings.setCombo(id, combo);
+  if (conflict) {
+    shortcutConflictWith.value = conflict;
+    return;
+  }
+  settings.state.shortcutOverrides = {
+    ...settings.state.shortcutOverrides,
+    [id]: combo,
+  };
+  shortcutsTick.value++;
+  cancelEditShortcut();
+}
+function resetShortcut(id: string) {
+  const def = DEFAULT_SHORTCUTS.find((d) => d.id === id);
+  if (!def) return;
+  keybindings.setCombo(id, def.combo);
+  const overrides = { ...settings.state.shortcutOverrides };
+  delete overrides[id];
+  settings.state.shortcutOverrides = overrides;
+  shortcutsTick.value++;
+}
+function resetAllShortcuts() {
+  for (const def of DEFAULT_SHORTCUTS) {
+    keybindings.setCombo(def.id, def.combo);
+  }
+  settings.state.shortcutOverrides = {};
+  shortcutsTick.value++;
 }
 
 const draftTrigger = ref<ReturnType<typeof defaultTrigger>>(defaultTrigger());
@@ -504,9 +604,68 @@ void props.open;
       </section>
 
       <section v-if="tab === 'shortcuts'" class="section">
-        <p class="note">{{ t('settings.shortcuts.title') }}</p>
-        <p class="note">v1.0.5 — {{ t('common.loading') }}</p>
+        <header class="section-head">
+          <strong>{{ t('settings.shortcuts.title') }}</strong>
+          <button type="button" class="ghost" @click="resetAllShortcuts">
+            ↺ {{ t('settings.shortcuts.reset') }}
+          </button>
+        </header>
+        <input
+          v-model="shortcutsSearch"
+          type="search"
+          class="prompt-input"
+          :placeholder="t('settings.shortcuts.search')"
+          spellcheck="false"
+        />
+
+        <div class="shortcut-list">
+          <div v-for="row in shortcutRows" :key="row.id" class="shortcut-row">
+            <div class="shortcut-row__info">
+              <strong>{{ t(row.labelKey) }}</strong>
+              <small class="dim">{{ row.id }}</small>
+            </div>
+            <kbd class="combo" :class="{ overridden: row.isOverridden }">{{ row.combo }}</kbd>
+            <button type="button" class="ghost" @click="startEditShortcut(row.id)">
+              {{ t('settings.shortcuts.edit') }}
+            </button>
+            <button
+              v-if="row.isOverridden"
+              type="button"
+              class="ghost"
+              :title="`${t('settings.shortcuts.reset')}: ${row.defaultCombo}`"
+              @click="resetShortcut(row.id)"
+            >
+↺
+</button>
+          </div>
+        </div>
       </section>
+
+      <!-- Shortcut capture overlay (in-place key recorder) -->
+      <Teleport to="body">
+        <div v-if="shortcutEditingId" class="capture-backdrop" @click.self="cancelEditShortcut">
+          <div class="capture-panel">
+            <h3>{{ t('settings.shortcuts.captureTitle') }}</h3>
+            <p class="dim">{{ t('settings.shortcuts.captureHint') }}</p>
+            <kbd v-if="shortcutCaptureCombo" class="combo big">{{ shortcutCaptureCombo }}</kbd>
+            <kbd v-else class="combo big waiting">…</kbd>
+            <p v-if="shortcutConflictWith" class="error">
+              {{ t('settings.shortcuts.conflict', { action: shortcutConflictWith }) }}
+            </p>
+            <div class="capture-actions">
+              <button type="button" class="ghost" @click="cancelEditShortcut">{{ t('common.cancel') }}</button>
+              <button
+                type="button"
+                class="primary"
+                :disabled="!shortcutCaptureCombo"
+                @click="applyShortcut"
+              >
+{{ t('common.save') }}
+</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </article>
   </dialog>
 </template>
@@ -702,4 +861,86 @@ void props.open;
   font-family: inherit;
   resize: vertical;
 }
+
+/* --- Shortcuts --- */
+.prompt-input {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--color-fg);
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  outline: none;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.prompt-input:focus { border-color: var(--color-accent); }
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+.shortcut-row:hover { background: rgba(255, 255, 255, 0.04); }
+.shortcut-row__info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.shortcut-row__info strong { font-size: 12px; }
+.shortcut-row__info .dim { font-size: 10px; opacity: 0.5; font-family: var(--font-family); }
+.combo {
+  font-family: var(--font-family);
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--color-accent);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--color-line);
+}
+.combo.overridden { border-color: var(--color-accent); box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.2); }
+
+/* Capture overlay */
+.capture-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+}
+.capture-panel {
+  background: var(--color-bg);
+  border: 2px solid var(--color-accent);
+  border-radius: 8px;
+  padding: 28px;
+  min-width: 360px;
+  text-align: center;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.7);
+}
+.capture-panel h3 { margin: 0 0 4px 0; font-size: 14px; color: var(--color-accent); }
+.capture-panel .dim { margin: 0 0 16px 0; font-size: 11px; color: var(--color-dim); }
+.combo.big {
+  display: inline-block;
+  font-size: 18px;
+  padding: 8px 20px;
+  margin: 8px 0 16px 0;
+  letter-spacing: 0.04em;
+}
+.combo.big.waiting { color: var(--color-dim); border-style: dashed; }
+.capture-panel .error {
+  color: var(--color-red);
+  font-size: 11px;
+  margin: 0 0 12px 0;
+}
+.capture-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>

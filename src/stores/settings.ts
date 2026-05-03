@@ -28,6 +28,8 @@ export interface SettingsState {
    *  - acrylic: blur efekti, resize'da yavaşlayabilir.
    *  - none: opak — en hızlı, modern arayüz görünümü kapanır. */
   windowVibrancy: 'auto' | 'mica' | 'acrylic' | 'none';
+  /** Klavye kısayolu override'ları — id → combo. Boş ise default kullanılır. */
+  shortcutOverrides: Record<string, string>;
 }
 
 const DEFAULTS: SettingsState = {
@@ -43,6 +45,7 @@ const DEFAULTS: SettingsState = {
   unicode11: true,
   aiPrefixHash: true,
   windowVibrancy: 'auto',
+  shortcutOverrides: {},
 };
 
 const KEY_PREFIX = 'ui.';
@@ -58,7 +61,12 @@ export const useSettingsStore = defineStore('settings', () => {
         const raw = all[`${KEY_PREFIX}${k}`];
         if (raw !== undefined) {
           try {
-            (state.value as Record<string, unknown>)[k] = JSON.parse(raw);
+            const parsed = JSON.parse(raw);
+            // null guard — JSON.parse('null') geçerli ama runtime'da Object.entries
+            // gibi yerlerde patlar. Default'u koru.
+            if (parsed !== null) {
+              (state.value as Record<string, unknown>)[k] = parsed;
+            }
           } catch {
             // bozuk değer — defaults kalır
           }

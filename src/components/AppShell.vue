@@ -159,6 +159,13 @@ onMounted(async () => {
   keybindings.register('panes.broadcastToggle', () => panes.toggleBroadcast());
   keybindings.register('pane.maximize', () => panes.toggleMaximize());
   keybindings.register('ai.suggestCommand', () => modals.open('aiSuggest'));
+
+  // Kullanıcı override'larını uygula (Settings → Kısayollar'dan değiştirilir).
+  // Defensive: HMR/eski SQLite'ta key yoksa undefined gelebilir.
+  const overrides = settings.state.shortcutOverrides ?? {};
+  for (const [id, combo] of Object.entries(overrides)) {
+    if (combo) keybindings.setCombo(id, combo);
+  }
   keybindings.attach();
 
   applyFontVars();

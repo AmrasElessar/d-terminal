@@ -169,10 +169,12 @@
     },
     "shortcuts": {
       "title": "Klavye Kısayolları",
-      "search": "Kısayol ara",
+      "search": "Kısayol ara…",
       "reset": "Varsayılana Sıfırla",
-      "edit": "Düzenle",
-      "conflict": "Bu kısayol zaten {action} için kullanılıyor"
+      "edit": "Değiştir",
+      "conflict": "Bu kısayol zaten \"{action}\" için kullanılıyor",
+      "captureTitle": "Yeni kısayolu basın",
+      "captureHint": "İstenen tuş kombinasyonuna basın (Esc iptal)"
     },
     "save": "Kaydet",
     "cancel": "Vazgeç",

@@ -169,10 +169,12 @@
     },
     "shortcuts": {
       "title": "Keyboard Shortcuts",
-      "search": "Search shortcuts",
+      "search": "Search shortcuts…",
       "reset": "Reset to Defaults",
-      "edit": "Edit",
-      "conflict": "This shortcut is already used for {action}"
+      "edit": "Change",
+      "conflict": "This shortcut is already used for \"{action}\"",
+      "captureTitle": "Press the new shortcut",
+      "captureHint": "Press the desired key combination (Esc to cancel)"
     },
     "save": "Save",
     "cancel": "Cancel",
