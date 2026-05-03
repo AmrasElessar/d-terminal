@@ -313,12 +313,17 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 <template>
   <div class="welcome">
     <div class="welcome__grid">
-      <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
+      <!-- Sol kolon: D-T brand logosu üstte, Windows OS logosu altta.
+           Bu layout 3-kolon yatay yerine 2-kolon dikey istif — info kolonuna
+           ~22 char ekstra yer kazandırır, dar pencerelerde wrap'siz çalışır. -->
+      <div class="welcome__logos">
+        <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
 
-      <!-- Windows OS logo — fastfetch/neofetch klasik wavy versiyon.
-           Microsoft brand colors (4 quadrant). Stilize representation,
-           open-source fetch araçlarında 10+ yıldır kullanılan format. -->
-      <pre v-if="info && showColors" class="os-logo" aria-hidden="true"><template v-for="(line, i) in WIN_LOGO_LINES" :key="i"><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span>{{ '\n' }}</template></pre>
+        <!-- Windows OS logo — fastfetch/neofetch klasik wavy versiyon.
+             Microsoft brand colors (4 quadrant). Stilize representation
+             (fair use / descriptive), birebir Microsoft asset değil. -->
+        <pre v-if="info && showColors" class="os-logo" aria-hidden="true"><template v-for="(line, i) in WIN_LOGO_LINES" :key="i"><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span>{{ '\n' }}</template></pre>
+      </div>
 
       <div v-if="info" class="welcome__info">
         <div v-for="row in visibleRows" :key="row.id" class="row">
@@ -371,8 +376,14 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 }
 .welcome__grid {
   display: grid;
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: auto 1fr;
   gap: 24px;
+  align-items: flex-start;
+}
+.welcome__logos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: flex-start;
 }
 
