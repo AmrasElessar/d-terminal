@@ -47,7 +47,7 @@ async function send() {
     provider: provider.id,
   });
   input.value = '';
-  scrollToBottom();
+  scrollToBottom(true); // user gönderdi — her zaman alta in
 
   streaming.value = true;
   abort = new AbortController();
@@ -86,8 +86,28 @@ function clearAll() {
   error.value = null;
 }
 
-function scrollToBottom() {
-  nextTick(() => {
+/** Smart auto-scroll: kullanıcı scrollback içine girdiyse otomatik scroll
+ *  yapma — okuma akışını bozmasın. Sadece "yapışkan altta" olduğunda alta in.
+ *  RAF coalescing: stream chunk'ları tek frame içinde çağrı yığabilir; rAF
+ *  her frame'de en fazla bir layout/paint tetikler (debounce yerine native
+ *  back-pressure). */
+const SCROLL_STICKY_PX = 32;
+let scrollPending = false;
+
+function isPinnedToBottom(): boolean {
+  const el = scrollContainer.value;
+  if (!el) return true;
+  return el.scrollHeight - el.clientHeight - el.scrollTop <= SCROLL_STICKY_PX;
+}
+
+function scrollToBottom(force = false) {
+  const el = scrollContainer.value;
+  if (!el) return;
+  if (!force && !isPinnedToBottom()) return;
+  if (scrollPending) return;
+  scrollPending = true;
+  requestAnimationFrame(() => {
+    scrollPending = false;
     if (scrollContainer.value) {
       scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
     }
@@ -106,8 +126,23 @@ function onKeyDown(e: KeyboardEvent) {
   }
 }
 
-onMounted(refreshModels);
+onMounted(async () => {
+  await refreshModels();
+  // Bekleyen prompt varsa input'a koy (BlockPanel/trigger sendToAi tetikledi)
+  const queued = ai.consumePrompt();
+  if (queued) {
+    input.value = queued;
+    nextTick(() => scrollToBottom(true));
+  }
+});
 watch(() => ai.activeProvider, refreshModels);
+// Pane mount'tan sonra başka bir yerden prompt enjekte edilirse input'u güncelle.
+watch(() => ai.pendingPrompt, (next) => {
+  if (next) {
+    input.value = next;
+    ai.consumePrompt();
+  }
+});
 
 // keep leaf state in sync (light persistence — full session save uses different path)
 watch(messages, () => {

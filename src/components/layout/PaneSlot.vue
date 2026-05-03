@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import { usePanesStore } from '@/stores/panes';
@@ -20,6 +20,16 @@ const ctx = useContextMenu();
 const modals = useModals();
 const toasts = useToastsStore();
 
+/** TerminalPane'in expose ettiği metodlara erişim — getSelection (WebGL safe),
+ *  clearTerminal (scrollback dahil), openSearch, copyBuffer. */
+interface TerminalPaneExpose {
+  openSearch: () => void;
+  copyBuffer: () => void;
+  clearTerminal: () => void;
+  getSelection: () => string;
+}
+const terminalRef = ref<TerminalPaneExpose | null>(null);
+
 const isFocused = computed(() => panes.tree.focusedId === props.leaf.id);
 
 function focus() {
@@ -35,8 +45,11 @@ const isTerminal = computed(() =>
 );
 
 async function copySelection() {
-  // xterm seçimini global Selection API üzerinden çek; xterm zaten DOM seçimi koruyor
-  const text = window.getSelection()?.toString() ?? '';
+  // xterm native getSelection — WebGL renderer'da window.getSelection() boş
+  // dönebilir (canvas/webgl DOM'da metin tutmaz). Terminal pane ise ref ile
+  // çağır, AI/welcome pane'lerde fallback DOM seçimi.
+  let text = terminalRef.value?.getSelection() ?? '';
+  if (!text) text = window.getSelection()?.toString() ?? '';
   if (!text) {
     toasts.warning(t('common.copy') + ': —');
     return;
@@ -53,9 +66,17 @@ async function pasteIntoTerminal() {
 }
 
 function clearTerminal() {
-  if (!props.leaf.ptyId) return;
-  // ANSI clear screen + cursor home (\x1b[2J\x1b[H)
-  api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode('\x0c'));
+  // xterm native clear: hem görünür ekran hem scrollback. Form feed (\x0c)
+  // PowerShell/CMD'ye sadece "ekranı temizle" diyordu, scrollback geride
+  // kalıyordu. Native API tam temizlik sağlar.
+  if (terminalRef.value) {
+    terminalRef.value.clearTerminal();
+    return;
+  }
+  // Terminal pane mount değilse fallback (örn. henüz spawn olmamış)
+  if (props.leaf.ptyId) {
+    api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode('\x0c'));
+  }
 }
 
 function buildMenu(): MenuEntry[] {
@@ -117,7 +138,7 @@ function onContextMenu(e: MouseEvent) {
     <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close" />
     <div class="slot__body">
       <ErrorPane v-if="leaf.status === 'error'" :leaf="leaf" />
-      <TerminalPane v-else-if="isTerminal" :leaf="leaf" />
+      <TerminalPane v-else-if="isTerminal" ref="terminalRef" :leaf="leaf" />
       <AIChatPane v-else-if="leaf.type === 'aiChat'" :leaf="leaf" />
       <WelcomePane v-else-if="leaf.type === 'welcome'" />
     </div>

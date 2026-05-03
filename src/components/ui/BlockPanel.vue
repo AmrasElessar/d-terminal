@@ -78,13 +78,17 @@ async function sendToAI(b: CommandBlock) {
     toasts.warning(t('ai.noProvider'));
     return;
   }
-  // AI Chat panel aç (yoksa) ve komut + output'u gönder
-  panes.openPane('aiChat', t('pane.type.aiChat'));
-  // TODO: AI pane'e prompt inject et — şimdilik sadece pano'ya kopyala
+  // AI Chat panele prompt enjekte et: ai.queuePrompt + pane aç. AIChatPane
+  // mount/focus olduğunda consumePrompt ile input'una alır. Pano fallback
+  // bırakılıyor — Quake/restart sonrası kaybolmasın.
   const cleanOutput = stripAnsi(b.output);
   const prompt = `Komut:\n\`\`\`\n${b.command}\n\`\`\`\nÇıktı:\n\`\`\`\n${cleanOutput.slice(0, 2000)}\n\`\`\`\nBu çıktıyı analiz et.`;
-  await navigator.clipboard.writeText(prompt);
-  toasts.info(t('block.sentToClipboardForAi'), 2500);
+  ai.queuePrompt(prompt);
+  if (!panes.allLeaves.some((l) => l.type === 'aiChat')) {
+    panes.openPane('aiChat', t('pane.type.aiChat'));
+  }
+  navigator.clipboard.writeText(prompt).catch(() => { /* clipboard zorunlu değil */ });
+  toasts.success(t('block.sentToAiPane'), 2000);
 }
 
 function remove(b: CommandBlock) {

@@ -23,6 +23,9 @@ export const useAIStore = defineStore('ai', () => {
   );
   const activeProvider = ref<ProviderId | null>(null);
   const activeModel = ref<string | null>(null);
+  /** AIChatPane mount/focus olduğunda input'a koyulacak bekleyen prompt.
+   *  BlockPanel "AI'a gönder" gibi yerler buraya yazar; pane okuyup temizler. */
+  const pendingPrompt = ref<string | null>(null);
 
   const isConfigured = computed(() =>
     Object.values(statuses.value).some((s) => s.hasKey || s.id === 'ollama'),
@@ -64,6 +67,18 @@ export const useAIStore = defineStore('ai', () => {
     activeModel.value = model;
   }
 
+  /** Bekleyen prompt'u set et (BlockPanel, trigger sendToAi, vb. çağırır). */
+  function queuePrompt(text: string) {
+    pendingPrompt.value = text;
+  }
+
+  /** AIChatPane onMounted/focus'ta okur + temizler. */
+  function consumePrompt(): string | null {
+    const p = pendingPrompt.value;
+    pendingPrompt.value = null;
+    return p;
+  }
+
   async function resolveProvider() {
     if (!activeProvider.value) return null;
     return getProvider(activeProvider.value);
@@ -73,6 +88,7 @@ export const useAIStore = defineStore('ai', () => {
     statuses,
     activeProvider,
     activeModel,
+    pendingPrompt,
     isConfigured,
     refresh,
     setKey,
@@ -80,5 +96,7 @@ export const useAIStore = defineStore('ai', () => {
     setActiveProvider,
     setActiveModel,
     resolveProvider,
+    queuePrompt,
+    consumePrompt,
   };
 });

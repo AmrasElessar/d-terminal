@@ -345,6 +345,7 @@
     "commandCopied": "Komut kopyalandı",
     "outputCopied": "Çıktı kopyalandı",
     "sentToClipboardForAi": "AI prompt panoya kopyalandı; AI Sohbet panele yapıştır",
+    "sentToAiPane": "AI Sohbet paneline gönderildi",
     "noActivePane": "Aktif bir terminal panel yok",
     "clearAll": "Tüm blokları temizle",
     "clearConfirm": "Bu panelde kayıtlı tüm bloklar silinsin mi?"

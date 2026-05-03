@@ -210,14 +210,16 @@ watch(
     <TabBar />
     <PaneLayout />
     <StatusBar />
-    <NewPaneDialog :open="modals.state.newPane" @close="modals.close('newPane')" @create="createPane" />
-    <SettingsModal :open="modals.state.settings" @close="modals.close('settings')" />
-    <HistoryModal :open="modals.state.history" @close="modals.close('history')" />
-    <SnippetModal :open="modals.state.snippets" @close="modals.close('snippets')" />
-    <SessionModal :open="modals.state.session.open" :mode="modals.state.session.mode" @close="modals.closeSession()" />
-    <CommandPalette :open="modals.state.commandPalette" @close="modals.close('commandPalette')" @navigate="paletteNavigate" />
-    <AboutModal :open="modals.state.about" @close="modals.close('about')" />
-    <AISuggestModal :open="modals.state.aiSuggest" @close="modals.close('aiSuggest')" />
+    <!-- Modallar lazy mount: kapalıyken script setup hiç çalışmaz, store
+         dependency'leri tutulmaz. Açılınca mount, kapanınca destroy. -->
+    <NewPaneDialog v-if="modals.state.newPane" :open="true" @close="modals.close('newPane')" @create="createPane" />
+    <SettingsModal v-if="modals.state.settings" :open="true" @close="modals.close('settings')" />
+    <HistoryModal v-if="modals.state.history" :open="true" @close="modals.close('history')" />
+    <SnippetModal v-if="modals.state.snippets" :open="true" @close="modals.close('snippets')" />
+    <SessionModal v-if="modals.state.session.open" :open="true" :mode="modals.state.session.mode" @close="modals.closeSession()" />
+    <CommandPalette v-if="modals.state.commandPalette" :open="true" @close="modals.close('commandPalette')" @navigate="paletteNavigate" />
+    <AboutModal v-if="modals.state.about" :open="true" @close="modals.close('about')" />
+    <AISuggestModal v-if="modals.state.aiSuggest" :open="true" @close="modals.close('aiSuggest')" />
     <ContextMenu />
     <ToastContainer />
   </main>

@@ -341,6 +341,17 @@ function findPrev() {
   if (!search || !searchQuery.value) return;
   search.findPrevious(searchQuery.value, searchOptions.value);
 }
+/** Tip-while-search debounce — 10K satır buffer'da her tuş vuruşunda arama
+ *  CPU yer. 250ms bekle + son tuşta tek arama. Enter ile anında tetik
+ *  (onSearchKey'de zaten kullanıcı debounce'u bypass eder). */
+let searchDebounceTimer: number | undefined;
+function findNextDebounced() {
+  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = window.setTimeout(() => {
+    searchDebounceTimer = undefined;
+    findNext();
+  }, 250);
+}
 function onSearchKey(e: KeyboardEvent) {
   if (e.key === 'Escape') { closeSearch(); return; }
   if (e.key === 'Enter') {
@@ -485,7 +496,24 @@ watch(() => settings.state.unicode11, (on) => {
   }
 });
 
-defineExpose({ openSearch, copyBuffer });
+/** Tam temizlik: hem görünür ekran hem scrollback. PaneSlot context menu
+ *  bu metodu çağırır — `\x0c` form feed yerine xterm native API. */
+function clearTerminal() {
+  // term.clear(): görünür satırları korur ama scrollback'i sıfırlar
+  // → kullanıcı clear isterken hepsini sıfırla → reset() benzeri
+  if (!term) return;
+  term.clear();
+  // term.clear() prompt satırını korur ama bazı bash/pwsh kombinasyonlarında
+  // ek bir CR yardımcı olur — yine de form feed göndermiyoruz, scrollback temiz.
+}
+
+/** xterm native getSelection — WebGL/canvas/DOM her renderer'da güvenli.
+ *  PaneSlot.copySelection bu metodu çağırır. */
+function getSelection(): string {
+  return term?.getSelection() ?? '';
+}
+
+defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
 </script>
 
 <template>
@@ -502,7 +530,7 @@ defineExpose({ openSearch, copyBuffer });
         :placeholder="t('terminal.search.placeholder')"
         spellcheck="false"
         @keydown="onSearchKey"
-        @input="findNext()"
+        @input="findNextDebounced"
       />
       <span class="search-bar__count">
         <template v-if="searchResultCount && searchResultCount.resultCount > 0">

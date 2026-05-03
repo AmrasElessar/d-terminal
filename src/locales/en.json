@@ -345,6 +345,7 @@
     "commandCopied": "Command copied",
     "outputCopied": "Output copied",
     "sentToClipboardForAi": "AI prompt copied to clipboard; paste into AI Chat pane",
+    "sentToAiPane": "Sent to AI Chat pane",
     "noActivePane": "No active terminal pane",
     "clearAll": "Clear all blocks",
     "clearConfirm": "Delete all recorded blocks in this pane?"
