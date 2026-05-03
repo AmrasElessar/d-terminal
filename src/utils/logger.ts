@@ -97,21 +97,8 @@ export function installGlobalErrorHandlers() {
     });
   });
   window.addEventListener('unhandledrejection', (e) => {
-    const reason = String(e.reason);
-    // Bilinen üçüncü-parti gürültüler — kullanıcıyı tedirgin etmesin:
-    //  - addon-webgl 0.19: Terminal.dispose AddonManager chain'inde
-    //    "_isDisposed" undefined (xterm/xterm.js#5071). Pane kapanırken
-    //    olur, gerçek bir kullanıcı etkisi yok.
-    if (
-      reason.includes('_isDisposed') ||
-      (e.reason?.stack ?? '').includes('addon-webgl')
-    ) {
-      e.preventDefault(); // Vue runtime-core warning'ini de engelle
-      log.debug('suppressed third-party promise rejection', { reason });
-      return;
-    }
     log.error('unhandled promise rejection', {
-      reason,
+      reason: String(e.reason),
       stack: e.reason?.stack,
     });
   });

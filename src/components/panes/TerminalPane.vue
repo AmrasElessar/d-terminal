@@ -447,24 +447,25 @@ onBeforeUnmount(() => {
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
 
-  // addon-webgl 0.19'da Terminal.dispose() → AddonManager.dispose() →
-  // WebglAddon.dispose() chain'i RenderService henüz initialize olmamış
-  // veya zaten disposed olduğunda undefined `_isDisposed` üzerinde crash
-  // ediyor. Korumalar:
-  //  1) Önce renderer'ı DOM'a düşür — WebGL ve Canvas addon'larını term
-  //     canlıyken safeDispose ile temiz kaldır (AddonManager'dan unregister).
-  //  2) Sonra term.dispose() çağır; AddonManager'ın iterate edeceği WebGL/
-  //     Canvas zaten yok, kalan search/serialize/image vb. güvenli dispose.
-  //  3) Yine de async cleanup hatalarını yutmak için try/catch sar.
-  if (term) {
-    try { applyRenderer('dom'); } catch { /* zaten temiz olabilir */ }
+  // xterm-addon-webgl 0.19 çökme önleme:
+  // Pane çok hızlı open+close edilirse WebglAddon._renderer henüz initialize
+  // olmadan dispose tetiklenir. addon kodu `this._renderer._isDisposed` okumaya
+  // çalışır ve Promise içinde TypeError fırlatır (try/catch async olduğu için
+  // yakalayamaz). Mock obje yerleştirerek dispose chain'in sessizce tamamlanmasını
+  // sağlıyoruz — memory leak yok çünkü sadece undefined ise mock koyuyoruz.
+  if (webgl) {
+    const w = webgl as unknown as { _renderer?: { dispose: () => void; _isDisposed: boolean } };
+    if (!w._renderer) {
+      w._renderer = { dispose: () => { /* noop */ }, _isDisposed: true };
+    }
   }
   webgl = null;
   canvas = null;
   search = null;
   serialize = null;
   fit = null;
-  try { term?.dispose(); } catch { /* xterm internal cleanup hatası — yut */ }
+  // Mock sayesinde term.dispose() artık güvenli; yine de defansif try/catch.
+  try { term?.dispose(); } catch (e) { console.warn('xterm dispose:', e); }
   term = null;
 });
 
