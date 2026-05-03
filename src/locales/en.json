@@ -243,7 +243,7 @@
       "shellPh": "ssh.exe or pwsh.exe or C:\\path\\to\\binary.exe",
       "shellHint": "Executable to run. Use plain name if on PATH, or full path.",
       "args": "Arguments",
-      "argsPh": "user@host -p 22",
+      "argsPh": "user{'@'}host -p 22",
       "argsHint": "Whitespace separated; quote with \"x y\" or 'x y' for args containing spaces.",
       "cwd": "Working Directory",
       "cwdPh": "C:\\Projects or leave empty",
@@ -386,6 +386,19 @@
     "importDone": "{added} snippets added, {skipped} skipped (empty or duplicate)",
     "importInvalid": "Invalid snippet file"
   },
+  "logStream": {
+    "pathPlaceholder": "Log file path (e.g. C:\\logs\\app.log)",
+    "tailMode": "New lines only (tail -f)",
+    "filter": "Filter",
+    "filterPlaceholder": "regex (e.g. ERROR|WARN)",
+    "start": "Start",
+    "stop": "Stop",
+    "started": "Log stream started",
+    "failed": "Log stream failed to start: {message}",
+    "empty": "No stream — pick a file and start",
+    "followingTail": "● tailing",
+    "scrolledUp": "○ paused"
+  },
   "psreadline": {
     "import": "Import PowerShell History",
     "summary": "{imported} commands imported, {skipped} duplicates skipped",
@@ -408,8 +421,8 @@
       "action": "Action",
       "cooldown": "Cooldown (ms)",
       "payload": "Payload / Template",
-      "payloadPh": "Error: {{0}}",
-      "payloadHint": "{{0}} = full match, {{1}}, {{2}} = capture groups"
+      "payloadPh": "Error: {'{{0}}'}",
+      "payloadHint": "{'{{0}}'} = full match, {'{{1}}'}, {'{{2}}'} = capture groups"
     },
     "action": {
       "toast": "Show toast",

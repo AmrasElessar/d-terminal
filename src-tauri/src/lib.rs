@@ -30,6 +30,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -74,6 +75,7 @@ pub fn run() {
 
             app.manage(AppState::new(storage, sidecar));
             app.manage(logger::LogPaths::new(log_dir.clone()));
+            app.manage(commands::logstream::LogStreams::new());
 
             // Vibrancy stratejisi:
             //  - Mica (Win11 22H2+) modern, GPU-friendly, resize'da pürüzsüz.
@@ -165,6 +167,9 @@ pub fn run() {
             // Logger
             commands::logger::log_event,
             commands::logger::log_paths,
+            // Log Stream (tail -f benzeri dosya izleme)
+            commands::logstream::log_stream_open,
+            commands::logstream::log_stream_close,
             // Window
             commands::window::window_set_vibrancy,
         ])

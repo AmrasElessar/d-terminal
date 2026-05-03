@@ -6,6 +6,7 @@ pub mod ai_proxy;
 pub mod dfetch;
 pub mod history;
 pub mod logger;
+pub mod logstream;
 pub mod psreadline;
 pub mod pty;
 pub mod secrets;

@@ -11,6 +11,7 @@ import PaneTitleBar from '@/components/ui/PaneTitleBar.vue';
 import TerminalPane from '@/components/panes/TerminalPane.vue';
 import AIChatPane from '@/components/panes/AIChatPane.vue';
 import WelcomePane from '@/components/panes/WelcomePane.vue';
+import LogStreamPane from '@/components/panes/LogStreamPane.vue';
 import ErrorPane from '@/components/panes/ErrorPane.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
@@ -140,6 +141,7 @@ function onContextMenu(e: MouseEvent) {
       <ErrorPane v-if="leaf.status === 'error'" :leaf="leaf" />
       <TerminalPane v-else-if="isTerminal" ref="terminalRef" :leaf="leaf" />
       <AIChatPane v-else-if="leaf.type === 'aiChat'" :leaf="leaf" />
+      <LogStreamPane v-else-if="leaf.type === 'logStream'" :leaf="leaf" />
       <WelcomePane v-else-if="leaf.type === 'welcome'" />
     </div>
   </div>

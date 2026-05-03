@@ -1,15 +1,24 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite';
 import { fileURLToPath, URL } from 'node:url';
+import { resolve } from 'node:path';
 
-// vue-i18n için runtime compiler kullanıyoruz (CSP 'unsafe-eval' ile birlikte).
-// @intlify/unplugin-vue-i18n ile build-time AST compile denedik (b7e74a7),
-// vue-i18n 9 + Composition API + nested key mode'da composer "Unexpected
-// return type" hatası verdi. v1.0.5'te vue-i18n 11'e migration ile tam
-// çözüm gelecek. Şimdilik dev build için runtime compile.
+// vue-i18n 11 + unplugin: locale JSON'ları build-time AST'ye derlenir.
+// jitCompilation default false → runtime compiler kullanılmaz → CSP
+// 'unsafe-eval' kaldırılabildi. v9 denemesindeki composer hatası v11'de
+// düzeldi (compile output composer shape'iyle uyumlu).
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    VueI18nPlugin({
+      include: [resolve(__dirname, './src/locales/**')],
+      runtimeOnly: true,
+      // Strict-mode: compile fail olursa fallback runtime compile değil, hata
+      jitCompilation: false,
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

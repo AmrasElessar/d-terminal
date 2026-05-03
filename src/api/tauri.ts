@@ -118,4 +118,10 @@ export const api = {
   // Window vibrancy runtime apply (Mica/Acrylic/none)
   windowSetVibrancy: (mode: 'auto' | 'mica' | 'acrylic' | 'none') =>
     invoke<void>('window_set_vibrancy', { mode }),
+
+  // Log Stream (dosya tail -f benzeri canlı izleme)
+  logStreamOpen: (id: string, path: string, tail: boolean, channel: import('@tauri-apps/api/core').Channel<string>) =>
+    invoke<void>('log_stream_open', { id, path, tail, onLine: channel }),
+  logStreamClose: (id: string) =>
+    invoke<void>('log_stream_close', { id }),
 };

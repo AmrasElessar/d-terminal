@@ -36,6 +36,12 @@ src-tauri/gen/
 Thumbs.db
 desktop.ini
 
+# Kişisel ekran görüntüleri / geçici dosyalar (repo'ya gitmemeli)
+/Ads*.png
+/Untitled*.png
+/screenshot*.png
+*.avif
+
 # Environment
 .env
 .env.local

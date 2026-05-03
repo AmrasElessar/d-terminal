@@ -243,7 +243,7 @@
       "shellPh": "ssh.exe veya pwsh.exe veya C:\\path\\to\\binary.exe",
       "shellHint": "Çalıştırılacak binary. PATH'te varsa direkt isim, yoksa tam path.",
       "args": "Argümanlar",
-      "argsPh": "user@host -p 22",
+      "argsPh": "user{'@'}host -p 22",
       "argsHint": "Boşluk ayraçlı; \"x y\" veya 'x y' ile içinde boşluk olan argüman.",
       "cwd": "Çalışma Dizini",
       "cwdPh": "C:\\Projeler veya boş bırak",
@@ -386,6 +386,19 @@
     "importDone": "{added} snippet eklendi, {skipped} atlandı (boş veya çakışan)",
     "importInvalid": "Geçersiz snippet dosyası"
   },
+  "logStream": {
+    "pathPlaceholder": "Log dosyası yolu (örn. C:\\logs\\app.log)",
+    "tailMode": "Sadece yeni satırlar (tail -f)",
+    "filter": "Filtre",
+    "filterPlaceholder": "regex (örn. ERROR|WARN)",
+    "start": "Başlat",
+    "stop": "Durdur",
+    "started": "Log akışı başladı",
+    "failed": "Log akışı başlatılamadı: {message}",
+    "empty": "Log akışı yok — bir dosya seç ve başlat",
+    "followingTail": "● takip",
+    "scrolledUp": "○ duraklatıldı"
+  },
   "psreadline": {
     "import": "PowerShell Geçmişini İçe Aktar",
     "summary": "{imported} komut içe aktarıldı, {skipped} kopya atlandı",
@@ -408,8 +421,8 @@
       "action": "Aksiyon",
       "cooldown": "Cooldown (ms)",
       "payload": "Payload / Şablon",
-      "payloadPh": "Hata: {{0}}",
-      "payloadHint": "{{0}} = tüm eşleşme, {{1}}, {{2}} = capture grupları"
+      "payloadPh": "Hata: {'{{0}}'}",
+      "payloadHint": "{'{{0}}'} = tüm eşleşme, {'{{1}}'}, {'{{2}}'} = capture grupları"
     },
     "action": {
       "toast": "Bildirim göster (toast)",
