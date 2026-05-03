@@ -177,7 +177,14 @@ onMounted(async () => {
   log.info('shell ready', { panes: panes.paneCount, theme: themeStore.activeName });
 });
 
-watch(() => settings.state.themeName, (n) => themeStore.setActive(n));
+watch(() => settings.state.themeName, (n) => {
+  themeStore.setActive(n);
+  // Tema değiştiğinde font/chrome var'larını re-assert et — eski tema'nın
+  // (HMR veya cache nedeniyle) :root'a yazmış olabileceği kalan değerleri
+  // settings'in kanonik değerlerine geri çek. Tema sadece renk yönetir.
+  applyFontVars();
+  applyChromeVars();
+});
 watch(() => settings.state.language, (n) => { locale.value = n; });
 watch(
   () => [settings.state.fontFamily, settings.state.fontSize] as const,

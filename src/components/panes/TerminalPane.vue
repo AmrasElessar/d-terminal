@@ -278,19 +278,26 @@ function buildFontFamily(primary: string): string {
 }
 
 /** Renderer addon yükle. WebGL desteklenmiyorsa canvas, o da yoksa DOM (default).
- *  Context loss event'inde otomatik canvas'a düşer. */
+ *  Context loss event'inde otomatik canvas'a düşer.
+ *  Dispose'lar try/catch ile sarılı — addon-webgl 0.19 context loss / double
+ *  dispose senaryolarında undefined üzerinde patlar. */
+function safeDispose(addon: { dispose(): void } | null) {
+  if (!addon) return;
+  try { addon.dispose(); } catch { /* zaten dispose edilmiş olabilir */ }
+}
+
 function applyRenderer(mode: RendererMode) {
   if (!term) return;
   // Mevcut renderer'ı temizle
-  if (webgl) { webgl.dispose(); webgl = null; }
-  if (canvas) { canvas.dispose(); canvas = null; }
+  safeDispose(webgl); webgl = null;
+  safeDispose(canvas); canvas = null;
 
   const tryWebgl = (): boolean => {
     try {
       const addon = new WebglAddon();
       addon.onContextLoss(() => {
         // GPU context kaybedildiğinde canvas'a fallback
-        if (webgl) { webgl.dispose(); webgl = null; }
+        safeDispose(webgl); webgl = null;
         const c = new CanvasAddon();
         try { term!.loadAddon(c); canvas = c; } catch { /* DOM fallback */ }
       });
@@ -439,9 +446,18 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
-  webgl?.dispose();
-  canvas?.dispose();
+  // term.dispose() AddonManager'ı çağırır ve loadAddon() ile yüklenmiş tüm
+  // addon'ları (webgl, canvas, search, serialize, image, vb.) otomatik dispose
+  // eder. Burada ayrıca webgl.dispose()/canvas.dispose() çağırmak addon-webgl
+  // 0.19'da double-dispose'a yol açar (TypeError: '_isDisposed' undefined).
+  // Sadece term.dispose() yeterli; addon ref'lerini null'la.
+  webgl = null;
+  canvas = null;
+  search = null;
+  serialize = null;
+  fit = null;
   term?.dispose();
+  term = null;
 });
 
 /** xterm cell metric'i font/tema/renderer değişiminde anında stabilize olmaz —
