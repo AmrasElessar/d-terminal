@@ -17,10 +17,11 @@ const PROPS_MAP: Record<string, (t: Theme) => string> = {
   '--color-magenta': (t) => t.colors.magenta,
   '--color-cyan': (t) => t.colors.cyan,
   '--color-white': (t) => t.colors.white,
-  '--font-family': (t) => `"${t.font.family}", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace`,
-  '--font-size': (t) => `${t.font.size}px`,
-  '--ui-opacity': (t) => `${t.ui.opacity}`,
-  '--ui-blur': (t) => `${t.ui.blur}px`,
+  // NOT: font.family / font.size / ui.opacity / ui.blur tema JSON'unda
+  // tutulur ama runtime'da settings.fontFamily / fontSize / opacity / blur
+  // baz alınır (AppShell.applyFontVars + applyChromeVars). Tema bu ayarları
+  // override etmez — kullanıcı tercihinin önüne geçmesin. Tema sadece renk
+  // paleti + UI radius gibi non-konflikt alanları yönetir.
   '--ui-radius': (t) => `${t.ui.borderRadius}px`,
   // 16 ANSI rengi — neofetch color blocks ve ileride başka UI elementleri (block panel,
   // prompt vs.) için. xterm.js tema mapping'iyle aynı kaynaktan beslenir.

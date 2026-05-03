@@ -1,0 +1,44 @@
+{
+  "name": "D-RosePine",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Rosé Pine — yumuşak orman tonları, uzun seans için göz dostu",
+  "colors": {
+    "background": "#191724",
+    "foreground": "#E0DEF4",
+    "accent": "#9CCFD8",
+    "accent2": "#C4A7E7",
+    "cursor": "#E0DEF4",
+    "selection": "#403D52",
+    "black": "#26233A",
+    "red": "#EB6F92",
+    "green": "#31748F",
+    "yellow": "#F6C177",
+    "blue": "#9CCFD8",
+    "magenta": "#C4A7E7",
+    "cyan": "#EBBCBA",
+    "white": "#E0DEF4",
+    "brightBlack": "#6E6A86",
+    "brightRed": "#EB6F92",
+    "brightGreen": "#31748F",
+    "brightYellow": "#F6C177",
+    "brightBlue": "#9CCFD8",
+    "brightMagenta": "#C4A7E7",
+    "brightCyan": "#EBBCBA",
+    "brightWhite": "#E0DEF4"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 10,
+    "opacity": 0.94,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#9CCFD8", "#C4A7E7"]
+  }
+}

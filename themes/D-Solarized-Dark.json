@@ -1,0 +1,44 @@
+{
+  "name": "D-Solarized-Dark",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Solarized Dark — Ethan Schoonover, göz yorgunluğu için bilimsel olarak optimize",
+  "colors": {
+    "background": "#002B36",
+    "foreground": "#93A1A1",
+    "accent": "#268BD2",
+    "accent2": "#2AA198",
+    "cursor": "#93A1A1",
+    "selection": "#073642",
+    "black": "#073642",
+    "red": "#DC322F",
+    "green": "#859900",
+    "yellow": "#B58900",
+    "blue": "#268BD2",
+    "magenta": "#D33682",
+    "cyan": "#2AA198",
+    "white": "#EEE8D5",
+    "brightBlack": "#586E75",
+    "brightRed": "#CB4B16",
+    "brightGreen": "#586E75",
+    "brightYellow": "#657B83",
+    "brightBlue": "#839496",
+    "brightMagenta": "#6C71C4",
+    "brightCyan": "#93A1A1",
+    "brightWhite": "#FDF6E3"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 0,
+    "opacity": 1.0,
+    "borderRadius": 6,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#268BD2", "#2AA198"]
+  }
+}

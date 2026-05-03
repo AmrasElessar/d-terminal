@@ -1,0 +1,44 @@
+{
+  "name": "D-GitHub-Dark",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "GitHub Dark — github.com'dan tanıdık paleti, temiz ve okunaklı",
+  "colors": {
+    "background": "#0D1117",
+    "foreground": "#C9D1D9",
+    "accent": "#58A6FF",
+    "accent2": "#A371F7",
+    "cursor": "#C9D1D9",
+    "selection": "#163B5C",
+    "black": "#0D1117",
+    "red": "#FF7B72",
+    "green": "#7EE787",
+    "yellow": "#F0B72F",
+    "blue": "#58A6FF",
+    "magenta": "#BC8CFF",
+    "cyan": "#39C5CF",
+    "white": "#B1BAC4",
+    "brightBlack": "#6E7681",
+    "brightRed": "#FFA198",
+    "brightGreen": "#56D364",
+    "brightYellow": "#E3B341",
+    "brightBlue": "#79C0FF",
+    "brightMagenta": "#D2A8FF",
+    "brightCyan": "#56D4DD",
+    "brightWhite": "#F0F6FC"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 8,
+    "opacity": 0.96,
+    "borderRadius": 6,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#58A6FF", "#A371F7"]
+  }
+}

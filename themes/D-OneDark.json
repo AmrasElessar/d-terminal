@@ -1,0 +1,44 @@
+{
+  "name": "D-OneDark",
+  "author": "Orhan Engin OKAY",
+  "version": "1.0.0",
+  "description": "Atom One Dark — uzun süreli kod yazımı için endüstri standardı",
+  "colors": {
+    "background": "#282C34",
+    "foreground": "#ABB2BF",
+    "accent": "#61AFEF",
+    "accent2": "#C678DD",
+    "cursor": "#528BFF",
+    "selection": "#3E4451",
+    "black": "#282C34",
+    "red": "#E06C75",
+    "green": "#98C379",
+    "yellow": "#E5C07B",
+    "blue": "#61AFEF",
+    "magenta": "#C678DD",
+    "cyan": "#56B6C2",
+    "white": "#ABB2BF",
+    "brightBlack": "#5C6370",
+    "brightRed": "#E06C75",
+    "brightGreen": "#98C379",
+    "brightYellow": "#D19A66",
+    "brightBlue": "#61AFEF",
+    "brightMagenta": "#C678DD",
+    "brightCyan": "#56B6C2",
+    "brightWhite": "#FFFFFF"
+  },
+  "font": {
+    "family": "JetBrains Mono",
+    "size": 14,
+    "ligatures": true
+  },
+  "ui": {
+    "blur": 8,
+    "opacity": 0.95,
+    "borderRadius": 8,
+    "glowEffect": false
+  },
+  "paneTitle": {
+    "gradient": ["#61AFEF", "#C678DD"]
+  }
+}
