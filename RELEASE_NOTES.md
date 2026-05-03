@@ -105,10 +105,12 @@
 
 | Dosya | Boyut | Açıklama |
 |---|---|---|
-| `D-Terminal_0.1.0_x64_tr-TR.msi` | 8.5 MB | Türkçe installer (önerilen) |
-| `D-Terminal_0.1.0_x64_en-US.msi` | 8.5 MB | English installer |
-| `D-Terminal_0.1.0_x64-setup.exe` | 7.5 MB | NSIS — TR/EN dil seçici, tek installer |
-| `d-terminal.exe` | 12.4 MB | Standalone (portable, kuruluma gerek yok) |
+| `D-Terminal_0.1.0_x64_tr-TR.msi` | 22.3 MB | Türkçe installer (önerilen) |
+| `D-Terminal_0.1.0_x64_en-US.msi` | 22.3 MB | English installer |
+| `D-Terminal_0.1.0_x64-setup.exe` | 14.5 MB | NSIS — TR/EN dil seçici, tek installer |
+| `d-terminal.exe` | 12.4 MB | Standalone (portable, sidecar dosyaları ayrı gerek) |
+
+> **Sistem gereksinimi**: Kullanıcının PATH'inde **Node.js** olmalı (sidecar PTY köprüsü için). v1.0.5'te `pkg`/`nexe` ile native exe'ye derlenip Node bağımlılığı kalkacak.
 
 **SHA-256 doğrulama** (PowerShell):
 ```powershell
@@ -117,9 +119,12 @@ Get-FileHash D-Terminal_0.1.0_x64_tr-TR.msi -Algorithm SHA256
 
 | Dosya | SHA-256 |
 |---|---|
-| `*_x64_en-US.msi` | `108bf871f1350d47ea636d798c3d523dcab7c87ee60e1113f3c295543ccc54ae` |
-| `*_x64_tr-TR.msi` | `243840a990c0561f8d499f6755f20f427496b6781ca0e4e673752869eff85291` |
-| `*_x64-setup.exe` | `ae8dfd6ff73aa7bd64c565f1ad92107cb794d5f63b184dd7934eeee4c6ada4b0` |
+| `*_x64_en-US.msi` | `d9fcb64dc23239c74979ce88c5a4e80ec834f6a19973827b4f9384152d498e09` |
+| `*_x64_tr-TR.msi` | `977e6ab9e7f9c5abbc24edc5213c7dffa3c4d7119a498f35267b787c3161e5d4` |
+| `*_x64-setup.exe` | `6d4fc8db94ead742c91ff760265a4dcd86ae5ef29f0cb6a424c1e73999effea2` |
+| `d-terminal.exe` | `dde9c8c37ef56d59041cf86ab3f49e3a03ef23e3fa4c6e2b441a9b587946ce61` |
+
+> ⚠️ Eski VirusTotal taraması (aşağıda) ilk build içindi. Sidecar bundle ile yeniden taramak gerekir — node_modules native binary'leri ek tetikleyici olabilir.
 
 ### 🛡️ Güvenlik / Virüs Taraması
 
