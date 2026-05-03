@@ -112,7 +112,31 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 
 ## Kurulum
 
-> ⚠️ Pre-alpha. Kurulum talimatları ilk release ile birlikte gelecek.
+### İndir (v0.1.0-alpha)
+
+[GitHub Releases sayfasından](https://github.com/AmrasElessar/d-terminal/releases) en son sürümü indir:
+
+| Dosya | Boyut | Açıklama |
+|---|---|---|
+| `D-Terminal_*_x64_tr-TR.msi` | 8.5 MB | **Türkçe installer** (önerilen) |
+| `D-Terminal_*_x64_en-US.msi` | 8.5 MB | English installer |
+| `D-Terminal_*_x64-setup.exe` | 7.5 MB | NSIS — TR/EN dil seçici tek dosya |
+| `d-terminal.exe` | 12.4 MB | Standalone portable |
+
+### Güvenlik
+
+Tüm dosyalar **VirusTotal**'de tarandı (sonuçlar [RELEASE_NOTES.md](./RELEASE_NOTES.md)'de):
+- **MSI installer'lar**: 0/59 ✅ tamamen clean
+- **NSIS setup.exe**: 2/69 — ikisi de net false positive (CrowdStrike grayware-60%, SecureAge ML)
+- Microsoft Defender, Kaspersky, BitDefender, ESET, Sophos vb. major engine'ler hepsi clean
+
+Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar.
+
+### Sistem Gereksinimleri
+
+- Windows 10 1809 (ConPTY için) veya Windows 11
+- ~80 MB RAM, ~15 MB disk
+- WebView2 runtime (Win11'de yerleşik, Win10'da ilk kurulumda otomatik gelir)
 
 ## Katkı
 
