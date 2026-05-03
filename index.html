@@ -6,6 +6,9 @@
     <!-- CSP tauri.conf.json üzerinden uygulanır; index.html'de duplicate CSP olmamalı,
          meta CSP daha kısıtlayıcı kalır ve Tauri'ninkini override eder. -->
     <title>D-Terminal</title>
+    <!-- favicon 404'ü engelle: dev modunda WebView2 otomatik /favicon.ico ister.
+         Inline data: URI ile sıfır byte response → network noise sıfırlanır. -->
+    <link rel="icon" href="data:," />
   </head>
   <body>
     <div id="app"></div>

@@ -446,17 +446,25 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
-  // term.dispose() AddonManager'ı çağırır ve loadAddon() ile yüklenmiş tüm
-  // addon'ları (webgl, canvas, search, serialize, image, vb.) otomatik dispose
-  // eder. Burada ayrıca webgl.dispose()/canvas.dispose() çağırmak addon-webgl
-  // 0.19'da double-dispose'a yol açar (TypeError: '_isDisposed' undefined).
-  // Sadece term.dispose() yeterli; addon ref'lerini null'la.
+
+  // addon-webgl 0.19'da Terminal.dispose() → AddonManager.dispose() →
+  // WebglAddon.dispose() chain'i RenderService henüz initialize olmamış
+  // veya zaten disposed olduğunda undefined `_isDisposed` üzerinde crash
+  // ediyor. Korumalar:
+  //  1) Önce renderer'ı DOM'a düşür — WebGL ve Canvas addon'larını term
+  //     canlıyken safeDispose ile temiz kaldır (AddonManager'dan unregister).
+  //  2) Sonra term.dispose() çağır; AddonManager'ın iterate edeceği WebGL/
+  //     Canvas zaten yok, kalan search/serialize/image vb. güvenli dispose.
+  //  3) Yine de async cleanup hatalarını yutmak için try/catch sar.
+  if (term) {
+    try { applyRenderer('dom'); } catch { /* zaten temiz olabilir */ }
+  }
   webgl = null;
   canvas = null;
   search = null;
   serialize = null;
   fit = null;
-  term?.dispose();
+  try { term?.dispose(); } catch { /* xterm internal cleanup hatası — yut */ }
   term = null;
 });
 
