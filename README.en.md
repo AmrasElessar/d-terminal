@@ -14,6 +14,14 @@
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs)
 ![Rust](https://img.shields.io/badge/Rust-stable-CE412B?logo=rust)
 
+**🛡 Security:**
+[![VirusTotal MSI](https://img.shields.io/badge/VirusTotal_MSI-2%2F57_(false_positive)-success?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)
+[![VirusTotal NSIS](https://img.shields.io/badge/VirusTotal_NSIS-2%2F70_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)
+[![Hybrid Analysis](https://img.shields.io/badge/Hybrid_Analysis-clean-success)](https://hybrid-analysis.com/sample/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)
+[![Code Signing](https://img.shields.io/badge/code_signing-pending_SignPath_FOSS-orange)](https://signpath.org/foundation)
+[![DPAPI](https://img.shields.io/badge/secret_storage-Windows_DPAPI-blue?logo=windows)](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection)
+[![CSP](https://img.shields.io/badge/CSP-strict_(no_unsafe--eval)-success)](./src-tauri/tauri.conf.json)
+
 D-Terminal is a fully open-source application that gives Windows users a modern, fast, and AI-native terminal experience.
 
 ## 🆕 What's New in v0.1.1
