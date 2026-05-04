@@ -51,8 +51,8 @@ pub fn admin_restart_elevated(app: tauri::AppHandle) -> AppResult<()> {
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    let exe = std::env::current_exe()
-        .map_err(|e| AppError::Internal(format!("current_exe: {e}")))?;
+    let exe =
+        std::env::current_exe().map_err(|e| AppError::Internal(format!("current_exe: {e}")))?;
     // UTF-16 + null terminator
     let exe_w: Vec<u16> = exe
         .as_os_str()
@@ -93,9 +93,7 @@ pub fn admin_restart_elevated(app: tauri::AppHandle) -> AppResult<()> {
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
 pub fn admin_restart_elevated(_app: tauri::AppHandle) -> AppResult<()> {
-    Err(AppError::NotImplemented(
-        "admin restart only on Windows",
-    ))
+    Err(AppError::NotImplemented("admin restart only on Windows"))
 }
 
 /// Windows Settings → For developers sayfasını açar. Win 11 23H2+ kullanıcılar
