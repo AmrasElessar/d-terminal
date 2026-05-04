@@ -143,14 +143,16 @@ Get the latest release from [GitHub Releases](https://github.com/AmrasElessar/d-
 
 > The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
 
-### Security
+### Security (v0.1.1, 2026-05-04)
 
-All files are scanned on **VirusTotal** (results in [RELEASE_NOTES.md](./RELEASE_NOTES.md)):
-- **MSI installers**: 0/59 ✅ fully clean
-- **NSIS setup.exe**: 2/69 — both clear false positives (CrowdStrike grayware-60%, SecureAge ML)
-- Microsoft Defender, Kaspersky, BitDefender, ESET, Sophos and other major engines all clean
+All files were scanned on **VirusTotal** (full results in [RELEASE_NOTES.md](./RELEASE_NOTES.md)):
+- **TR MSI**: [2/57](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06) — generic ML false positives (Antiy-AVL + Rising)
+- **EN MSI**: [2/58](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad) — same two engines
+- **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — typical unsigned-NSIS flag (Sophos ML PUA + VirIT)
+- Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet etc. — **all clean**
+- Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection)** for all three files
 
-Code signing is missing (SignPath FOSS application in progress) — Windows SmartScreen will warn "Unknown publisher"; click "Run anyway" to continue. The warning will go away after signing.
+Code signing is missing (SignPath FOSS application in progress) — Windows SmartScreen will warn "Unknown publisher"; click "Run anyway" to continue. After signing, the warning goes away and most of the ML false positives drop too.
 
 ### System Requirements
 

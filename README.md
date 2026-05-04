@@ -143,14 +143,16 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 
 > Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.
 
-### Güvenlik
+### Güvenlik (v0.1.1, 2026-05-04)
 
 Tüm dosyalar **VirusTotal**'de tarandı (sonuçlar [RELEASE_NOTES.md](./RELEASE_NOTES.md)'de):
-- **MSI installer'lar**: 0/59 ✅ tamamen clean
-- **NSIS setup.exe**: 2/69 — ikisi de net false positive (CrowdStrike grayware-60%, SecureAge ML)
-- Microsoft Defender, Kaspersky, BitDefender, ESET, Sophos vb. major engine'ler hepsi clean
+- **MSI TR**: [2/57](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06) — generic ML false positive (Antiy-AVL + Rising)
+- **MSI EN**: [2/58](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad) — aynı 2 motor
+- **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — unsigned NSIS tipik flag (Sophos ML PUA + VirIT)
+- Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet vb. — **hepsi clean**
+- Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection)** her dosya için
 
-Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar.
+Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar; yukarıdaki ML false positive'lerin de neredeyse hepsi düşer.
 
 ### Sistem Gereksinimleri
 

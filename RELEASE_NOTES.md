@@ -1,5 +1,77 @@
 # D-Terminal Release Notes
 
+## v0.1.1 — 2026-05-04
+
+İkinci pre-alpha sürüm. v0.1.0-alpha'da yayınlanan kritik bug'lar düzeltildi, Gemini 2.5 code review'undan gelen 10 önerinin tamamı uygulandı, ARM64 desteği + UAC elevation eklendi.
+
+### 🚀 Sidecar Node.js bağımsızlığı
+- Sidecar `@yao-pkg/pkg` ile tek `dterminal-pty-bridge.exe` (Node 20 runtime gömülü, ~110 MB) → **kullanıcıda Node.js gereksiz**.
+- Bootstrap: `process.pkg` ise snapshot'tan native binding'leri (`pty.node`, `conpty.node`, `conpty.dll`, `OpenConsole.exe`) `%TEMP%\dterminal-pty-bridge-natives\` altına extract eder, `Module._resolveFilename` patch'i ile yönlendirir.
+- `tauri.conf.json` `bundle.externalBin` yapılandırması ile sidecar `d-terminal.exe` yanına otomatik yerleştirilir.
+- Rust spawn'ında `CREATE_NO_WINDOW` flag'i — ekstra console penceresi sorunu çözüldü.
+
+### 🪟 Pane sistemi iyileştirmeleri (Gemini feedback)
+- **Drag-rearrange**: pane title bar'ını yakala, başka pane'in 4 kenarından (sol/sağ/üst/alt) birine bırak → otomatik split + ağaç restructure. Görsel drop-zone vurgu.
+- **Inline rename**: tab ve pane başlığına çift tık → modal yok, yerinde input. Enter kaydet, Esc iptal.
+- **Grup tag'leri (renkli rozetler)**: pane title bar'ındaki `#` butonuna tıkla, grup adı yaz. Aynı etiketteki pane'ler otomatik **aynı renkte** (8 renkli palet, hash tabanlı).
+- **Resize stabilizasyonu**: ResizeObserver + PTY resize IPC debounce → divider sürüklerken metin kesilmesi ve prompt duplikasyonu yok.
+- **Workspace v2 schema**: tüm tab'lar + profileId + tag birlikte serialize. SessionModal'da "Workspace olarak kaydet" toggle.
+
+### 🛡 Yönetici (UAC) yetkisi
+- Settings → Genel → "Yönetici olarak yeniden başlat" butonu — UAC prompt'u → uygulama relaunch.
+- Header'da admin durumunda 🛡 **ADMIN** rozeti (kırmızı).
+- Sudo guide: Win 11 23H2+ için Settings → For developers deep-link, Win 10 için gsudo install komutu kopyalama.
+
+### ⌨ Yeni klavye özellikleri
+- **Tmux-style prefix mode** (Settings → Görünüm): konfig'lenebilir combo (default `Ctrl+B`) → 1sn modal pencere → `V/H/Z/X/N/P/T/W/S/O` action tetikle.
+- **Scrollback navigation mode** (`Ctrl+Shift+Space`): j/k/g/G/u/d ile gez, y selection kopyala, / search aç, Esc çık. PTY input bloklanır.
+- **xterm screen reader modu** (Settings → Görünüm): NVDA/Narrator için aria-live bölge.
+
+### 📦 Yeni özellikler
+- **Frecency autocomplete**: Mozilla URL bar tarzı `frequency × exp(-ageHours/168) × favoriteBonus` skorlama. Sık+yeni komutlar üst sıraya.
+- **Config as Code**: TOML dotfile (`%APPDATA%\D-Terminal\config.toml`) import/export. Settings → Genel → küçük ghost butonlar. Hot-reload v1.0.5'te.
+- **Tema paketleri prod build'de çalışır**: `_up_/themes/` Tauri glob notation path resolution düzeltildi.
+
+### 🏗 Mimari
+- **ADR-0005**: WebAssembly plugin runtime kararı — v1.1+ için extism + wasmtime, ADR-0004'ün Web Worker'ından geçiş planı.
+- **Rust unit tests**: 16 test (4 protocol + 4 error + 3 themes + 5 mevcut). CI fmt + clippy + test üçü de geçiyor.
+
+### 📦 Akıllı installer
+- NSIS pre-install hook (`taskkill /F /IM`) açık D-Terminal süreçlerini sessizce sonlandırır → "dosya yazılırken hata" diyalogu kalktı.
+- Version bump (0.1.0 → 0.1.1) → MSI/NSIS auto-upgrade tetiklenir, eski sürüm otomatik kaldırılır, kullanıcı verisi korunur.
+
+### 📥 İndirme
+
+| Dosya | Boyut | SHA-256 |
+|---|---|---|
+| `D-Terminal_0.1.1_x64_tr-TR.msi` | 39.90 MB | `c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06` |
+| `D-Terminal_0.1.1_x64_en-US.msi` | 39.89 MB | `4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad` |
+| `D-Terminal_0.1.1_x64-setup.exe` | 25.96 MB | `62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76` |
+| `D-Terminal_0.1.1_arm64_*.msi` | ~40 MB | _GitHub Actions tarafından üretildi (release sayfasındaki dosyalara bak)_ |
+| `D-Terminal_0.1.1_arm64-setup.exe` | ~26 MB | _aynı_ |
+
+> Boyut artışı önceki ~22 MB → 40 MB Node 20 runtime'ın bundle'a gömülmesinden kaynaklanır. Karşılığında **kullanıcıda Node.js gereksinim KALKMIŞ**.
+
+### 🛡 Güvenlik / VirusTotal taraması (2026-05-04)
+
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **2/57** ([VT](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)) | Antiy-AVL `Trojan/Win32.Agent` + Rising `Spyware.Agent!8.C6` (RDMK) — generic ML false positive |
+| EN MSI | **2/58** ([VT](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)) | Aynı 2 motor |
+| NSIS setup | **2/70** ([VT](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)) | Sophos `Generic ML PUA` + VirIT `Trojan.Win64.GenX.JMO` — unsigned NSIS tipik flag |
+
+**Tüm major engine'ler temiz**: Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Sophos (MSI'da), Fortinet, GData, Avast, AVG, Malwarebytes, Avira, Panda, Emsisoft. Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection)**.
+
+Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası uyarı kalkar, yukarıdaki ML false positive'lerin neredeyse hepsi de düşer.
+
+### 🆙 Sistem gereksinimleri
+- Windows 10 1809 (ConPTY için) veya Windows 11
+- ~80 MB RAM, ~50 MB disk
+- WebView2 runtime (Win11'de yerleşik, Win10'da ilk kurulumda otomatik)
+- **Node.js gerekli DEĞİL** (v0.1.0'dan farklı olarak)
+
+---
+
 ## v0.1.0-alpha — Pre-Alpha (yayınlanmamış)
 
 İlk pre-alpha sürüm. Geliştirme sırasında biriken tüm temel özellikler.

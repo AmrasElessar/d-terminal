@@ -9,14 +9,15 @@ jobs:
   build:
     name: Build & Release (${{ matrix.arch_label }})
     runs-on: windows-latest
+    # NOT: x64 build maintainer tarafından manuel olarak release'e upload
+    # ediliyor (RELEASE_NOTES.md'deki SHA-256'lar yerel build'den hesaplandı,
+    # CI'da rebuild olunca timestamp/nondeterminism nedeniyle hash değişir).
+    # CI yalnız ARM64'ü cross-compile eder — yerel makinede LLVM/MSVC-ARM64
+    # toolchain olmadığından bu CI'a kalır.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            arch_label: x64
-            rust_target: x86_64-pc-windows-msvc
-            sidecar_script: bundle
           - arch: aarch64
             arch_label: arm64
             rust_target: aarch64-pc-windows-msvc
