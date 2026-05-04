@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
 
+# softprops/action-gh-release release oluşturmak/upload yapmak için
+# GITHUB_TOKEN'in `contents: write` iznine ihtiyaç duyar (yeni org/repo
+# default'u read-only).
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & Release (${{ matrix.arch_label }})
