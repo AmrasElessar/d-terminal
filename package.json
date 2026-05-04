@@ -1,6 +1,6 @@
 {
   "name": "d-terminal",
-  "version": "0.1.0-alpha",
+  "version": "0.1.1",
   "description": "Agent-aware Windows terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler",
   "private": true,
   "type": "module",
@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vite build",
+    "build:typecheck": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

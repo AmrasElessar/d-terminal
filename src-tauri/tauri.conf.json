@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "D-Terminal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "dev.dbrand.dterminal",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -22,7 +22,8 @@
         "backgroundColor": "#00000000",
         "fullscreen": false,
         "resizable": true,
-        "center": true
+        "center": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -38,9 +39,10 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../themes/*.json",
-      "../sidecar/pty-bridge.js",
-      "../sidecar/node_modules/**/*"
+      "../themes/*.json"
+    ],
+    "externalBin": [
+      "binaries/dterminal-pty-bridge"
     ],
     "copyright": "Copyright © 2026 Orhan Engin OKAY",
     "category": "DeveloperTool",
@@ -52,7 +54,8 @@
       },
       "nsis": {
         "languages": ["English", "Turkish"],
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "installerHooks": "./installer-hooks.nsh"
       }
     }
   },

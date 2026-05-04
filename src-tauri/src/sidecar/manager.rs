@@ -97,6 +97,15 @@ impl SidecarManager {
         } else {
             Command::new(&self.sidecar_path)
         };
+        // Windows: pkg-bundled sidecar default console subsystem ile derlenir;
+        // CREATE_NO_WINDOW olmadan Windows ona ayrı bir console penceresi açar.
+        // Kullanıcı o pencereyi kapatınca sidecar ölür → "stdout closed".
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

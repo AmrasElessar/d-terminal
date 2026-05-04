@@ -54,11 +54,14 @@ fn bundled_themes_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
             }
         }
     }
-    // Prod: Tauri resource path (tauri.conf.json bundle.resources üzerinden eklenir)
+    // Prod: Tauri resource path. Glob `../themes/*.json` config'i bundle'a
+    // `_up_/themes/` altında yerleştiriyor (Tauri'nin parent-path notasyonu).
+    // Eski layout `themes/` da fallback olarak destekleniyor.
     if let Ok(resolver) = app.path().resource_dir() {
-        let prod = resolver.join("themes");
-        if prod.exists() {
-            return Ok(prod);
+        for candidate in [resolver.join("_up_").join("themes"), resolver.join("themes")] {
+            if candidate.exists() {
+                return Ok(candidate);
+            }
         }
     }
     // Son çare: exe yanı

@@ -11,6 +11,68 @@
 
 const { Buffer } = require('node:buffer');
 
+// pkg-bundle bootstrap: pkg snapshot fs içindeki .node binding'ler + conpty
+// helper'ları (conpty.dll, OpenConsole.exe) gerçek dosya sistemine extract
+// edilir. node-pty'nin C++ tarafı (conpty.cc) `conpty/conpty.dll`'yi
+// pty.node'un yanında arar — pkg'nin .node extract'i bu yapıyı korumaz.
+if (process.pkg) {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const os = require('node:os');
+  const Module = require('node:module');
+
+  const arch = `${process.platform}-${process.arch}`;
+  const nativesDir = path.join(os.tmpdir(), 'dterminal-pty-bridge-natives', arch);
+  const conptyDir = path.join(nativesDir, 'conpty');
+  const logFile = path.join(os.tmpdir(), 'dterminal-pty-bridge-natives', 'bootstrap.log');
+
+  fs.mkdirSync(conptyDir, { recursive: true });
+  const logBoot = (msg) => {
+    try {
+      fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
+    } catch { /* noop */ }
+  };
+
+  const snapshotPrebuild = path.join(
+    __dirname,
+    'node_modules/node-pty/prebuilds',
+    arch,
+  );
+
+  const extractIfMissing = (src, dst) => {
+    try {
+      if (fs.existsSync(dst) && fs.statSync(dst).size > 0) return;
+      fs.writeFileSync(dst, fs.readFileSync(src));
+      logBoot(`extracted ${path.basename(dst)}`);
+    } catch (e) {
+      logBoot(`extract FAILED ${src}: ${e.message}`);
+      process.stderr.write(`[pty-bridge] native extract failed (${path.basename(src)}): ${e.message}\n`);
+    }
+  };
+
+  for (const name of ['pty.node', 'conpty.node', 'conpty_console_list.node']) {
+    extractIfMissing(path.join(snapshotPrebuild, name), path.join(nativesDir, name));
+  }
+  for (const name of ['conpty.dll', 'OpenConsole.exe']) {
+    extractIfMissing(
+      path.join(snapshotPrebuild, 'conpty', name),
+      path.join(conptyDir, name),
+    );
+  }
+
+  // node-pty/lib/utils.js dinamik olarak `prebuilds/<plat>-<arch>/<name>.node`
+  // çağırır. Bu istekleri gerçek fs'teki extract'e yönlendir.
+  const originalResolve = Module._resolveFilename;
+  Module._resolveFilename = function patchedResolve(request, parent, ...rest) {
+    if (typeof request === 'string' && request.endsWith('.node')) {
+      const baseName = path.basename(request);
+      const real = path.join(nativesDir, baseName);
+      if (fs.existsSync(real)) return real;
+    }
+    return originalResolve.call(this, request, parent, ...rest);
+  };
+}
+
 // node-pty opsiyonel: protokol katmanı bağımsız çalıştırılabilir/test edilebilir.
 let pty = null;
 try {

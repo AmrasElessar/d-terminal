@@ -20,8 +20,15 @@ out/
 src-tauri/target/
 src-tauri/WixTools/
 src-tauri/gen/
+src-tauri/binaries/
 # Cargo.lock binary uygulamalar için commit edilir — ilk `cargo build`'den sonra
 # kullanıcı `git add src-tauri/Cargo.lock` yapmalı.
+
+# Sidecar pkg bundle çıktısı (lokal build, ~110 MB; CI veya release script üretir)
+sidecar/dist/
+
+# Claude Code per-project lokal state
+.claude/
 
 # IDE
 .idea/
