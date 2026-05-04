@@ -47,8 +47,9 @@
 | `D-Terminal_0.1.1_x64_tr-TR.msi` | 39.90 MB | `c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06` |
 | `D-Terminal_0.1.1_x64_en-US.msi` | 39.89 MB | `4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad` |
 | `D-Terminal_0.1.1_x64-setup.exe` | 25.96 MB | `62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76` |
-| `D-Terminal_0.1.1_arm64_*.msi` | ~40 MB | _GitHub Actions tarafından üretildi (release sayfasındaki dosyalara bak)_ |
-| `D-Terminal_0.1.1_arm64-setup.exe` | ~26 MB | _aynı_ |
+| `D-Terminal_0.1.1_arm64_tr-TR.msi` | 36.87 MB | `13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec` |
+| `D-Terminal_0.1.1_arm64_en-US.msi` | 36.86 MB | `11a371cb957821567cbd4abed1cdcac60cef06d166778300b95902a0b11b8feb` |
+| `D-Terminal_0.1.1_arm64-setup.exe` | 23.80 MB | `ef7edc19b301adf61ca8e0f80e3c5980883b537f8f939a0bf993a177c4c6b927` |
 
 > Boyut artışı önceki ~22 MB → 40 MB Node 20 runtime'ın bundle'a gömülmesinden kaynaklanır. Karşılığında **kullanıcıda Node.js gereksinim KALKMIŞ**.
 

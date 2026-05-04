@@ -151,9 +151,9 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 | `D-Terminal_0.1.1_x64_tr-TR.msi` | ~41 MB | x86_64 | **Türkçe installer** (önerilen) |
 | `D-Terminal_0.1.1_x64_en-US.msi` | ~41 MB | x86_64 | English installer |
 | `D-Terminal_0.1.1_x64-setup.exe` | ~27 MB | x86_64 | NSIS — TR/EN dil seçici tek dosya |
-| `D-Terminal_0.1.1_arm64_tr-TR.msi` | ~40 MB | aarch64 | **ARM64 Türkçe** (Surface Pro X, Snapdragon laptops) |
-| `D-Terminal_0.1.1_arm64_en-US.msi` | ~40 MB | aarch64 | ARM64 English |
-| `D-Terminal_0.1.1_arm64-setup.exe` | ~26 MB | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.1.1_arm64_tr-TR.msi` | 36.9 MB | aarch64 | **ARM64 Türkçe** (Surface Pro X, Snapdragon laptops) |
+| `D-Terminal_0.1.1_arm64_en-US.msi` | 36.9 MB | aarch64 | ARM64 English |
+| `D-Terminal_0.1.1_arm64-setup.exe` | 23.8 MB | aarch64 | ARM64 NSIS |
 
 > Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.
 
