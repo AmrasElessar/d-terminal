@@ -61,7 +61,13 @@
       "kill": "Sonlandır",
       "copy": "Kopyala",
       "paste": "Yapıştır",
-      "clear": "Temizle"
+      "clear": "Temizle",
+      "rename": "Yeniden adlandır (çift tık)"
+    },
+    "tag": {
+      "add": "Grup etiketi ekle",
+      "edit": "Grup etiketini düzenle",
+      "placeholder": "grup adı"
     }
   },
   "ai": {

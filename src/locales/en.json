@@ -61,7 +61,13 @@
       "kill": "Kill",
       "copy": "Copy",
       "paste": "Paste",
-      "clear": "Clear"
+      "clear": "Clear",
+      "rename": "Rename (double-click)"
+    },
+    "tag": {
+      "add": "Add group tag",
+      "edit": "Edit group tag",
+      "placeholder": "group name"
     }
   },
   "ai": {

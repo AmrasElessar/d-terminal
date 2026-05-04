@@ -75,6 +75,10 @@ export const usePanesStore = defineStore('panes', () => {
   /** Zoom (tmux z, Warp ⌘⇧↵): aktif pane geçici tam ekran.
    *  Tab başına ayrı state; kapanan pane otomatik restore. */
   const maximizedByTab = ref<Record<string, string | null>>({});
+  /** Drag halindeki pane id — drop indicator'ın kaynak pane'in üstünde
+   *  görünmesini engellemek için. PaneTitleBar dragstart'ta set, dragend'de
+   *  temizler. */
+  const draggingPaneId = ref<string | null>(null);
 
   // --- queries ---
 
@@ -290,6 +294,41 @@ export const usePanesStore = defineStore('panes', () => {
     }
   }
 
+  /** Drag-drop ile pane yeniden konumlandırma. `source` leaf'ı ağaçtan
+   *  sökülür, `target` leaf'ın belirtilen kenarına yeni split olarak
+   *  yerleştirilir. Aynı tab içinde çalışır (tab'lar arası taşıma v1+).
+   *  Source ve target aynıysa, ya da source target'ın kendisi ise no-op. */
+  function movePane(sourceLeafId: string, targetLeafId: string, side: 'left' | 'right' | 'top' | 'bottom') {
+    if (sourceLeafId === targetLeafId) return;
+    const tab = findTabOfLeaf(sourceLeafId);
+    if (!tab) return;
+    const targetTab = findTabOfLeaf(targetLeafId);
+    if (!targetTab || targetTab.id !== tab.id) return; // cross-tab move v1+
+    const sourceLeaf = findLeaf(tab.tree.root, sourceLeafId);
+    if (!sourceLeaf) return;
+
+    const afterRemove = removeLeaf(tab.tree.root, sourceLeafId);
+    if (!afterRemove) return; // tab boş kaldı (target da source'tan tek kardeş ise olmamalı)
+
+    const direction: SplitDirection =
+      side === 'left' || side === 'right' ? 'horizontal' : 'vertical';
+    const sourceFirst = side === 'left' || side === 'top';
+
+    tab.tree.root = replaceNode(afterRemove, targetLeafId, (target) => ({
+      kind: 'split',
+      id: uuid(),
+      direction,
+      ratio: 0.5,
+      first: sourceFirst ? sourceLeaf : target,
+      second: sourceFirst ? target : sourceLeaf,
+    }));
+    tab.tree.focusedId = sourceLeafId;
+    // Maximize aktif ise layout değişti — restore et
+    if (maximizedByTab.value[tab.id]) {
+      maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
+    }
+  }
+
   // --- backend events ---
 
   let unlisteners: Array<() => void> = [];
@@ -401,6 +440,8 @@ export const usePanesStore = defineStore('panes', () => {
     closePane,
     setLeafState,
     setSplitRatio,
+    movePane,
+    draggingPaneId,
     startListening,
     stopListening,
     // tab actions

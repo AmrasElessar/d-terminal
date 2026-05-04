@@ -25,6 +25,9 @@ export interface LeafNode {
   errorMessage?: string;
   /** Pane'in kendi state JSON'u — terminal scrollback, AI conversation vb. */
   state?: unknown;
+  /** Çalışma odağı için kullanıcı etiketi. Aynı tag'i taşıyan pane'ler aynı
+   *  renkte gösterilir (renk tag string hash'inden derive edilir). Boş = grup yok. */
+  tag?: string;
 }
 
 export interface SplitNode {

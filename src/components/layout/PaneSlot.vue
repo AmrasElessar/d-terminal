@@ -37,6 +37,60 @@ function focus() {
   panes.focus(props.leaf.id);
 }
 
+// --- Pane drag-drop yeniden konumlandırma ---
+type DropSide = 'left' | 'right' | 'top' | 'bottom';
+const dropSide = ref<DropSide | null>(null);
+let dragEnterDepth = 0;
+
+function isPaneDrag(e: DragEvent): boolean {
+  return !!e.dataTransfer && e.dataTransfer.types.includes('application/x-pane-id');
+}
+
+/** Diagonal-bisected zone: |dx| > |dy| → sol/sağ, aksi halde üst/alt.
+ *  Pane içinde imleç merkez (0.5, 0.5) referans alınır. */
+function computeSide(e: DragEvent, el: HTMLElement): DropSide {
+  const rect = el.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / Math.max(rect.width, 1);
+  const y = (e.clientY - rect.top) / Math.max(rect.height, 1);
+  const dx = x - 0.5;
+  const dy = y - 0.5;
+  if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 'left' : 'right';
+  return dy < 0 ? 'top' : 'bottom';
+}
+
+function onDragEnter(e: DragEvent) {
+  if (!isPaneDrag(e)) return;
+  dragEnterDepth++;
+}
+
+function onDragOver(e: DragEvent) {
+  if (!isPaneDrag(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  // Kaynak pane'in üstünde drop indicator gösterme — düşürse de no-op olur,
+  // görsel kafa karışıklığı yaratır.
+  if (panes.draggingPaneId === props.leaf.id) {
+    dropSide.value = null;
+    return;
+  }
+  dropSide.value = computeSide(e, e.currentTarget as HTMLElement);
+}
+
+function onDragLeave() {
+  dragEnterDepth = Math.max(0, dragEnterDepth - 1);
+  if (dragEnterDepth === 0) dropSide.value = null;
+}
+
+function onDrop(e: DragEvent) {
+  e.preventDefault();
+  const sourceId = e.dataTransfer?.getData('application/x-pane-id');
+  const side = dropSide.value;
+  dragEnterDepth = 0;
+  dropSide.value = null;
+  if (!sourceId || !side) return;
+  panes.movePane(sourceId, props.leaf.id, side);
+}
+
 function close() {
   panes.closePane(props.leaf.id);
 }
@@ -135,6 +189,10 @@ function onContextMenu(e: MouseEvent) {
     :class="{ focused: isFocused, error: leaf.status === 'error' }"
     @mousedown="focus"
     @contextmenu.prevent="onContextMenu"
+    @dragenter="onDragEnter"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
   >
     <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close" />
     <div class="slot__body">
@@ -144,6 +202,12 @@ function onContextMenu(e: MouseEvent) {
       <LogStreamPane v-else-if="leaf.type === 'logStream'" :leaf="leaf" />
       <WelcomePane v-else-if="leaf.type === 'welcome'" />
     </div>
+    <div
+      v-if="dropSide"
+      class="drop-indicator"
+      :class="`drop-indicator--${dropSide}`"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -159,6 +223,7 @@ function onContextMenu(e: MouseEvent) {
   /* Şeffaflık için transparent — pane içindeki TerminalPane / AIChatPane
      kendi bg'sini render eder (terminal koyu, AI panel açık). */
   background: transparent;
+  position: relative; /* drop-indicator absolute referansı */
 }
 .slot.focused {
   border-color: var(--color-accent);
@@ -173,4 +238,21 @@ function onContextMenu(e: MouseEvent) {
   min-height: 0;
   overflow: hidden;
 }
+
+/* Drop indicator: yarı saydam vurgu, ilgili kenarda yarısı dolu.
+   pointer-events: none — drag/drop işleyişine müdahale etmez,
+   dragleave/drop hâlâ slot kapsayıcısına gider. */
+.drop-indicator {
+  position: absolute;
+  pointer-events: none;
+  background: var(--color-accent);
+  opacity: 0.18;
+  border: 1px solid var(--color-accent);
+  z-index: 5;
+  transition: all 0.08s ease;
+}
+.drop-indicator--left   { left: 0;   top: 0;    width: 50%;  height: 100%; }
+.drop-indicator--right  { right: 0;  top: 0;    width: 50%;  height: 100%; }
+.drop-indicator--top    { left: 0;   top: 0;    width: 100%; height: 50%; }
+.drop-indicator--bottom { left: 0;   bottom: 0; width: 100%; height: 50%; }
 </style>

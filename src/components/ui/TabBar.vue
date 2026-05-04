@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePanesStore } from '@/stores/panes';
 import { listLeaves } from '@/types/pane';
@@ -28,7 +28,13 @@ const tabSummaries = computed<TabSummary[]>(() =>
   }),
 );
 
+// Inline rename state — modal/prompt yerine yerinde input.
+const editingId = ref<string | null>(null);
+const editingValue = ref('');
+const inputRefs = ref<Record<string, HTMLInputElement | undefined>>({});
+
 function activate(id: string) {
+  if (editingId.value === id) return; // edit halindeyken tıklamak save tetiklemesin
   panes.setActiveTab(id);
 }
 
@@ -41,11 +47,24 @@ function newTab() {
   panes.newTab();
 }
 
-function rename(tab: TabSummary) {
-  const name = window.prompt(t('tab.rename'), tab.name);
-  if (name && name.trim()) {
-    panes.renameTab(tab.id, name.trim());
-  }
+async function startRename(tab: TabSummary) {
+  editingId.value = tab.id;
+  editingValue.value = tab.name;
+  await nextTick();
+  const el = inputRefs.value[tab.id];
+  el?.focus();
+  el?.select();
+}
+
+function commitRename() {
+  if (!editingId.value) return;
+  const name = editingValue.value.trim();
+  if (name) panes.renameTab(editingId.value, name);
+  editingId.value = null;
+}
+
+function cancelRename() {
+  editingId.value = null;
 }
 </script>
 
@@ -56,14 +75,28 @@ function rename(tab: TabSummary) {
         v-for="tab in tabSummaries"
         :key="tab.id"
         class="tab"
-        :class="{ active: tab.isActive, error: tab.hasError }"
+        :class="{ active: tab.isActive, error: tab.hasError, editing: editingId === tab.id }"
         :title="`${tab.name} · ${tab.paneCount} pane`"
         @mousedown.left="activate(tab.id)"
-        @dblclick="rename(tab)"
+        @dblclick="startRename(tab)"
         @auxclick.middle.prevent="close(tab.id, $event)"
       >
         <span class="tab__indicator" />
-        <span class="tab__name">{{ tab.name }}</span>
+        <input
+          v-if="editingId === tab.id"
+          :ref="(el) => { inputRefs[tab.id] = el as HTMLInputElement | undefined; }"
+          v-model="editingValue"
+          class="tab__rename"
+          type="text"
+          spellcheck="false"
+          maxlength="40"
+          @keydown.enter.prevent="commitRename"
+          @keydown.escape.prevent="cancelRename"
+          @blur="commitRename"
+          @mousedown.stop
+          @dblclick.stop
+        />
+        <span v-else class="tab__name">{{ tab.name }}</span>
         <span class="tab__count">{{ tab.paneCount }}</span>
         <button
           type="button"
@@ -157,6 +190,23 @@ function rename(tab: TabSummary) {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 10px;
+}
+.tab.editing {
+  background: rgba(0, 180, 216, 0.15);
+}
+.tab__rename {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: 1px solid var(--color-accent);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 0 4px;
+  margin: 1px 0;
+  outline: none;
+  min-width: 0;
+  width: 100%;
+  height: 16px;
 }
 .tab__count {
   font-size: 9px;
