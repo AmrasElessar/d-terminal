@@ -1,175 +1,175 @@
 # D-Terminal
 
-**🌐 Language:** **🇬🇧 English** · [🇹🇷 Türkçe](./README.tr.md)
+**🌐 Dil:** **🇹🇷 Türkçe** · [🇬🇧 English](./README.en.md)
 
-> An agent-aware Windows terminal — multiple shells, AI integration, and specialized pane types in a single window.
+> Agent-aware Windows terminali — tek pencerede çoklu shell, AI entegrasyonu ve uzmanlaşmış pane tipleri.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 
-D-Terminal is a fully open-source application that gives Windows users a modern, fast, and AI-native terminal experience.
+D-Terminal, Windows kullanıcılarına modern, hızlı ve AI-yerli bir terminal deneyimi sunan, tamamen açık kaynak bir uygulamadır.
 
-## 🆕 What's New in v0.1.1
+## 🆕 v0.1.1 Yenilikleri
 
-- 🚀 **No more Node.js requirement** — the sidecar is bundled into a single `.exe` via `pkg` (Node 20 runtime embedded). The previous release failed on machines without Node; it now works **everywhere with zero dependencies**.
-- 🪟 **No extra console window** — the sidecar is spawned invisibly (`CREATE_NO_WINDOW`).
-- 📐 **Pane resize stabilized** — no more text clipping or prompt duplication when dragging dividers (ResizeObserver + PTY resize IPC debounce).
-- 🤏 **Pane drag-and-drop rearrange** — grab any pane's title bar, drop on another pane's edge (left/right/top/bottom) → automatic split + tree restructure. Visual drop-zone highlight.
-- ✏️ **Inline rename** — double-click a tab or pane title for in-place editing (no modal). Enter to save, Esc to cancel.
-- 🏷️ **Group tags (colored badges)** — click the `#` button in a pane title bar and type a group name. Panes sharing a tag are automatically rendered with the **same color** (8-color hash-based palette). Simple but effective work focus — e.g. tag 3 panes "api" and 2 panes "frontend".
-- 🎨 **Theme packages now load in production builds** — bundle path resolution fixed (`_up_/themes/` Tauri glob notation).
-- 📦 **Smarter installer** — an NSIS pre-install hook silently terminates running D-Terminal processes; the version bump (0.1.1) triggers MSI/NSIS auto-upgrade (the old version is uninstalled automatically while user data is preserved).
-- 🛡️ **Tauri webview HTML5 drag/drop enabled** — `dragDropEnabled: false` bypasses the native file-drop handler so in-app drag works correctly.
+- 🚀 **Node.js artık gerekmez** — sidecar `pkg` ile tek `.exe`'ye paketlendi (Node 20 runtime gömülü). Önceki sürümde kullanıcı sisteminde Node yoksa PowerShell pane açılmıyordu, artık **her makinede sıfır bağımlılıkla** çalışır.
+- 🪟 **Ekstra console penceresi yok** — sidecar görünmez spawn edilir (`CREATE_NO_WINDOW`).
+- 📐 **Pane resize stabilize edildi** — divider sürüklerken artık metin kesilmesi ve prompt duplikasyonu yok (ResizeObserver + PTY resize IPC debounce).
+- 🤏 **Pane sürükle-bırak yeniden konumlandırma** — pane title bar'ını yakala, başka pane'in 4 kenarından (sol/sağ/üst/alt) birine bırak → otomatik split + ağaç restructure. Görsel drop-zone vurgu.
+- ✏️ **Yerinde yeniden adlandırma** — tab veya pane başlığına çift tık → modal yok, yerinde input. Enter kaydet, Esc iptal.
+- 🏷️ **Grup etiketleri (renkli rozetler)** — pane title bar'ındaki `#` butonuna tıkla, grup adı yaz. Aynı etiketteki pane'ler otomatik **aynı renkte** gösterilir (8 renkli palet, hash tabanlı). Çalışma odağı için sade ama etkili — örn: 3 pane "api", 2 pane "frontend".
+- 🎨 **Tema paketleri prod build'de çalışır** — bundle path resolution düzeltildi (`_up_/themes/` Tauri glob notation).
+- 📦 **Akıllı installer davranışı** — NSIS pre-install hook açık D-Terminal süreçlerini sessizce sonlandırır, version bump (0.1.1) ile MSI/NSIS auto-upgrade tetiklenir (eski sürüm otomatik kaldırılır, kullanıcı verisi korunur).
+- 🛡️ **Tauri webview HTML5 drag/drop açık** — `dragDropEnabled: false` ile native file-drop handler bypass edildi, in-app drag işlemleri sorunsuz.
 
-## Vision
+## Vizyon
 
-D-Terminal targets Windows users who run their daily workflow from a terminal. It collapses the need for fragmented tools into a single application: PowerShell, CMD, and WSL sessions; AI conversations; system metrics and log streams — all under one shell.
+D-Terminal, Windows üzerinde günlük çalışma akışını terminal merkezli yürüten kullanıcılar için, dağıtık araçlara duyulan ihtiyacı tek bir uygulamada toplamayı hedefler. PowerShell, CMD ve WSL oturumlarını; AI sohbetlerini; sistem ve log akışlarını ortak bir kabuğun altında birleştirir.
 
-Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top of it with native AI integration, output triggers, block-based command history, a profile system, and a plugin framework — turning the terminal into a development platform.
+Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzerine native AI entegrasyonu, output triggers, blok tabanlı komut tarihi, profil sistemi ve eklenti çerçevesi ekleyerek terminali bir geliştirme platformuna dönüştürür.
 
-## Highlights
+## Öne Çıkan Özellikler
 
-### 🤖 AI — your own keys, never leaving your machine
-- **4 providers**: Anthropic, OpenAI, Gemini, Ollama (offline) + a custom OpenAI-compatible endpoint
-- **Rust HTTP proxy**: API keys are read from the Windows DPAPI vault on the Rust side; the frontend never sees a plaintext key (XSS risk eliminated)
-- **Command generator**: natural language to shell command (`Ctrl+Shift+G` modal or `#` interception in an empty prompt)
-- **Block-to-AI**: send terminal command blocks straight into the AI Chat with one click
+### 🤖 Yapay Zeka — kendi anahtarın, hiç buluta sızmadan
+- **4 sağlayıcı**: Anthropic, OpenAI, Gemini, Ollama (offline) + OpenAI-uyumlu özel endpoint
+- **Rust HTTP proxy**: API key Windows DPAPI vault'tan Rust tarafında alınır, frontend hiçbir zaman plaintext key görmez (XSS riski sıfırlandı)
+- **Komut üretici**: doğal dilden shell komutu (`Ctrl+Shift+G` modal veya boş prompt'ta `#` interception)
+- **Blok'tan AI'a**: terminal komut bloklarını tek tıkla AI Chat'e enjekte et
 
-### 📦 Block-based command history (OSC 133)
-- Every command + output + exit code is captured automatically
-- Color-coded status: ✓ success / ✗ error / ◌ running / ⊘ aborted
-- Re-run a command, copy output, or send to AI
-- Built-in PowerShell shell-integration prompt (CMD too)
+### 📦 Blok Tabanlı Komut Tarihi (OSC 133)
+- Her komut + çıktı + exit kodu otomatik yakalanır
+- Renkli durum: ✓ success / ✗ error / ◌ running / ⊘ aborted
+- Komut yeniden çalıştır, çıktı kopyala, AI'a gönder
+- PowerShell shell-integration prompt yerleşik (CMD da)
 
-### 🎯 Output Triggers (iTerm2 parity)
-- Automatic action on regex match: toast, AI hand-off, snippet execution
-- Cooldown + scope (per shell type) controls
-- Match groups via `{{0}}`, `{{1}}` template placeholders
+### 🎯 Output Triggers (iTerm2 paritesi)
+- Regex eşleşmesinde otomatik aksiyon: toast, AI'a iletme, snippet çalıştırma
+- Cooldown + scope (per shell tipi) kontrolü
+- `{{0}}`, `{{1}}` template ile match groups
 
-### 🪟 Pane System
-- Horizontal/vertical splits, **per-tab independent tree**
-- **Drag-rearrange**: grab a pane's title bar and drop on another pane's edge (v0.1.1)
-- **Inline rename + group tags** — double-click for in-place editing, `#` for colored grouping (v0.1.1)
-- Pane zoom (tmux `z` parity, `Ctrl+Shift+Z`)
-- Broadcast input (tmux sync-panes — keystrokes go to every pane in parallel)
-- Context menu: copy, paste, clear, split, close
+### 🪟 Pane Sistemi
+- Yatay/dikey split, **sekme başına bağımsız ağaç**
+- **Drag-rearrange**: pane title bar'ını sürükle, başka pane'in 4 kenarından birine bırak (v0.1.1)
+- **Inline rename + grup tag'leri** — çift tık ile yerinde, # ile renkli grup (v0.1.1)
+- Pane zoom modu (tmux z paritesi, `Ctrl+Shift+Z`)
+- Broadcast input (tmux sync-panes — tüm pane'lere paralel klavye)
+- Context menu: kopya, yapıştır, temizle, böl, kapat
 
-### 🔌 Shell Profiles (iTerm2/Tabby parity)
+### 🔌 Shell Profilleri (iTerm2/Tabby paritesi)
 - Built-in: PowerShell / CMD / WSL
-- User-defined: SSH host, Docker exec, pwsh 7, Python REPL, ...
-- Per-profile: shell + args + cwd + env + icon + color badge
+- Kullanıcı tanımlı: SSH host, Docker exec, pwsh 7, Python REPL...
+- Her profil: shell + args + cwd + env + ikon + renk badge
 
-### 🎨 Themes & Appearance
-- **14 built-in themes**: D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruvbox, D-Retro, D-Solarized-Dark/Light, D-OneDark, D-RosePine, D-GitHub-Dark
-- Custom themes via JSON, runtime color swap
+### 🎨 Tema ve Görünüm
+- **14 dahili tema**: D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruvbox, D-Retro, D-Solarized-Dark/Light, D-OneDark, D-RosePine, D-GitHub-Dark
+- JSON ile özel tema, runtime renk değişimi
 - Mica / Acrylic / None — runtime vibrancy switch (Win11 22H2+)
-- Card-grid preview in Settings + ANSI swatches
+- Settings'te kart-grid önizleme + ANSI swatches
 
-### 📊 DFetch (neofetch parity)
-- Built-in system info: CPU, GPU (WMI), disk, display + DPI, battery, theme, locale, timezone, swap, boot time
-- **Local IP** (IPv4/IPv6) — never touches public IP (offline-first)
-- **GDPR/KVKK masking**: hostname + IP hidden by default, click 👁 to toggle, session-scoped
-- 4-color Windows OS logo (neofetch convention)
-- 16 ANSI color blocks in the bottom strip
+### 📊 DFetch (neofetch paritesi)
+- Yerleşik sistem bilgi: CPU, GPU (WMI), disk, ekran + DPI, batarya, tema, locale, timezone, swap, boot time
+- **Yerel IP** (IPv4/IPv6) — public IP'ye dokunmaz (offline-first)
+- **KVKK/GDPR maskeleme**: hostname + IP varsayılan gizli, 👁 tıklayınca aç/kapa, oturum içi
+- 4-renkli Windows OS logosu (neofetch konvansiyonu)
+- 16 ANSI color blocks alttaki bant
 
-### 🔍 xterm Engine
-- WebGL renderer with automatic Canvas/DOM fallback
+### 🔍 xterm Motoru
+- WebGL renderer + Canvas/DOM otomatik fallback
 - Scrollback search (`Ctrl+F`, regex/case/word, decoration highlight)
-- Sixel + iTerm2 inline image protocols
-- Unicode 11 (correct width for emoji + CJK)
-- Smart links: file paths, git SHAs, IPs/hosts are clickable
+- Sixel + iTerm2 inline image protokolleri
+- Unicode 11 (emoji + CJK doğru genişlik)
+- Smart link: file path, git SHA, IP/host tıklanabilir
 - Buffer serialize → clipboard
 
-### ⌨️ Keyboard-first
-- 24 default shortcuts, **comprehensive editor** (Settings → Shortcuts)
-- Key-capture overlay, conflict detection, override persistence
+### ⌨️ Klavye-first
+- 24 varsayılan kısayol, **kapsayıcı editör** (Settings → Kısayollar)
+- Tuş yakalama capture overlay, çakışma tespiti, override persist
 - Command palette (`Ctrl+Shift+P`)
-- Quake hotkey (`F1` — show/hide window)
+- Quake hotkey (`F1` — pencere göster/gizle)
 
-### 🔒 Security
-- Credential storage via Windows DPAPI (no master password)
-- AI keys live on the Rust side and never leak to the frontend
-- Plugin sandbox skeleton: Web Worker + capability-based permissions (v1.1+)
+### 🔒 Güvenlik
+- Windows DPAPI ile credential storage (master parola yok)
+- AI key Rust tarafında, frontend'e sızmaz
+- Plugin sandbox iskeleti: Web Worker + capability-based permissions (v1.1+)
 - CSP enforced (script-src 'self'), wasm-unsafe-eval limited
 
-### 💾 Persistence
-- Session restore (layout + command history)
-- SQLite WAL mode, keeps user files untouched
-- Full-text search across snippets & history
-- PSReadLine history import
+### 💾 Kalıcılık
+- Session restore (layout + komut geçmişi)
+- SQLite WAL mode, kullanıcı dosyalarına dokunmaz
+- Snippet & history full-text search
+- PSReadLine geçmiş içe aktarma
 
-### 🚀 Architecture
-- Tauri v2 — Rust core + WebView2, ~5 MB binary, ~100 MB RAM (5× lighter than Electron)
-- Length-prefixed binary IPC to a node-pty sidecar (ADR-0001), pkg-bundled standalone (no Node.js needed)
-- Heartbeat-based zombie protection (Tauri crash → the sidecar exits automatically)
+### 🚀 Mimari
+- Tauri v2 — Rust core + WebView2, ~5 MB binary, ~100 MB RAM (Electron 5x daha hafif)
+- Length-prefixed binary IPC ile node-pty sidecar (ADR-0001), pkg-bundled standalone (Node.js gereksiz)
+- Heartbeat tabanlı zombi-koruma (Tauri crash → sidecar otomatik kapanır)
 
-## Tech Stack
+## Teknoloji
 
 - **Tauri v2** — Rust core + WebView2
 - **Vue 3** + TypeScript + Vite
 - **xterm.js** — WebGL/canvas renderer, OSC 133, image addon, search, unicode 11
-- **node-pty** — sidecar PTY bridge (standalone exe via `@yao-pkg/pkg`)
-- **rusqlite** — local storage (WAL mode)
+- **node-pty** — sidecar PTY köprüsü (`@yao-pkg/pkg` ile standalone exe)
+- **rusqlite** — yerel storage (WAL mode)
 - **Windows DPAPI** — secret storage
 
-## Architecture Documents
+## Mimari Belgeler
 
-For architectural decisions and detailed design, see [docs/architecture-v1.1.md](./docs/architecture-v1.1.md) and the [ADRs](./docs/adr/).
+Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/architecture-v1.1.md) ve [ADR'lar](./docs/adr/).
 
-## Roadmap
+## Yol Haritası
 
-| Version | Target | Content |
+| Sürüm | Hedef | İçerik |
 |---|---|---|
-| **v1.0** | 3–4 months | Most features in place; release polish + tests + docs |
-| **v1.0.5** | +2 months | vue-i18n 11 migration (drop CSP `unsafe-eval`), Log Stream pane, snippet sync |
-| **v1.1** | +3 months | Plugin API marketplace, advanced SSH (config.ssh reader), free-form grid, Lua/JS programmatic config |
-| **v2.0** | — | Multi-agent orchestration, terminal AI assist (Warp Drive-style team sharing), Kitty graphics protocol |
+| **v1.0** | 3-4 ay | Çoğu özellik mevcut; release polish + test + docs |
+| **v1.0.5** | +2 ay | vue-i18n 11 migration (CSP `unsafe-eval` kaldır), Log Stream pane, snippet senkron |
+| **v1.1** | +3 ay | Plugin API marketplace, gelişmiş SSH (config.ssh okuyucu), free-form grid, Lua/JS programmatic config |
+| **v2.0** | — | Multi-agent orkestrasyon, terminal AI assist (Warp Drive benzeri ekip paylaşımı), Kitty graphics protokolü |
 
-## Installation
+## Kurulum
 
-### Download (v0.1.1)
+### İndir (v0.1.1)
 
-Get the latest release from [GitHub Releases](https://github.com/AmrasElessar/d-terminal/releases):
+[GitHub Releases sayfasından](https://github.com/AmrasElessar/d-terminal/releases) en son sürümü indir:
 
-| File | Size | Description |
+| Dosya | Boyut | Açıklama |
 |---|---|---|
-| `D-Terminal_0.1.1_x64_en-US.msi` | 40.8 MB | **English installer** (recommended) |
-| `D-Terminal_0.1.1_x64_tr-TR.msi` | 40.9 MB | Turkish installer |
-| `D-Terminal_0.1.1_x64-setup.exe` | 27.2 MB | NSIS — single file with TR/EN language picker |
+| `D-Terminal_0.1.1_x64_tr-TR.msi` | 40.9 MB | **Türkçe installer** (önerilen) |
+| `D-Terminal_0.1.1_x64_en-US.msi` | 40.8 MB | English installer |
+| `D-Terminal_0.1.1_x64-setup.exe` | 27.2 MB | NSIS — TR/EN dil seçici tek dosya |
 
-> The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
+> Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.
 
-### Security
+### Güvenlik
 
-All files are scanned on **VirusTotal** (results in [RELEASE_NOTES.md](./RELEASE_NOTES.md)):
-- **MSI installers**: 0/59 ✅ fully clean
-- **NSIS setup.exe**: 2/69 — both clear false positives (CrowdStrike grayware-60%, SecureAge ML)
-- Microsoft Defender, Kaspersky, BitDefender, ESET, Sophos and other major engines all clean
+Tüm dosyalar **VirusTotal**'de tarandı (sonuçlar [RELEASE_NOTES.md](./RELEASE_NOTES.md)'de):
+- **MSI installer'lar**: 0/59 ✅ tamamen clean
+- **NSIS setup.exe**: 2/69 — ikisi de net false positive (CrowdStrike grayware-60%, SecureAge ML)
+- Microsoft Defender, Kaspersky, BitDefender, ESET, Sophos vb. major engine'ler hepsi clean
 
-Code signing is missing (SignPath FOSS application in progress) — Windows SmartScreen will warn "Unknown publisher"; click "Run anyway" to continue. The warning will go away after signing.
+Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar.
 
-### System Requirements
+### Sistem Gereksinimleri
 
-- Windows 10 1809 (for ConPTY) or Windows 11
+- Windows 10 1809 (ConPTY için) veya Windows 11
 - ~80 MB RAM, ~15 MB disk
-- WebView2 runtime (built-in on Win11; auto-installed on Win10 first run)
+- WebView2 runtime (Win11'de yerleşik, Win10'da ilk kurulumda otomatik gelir)
 
-## Contributing
+## Katkı
 
-Contributions are welcome. You can write a theme, a language pack, an AI provider adapter, or a plugin.
+Katkıya açığız. Tema, dil paketi, AI provider adapter veya plugin yazabilirsiniz.
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+Detaylar için [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## D Brand Family
+## D Brand Ailesi
 
-D-Terminal is the Windows arm of the D Brand family. Members are inspired by the name "Denizhan":
+D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adından ilham alır:
 
-- **D-Player** — personal music player for Android with a DSP engine *(in development)*
-- **DCar Launcher** — Android Head Unit in-car OS layer *(in development)*
-- **D-Watchtower** — surveillance and monitoring platform *(in development)*
-- **D-Terminal** — Windows agent-aware terminal *(this project, pre-alpha)*
+- **D-Player** — Android için kişisel müzik çalar, DSP motoru *(geliştirme aşamasında)*
+- **DCar Launcher** — Android Head Unit araç içi OS katmanı *(geliştirme aşamasında)*
+- **D-Watchtower** — gözetim ve izleme platformu *(geliştirme aşamasında)*
+- **D-Terminal** — Windows agent-aware terminal *(bu proje, pre-alpha)*
 
-## License
+## Lisans
 
-MIT © Orhan Engin OKAY — see [LICENSE](./LICENSE)
+MIT © Orhan Engin OKAY — bkz. [LICENSE](./LICENSE)
