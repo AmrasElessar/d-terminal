@@ -8,6 +8,32 @@
 
 D-Terminal, Windows kullanıcılarına modern, hızlı ve AI-yerli bir terminal deneyimi sunan, tamamen açık kaynak bir uygulamadır.
 
+## 🆕 v0.1.1 Yenilikleri / What's New
+
+### 🇹🇷 Türkçe
+
+- 🚀 **Node.js artık gerekmez** — sidecar `pkg` ile tek `.exe`'ye paketlendi (Node 20 runtime gömülü). Önceki sürümde kullanıcı sisteminde Node yoksa PowerShell pane açılmıyordu, artık **her makinede sıfır bağımlılıkla** çalışır.
+- 🪟 **Ekstra console penceresi yok** — sidecar görünmez spawn edilir (`CREATE_NO_WINDOW`).
+- 📐 **Pane resize stabilize edildi** — divider sürüklerken artık metin kesilmesi ve prompt duplikasyonu yok (ResizeObserver + PTY resize IPC debounce).
+- 🤏 **Pane sürükle-bırak yeniden konumlandırma** — pane title bar'ını yakala, başka pane'in 4 kenarından (sol/sağ/üst/alt) birine bırak → otomatik split + ağaç restructure. Görsel drop-zone vurgu.
+- ✏️ **Yerinde yeniden adlandırma** — tab veya pane başlığına çift tık → modal yok, yerinde input. Enter kaydet, Esc iptal.
+- 🏷️ **Grup etiketleri (renkli rozetler)** — pane title bar'ındaki `#` butonuna tıkla, grup adı yaz. Aynı etiketteki pane'ler otomatik **aynı renkte** gösterilir (8 renkli palet, hash tabanlı). Çalışma odağı için sade ama etkili — örn: 3 pane "api", 2 pane "frontend".
+- 🎨 **Tema paketleri prod build'de çalışır** — bundle path resolution düzeltildi (`_up_/themes/` Tauri glob notation).
+- 📦 **Akıllı installer davranışı** — NSIS pre-install hook açık D-Terminal süreçlerini sessizce sonlandırır, version bump (0.1.1) ile MSI/NSIS auto-upgrade tetiklenir (eski sürüm otomatik kaldırılır, kullanıcı verisi korunur).
+- 🛡️ **Tauri webview HTML5 drag/drop açık** — `dragDropEnabled: false` ile native file-drop handler bypass edildi, in-app drag işlemleri sorunsuz.
+
+### 🇬🇧 English
+
+- 🚀 **No more Node.js requirement** — sidecar bundled into a single `.exe` via `pkg` (Node 20 runtime embedded). Previous release failed on machines without Node; now works **everywhere with zero dependencies**.
+- 🪟 **No extra console window** — sidecar spawns invisibly (`CREATE_NO_WINDOW`).
+- 📐 **Pane resize stabilized** — no more text clipping or prompt duplication when dragging dividers (ResizeObserver + PTY resize IPC debounce).
+- 🤏 **Pane drag-and-drop rearrange** — grab any pane's title bar, drop on another pane's edge (left/right/top/bottom) → auto-split + tree restructure. Visual drop-zone highlight.
+- ✏️ **Inline rename** — double-click tab or pane title for in-place edit (no modal). Enter to save, Esc to cancel.
+- 🏷️ **Group tags (colored badges)** — click the `#` button in the pane title bar to enter a group name. Panes sharing a tag get the **same color** automatically (8-color hash-based palette). Simple but effective work focus — e.g. tag 3 panes "api", 2 panes "frontend".
+- 🎨 **Theme packages now load in production builds** — fixed bundle path resolution (`_up_/themes/` Tauri glob notation).
+- 📦 **Smarter installer** — NSIS pre-install hook silently terminates running D-Terminal processes; version bump (0.1.1) triggers MSI/NSIS auto-upgrade (old version uninstalled automatically, user data preserved).
+- 🛡️ **Tauri webview HTML5 drag/drop enabled** — `dragDropEnabled: false` bypasses the native file-drop handler so in-app drag works correctly.
+
 ## Vizyon
 
 D-Terminal, Windows üzerinde günlük çalışma akışını terminal merkezli yürüten kullanıcılar için, dağıtık araçlara duyulan ihtiyacı tek bir uygulamada toplamayı hedefler. PowerShell, CMD ve WSL oturumlarını; AI sohbetlerini; sistem ve log akışlarını ortak bir kabuğun altında birleştirir.
@@ -112,16 +138,17 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 
 ## Kurulum
 
-### İndir (v0.1.0-alpha)
+### İndir (v0.1.1)
 
 [GitHub Releases sayfasından](https://github.com/AmrasElessar/d-terminal/releases) en son sürümü indir:
 
 | Dosya | Boyut | Açıklama |
 |---|---|---|
-| `D-Terminal_*_x64_tr-TR.msi` | 8.5 MB | **Türkçe installer** (önerilen) |
-| `D-Terminal_*_x64_en-US.msi` | 8.5 MB | English installer |
-| `D-Terminal_*_x64-setup.exe` | 7.5 MB | NSIS — TR/EN dil seçici tek dosya |
-| `d-terminal.exe` | 12.4 MB | Standalone portable |
+| `D-Terminal_0.1.1_x64_tr-TR.msi` | 40.9 MB | **Türkçe installer** (önerilen) |
+| `D-Terminal_0.1.1_x64_en-US.msi` | 40.8 MB | English installer |
+| `D-Terminal_0.1.1_x64-setup.exe` | 27.2 MB | NSIS — TR/EN dil seçici tek dosya |
+
+> Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.
 
 ### Güvenlik
 
