@@ -55,13 +55,23 @@
 
 ### 🛡 Güvenlik / VirusTotal taraması (2026-05-04)
 
+#### x86_64 (x64)
 | Dosya | Skor | Yorum |
 |---|---|---|
-| TR MSI | **2/57** ([VT](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)) | Antiy-AVL `Trojan/Win32.Agent` + Rising `Spyware.Agent!8.C6` (RDMK) — generic ML false positive |
-| EN MSI | **2/58** ([VT](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)) | Aynı 2 motor |
-| NSIS setup | **2/70** ([VT](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)) | Sophos `Generic ML PUA` + VirIT `Trojan.Win64.GenX.JMO` — unsigned NSIS tipik flag |
+| TR MSI | **2/57** ([VT](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)) ([HA](https://hybrid-analysis.com/sample/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)) | Antiy-AVL `Trojan/Win32.Agent` + Rising `Spyware.Agent!8.C6` (RDMK) — generic ML false positive |
+| EN MSI | **2/58** ([VT](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)) ([HA](https://hybrid-analysis.com/sample/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)) | Aynı 2 motor |
+| NSIS setup | **2/70** ([VT](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)) ([HA](https://hybrid-analysis.com/sample/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)) | Sophos `Generic ML PUA` + VirIT `Trojan.Win64.GenX.JMO` — unsigned NSIS tipik flag |
 
-**Tüm major engine'ler temiz**: Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Sophos (MSI'da), Fortinet, GData, Avast, AVG, Malwarebytes, Avira, Panda, Emsisoft. Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection)**.
+#### aarch64 (ARM64)
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **0/57** ✅ ([VT](https://www.virustotal.com/gui/file/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec)) ([HA](https://hybrid-analysis.com/sample/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec)) | Tamamen clean — 0 detection |
+| EN MSI | **0/57** ✅ ([VT](https://www.virustotal.com/gui/file/11a371cb957821567cbd4abed1cdcac60cef06d166778300b95902a0b11b8feb)) ([HA](https://hybrid-analysis.com/sample/11a371cb957821567cbd4abed1cdcac60cef06d166778300b95902a0b11b8feb)) | Tamamen clean — 0 detection |
+| NSIS setup | **1/70** ([VT](https://www.virustotal.com/gui/file/ef7edc19b301adf61ca8e0f80e3c5980883b537f8f939a0bf993a177c4c6b927)) ([HA](https://hybrid-analysis.com/sample/ef7edc19b301adf61ca8e0f80e3c5980883b537f8f939a0bf993a177c4c6b927)) | Sadece Sophos `Generic ML PUA` — unsigned NSIS tipik |
+
+**Tüm major engine'ler temiz**: Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet, GData, Avast, AVG, Malwarebytes, Avira, Panda, Emsisoft. Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection) — 6/6 dosya**.
+
+ARM64 MSI'lar **sıfır flag** aldı çünkü ARM64 binary structure'ı x64 ML modellerinin training set'inde daha az temsil ediliyor — false positive tetikleyen imzalar yok.
 
 Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası uyarı kalkar, yukarıdaki ML false positive'lerin neredeyse hepsi de düşer.
 

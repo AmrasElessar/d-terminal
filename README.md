@@ -15,9 +15,10 @@
 ![Rust](https://img.shields.io/badge/Rust-stable-CE412B?logo=rust)
 
 **🛡 Güvenlik:**
-[![VirusTotal MSI](https://img.shields.io/badge/VirusTotal_MSI-2%2F57_(false_positive)-success?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)
-[![VirusTotal NSIS](https://img.shields.io/badge/VirusTotal_NSIS-2%2F70_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)
-[![Hybrid Analysis](https://img.shields.io/badge/Hybrid_Analysis-clean-success)](https://hybrid-analysis.com/sample/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)
+[![VT ARM64 MSI](https://img.shields.io/badge/VT_ARM64_MSI-0%2F57_clean-brightgreen?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec)
+[![VT x64 MSI](https://img.shields.io/badge/VT_x64_MSI-2%2F57_(false_positive)-success?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)
+[![VT NSIS](https://img.shields.io/badge/VT_NSIS-1--2%2F70_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)
+[![Hybrid Analysis](https://img.shields.io/badge/Hybrid_Analysis-6%2F6_clean-brightgreen)](https://hybrid-analysis.com/sample/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)
 [![Code Signing](https://img.shields.io/badge/code_signing-SignPath_FOSS_bekliyor-orange)](https://signpath.org/foundation)
 [![DPAPI](https://img.shields.io/badge/secret_storage-Windows_DPAPI-blue?logo=windows)](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection)
 [![CSP](https://img.shields.io/badge/CSP-strict_(no_unsafe--eval)-success)](./src-tauri/tauri.conf.json)
@@ -159,12 +160,20 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 
 ### Güvenlik (v0.1.1, 2026-05-04)
 
-Tüm dosyalar **VirusTotal**'de tarandı (sonuçlar [RELEASE_NOTES.md](./RELEASE_NOTES.md)'de):
-- **MSI TR**: [2/57](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06) — generic ML false positive (Antiy-AVL + Rising)
+Tüm 6 dosya **VirusTotal** + **Hybrid Analysis MetaDefender**'de tarandı (detay: [RELEASE_NOTES.md](./RELEASE_NOTES.md)):
+
+**ARM64** ✨
+- **MSI TR**: [0/57 clean](https://www.virustotal.com/gui/file/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec) ✅
+- **MSI EN**: [0/57 clean](https://www.virustotal.com/gui/file/11a371cb957821567cbd4abed1cdcac60cef06d166778300b95902a0b11b8feb) ✅
+- **NSIS setup**: [1/70](https://www.virustotal.com/gui/file/ef7edc19b301adf61ca8e0f80e3c5980883b537f8f939a0bf993a177c4c6b927) — sadece Sophos ML PUA (unsigned NSIS tipik)
+
+**x64**
+- **MSI TR**: [2/57](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06) — Antiy-AVL + Rising generic ML false positive
 - **MSI EN**: [2/58](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad) — aynı 2 motor
-- **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — unsigned NSIS tipik flag (Sophos ML PUA + VirIT)
-- Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet vb. — **hepsi clean**
-- Hybrid Analysis MetaDefender Multi-Scan: **Clean (0 detection)** her dosya için
+- **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — Sophos ML PUA + VirIT
+
+Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet — **hepsi clean** her dosya için.
+Hybrid Analysis MetaDefender Multi-Scan: **6/6 dosya clean**.
 
 Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar; yukarıdaki ML false positive'lerin de neredeyse hepsi düşer.
 
