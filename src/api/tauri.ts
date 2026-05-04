@@ -69,6 +69,11 @@ export const api = {
   settingsDelete: (key: string) => invoke<void>('settings_delete', { key }),
   settingsAll: () => invoke<Record<string, string>>('settings_all'),
 
+  // Config as Code (TOML dotfile)
+  configDotfilePath: () => invoke<string>('config_dotfile_path'),
+  configExport: () => invoke<string>('config_export'),
+  configImport: () => invoke<number>('config_import'),
+
   // Secrets
   secretsStore: (scope: string, name: string, value: string) =>
     invoke<void>('secrets_store', { scope, name, value }),

@@ -14,6 +14,9 @@ import { defaultProfile } from '@/types/profile';
 import type { PaneType } from '@/types/pane';
 import { keybindings } from '@/keybindings/registry';
 import { DEFAULT_SHORTCUTS } from '@/keybindings/defaults';
+import { api } from '@/api/tauri';
+import { useToastsStore } from '@/stores/toasts';
+import { onMounted } from 'vue';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -27,6 +30,34 @@ const profiles = useProfilesStore();
 
 type Tab = 'general' | 'appearance' | 'providers' | 'profiles' | 'triggers' | 'shortcuts';
 const tab = ref<Tab>('general');
+
+// --- Config as Code (TOML import/export) ---
+const toasts = useToastsStore();
+const configPath = ref<string>('');
+onMounted(async () => {
+  try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
+});
+
+async function exportConfig() {
+  try {
+    const path = await api.configExport();
+    toasts.success(t('settings.general.configExportOk', { path }), 4000);
+  } catch (e: unknown) {
+    toasts.error(`${t('settings.general.configExportFail')}: ${(e as Error).message ?? e}`);
+  }
+}
+
+async function importConfig() {
+  if (!confirm(t('settings.general.configImportConfirm'))) return;
+  try {
+    const count = await api.configImport();
+    toasts.success(t('settings.general.configImportOk', { count }), 4000);
+    // Settings store'u yeniden yükle ki UI yeni değerleri yansıtsın
+    await settings.load();
+  } catch (e: unknown) {
+    toasts.error(`${t('settings.general.configImportFail')}: ${(e as Error).message ?? e}`);
+  }
+}
 
 // --- Profile editor state ---
 const draftProfile = ref<ReturnType<typeof defaultProfile>>(defaultProfile());
@@ -296,6 +327,19 @@ void props.open;
         </label>
         <small class="note">{{ t('settings.general.aiPrefixHashHint') }}</small>
         <p class="note">{{ t('settings.general.telemetryHint') }}</p>
+
+        <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.configFile') }}</h3>
+        <p class="note">{{ t('settings.general.configFileHint') }}</p>
+        <p v-if="configPath" class="config-path"><code>{{ configPath }}</code></p>
+        <div class="config-actions">
+          <button type="button" class="config-btn config-btn--accent" @click="exportConfig">
+            ↥ {{ t('settings.general.configExport') }}
+          </button>
+          <button type="button" class="config-btn" @click="importConfig">
+            ↧ {{ t('settings.general.configImport') }}
+          </button>
+        </div>
       </section>
 
       <section v-if="tab === 'appearance'" class="section">
@@ -389,6 +433,20 @@ void props.open;
         <label class="field row">
           <input v-model="settings.state.unicode11" type="checkbox" />
           <span>{{ t('settings.appearance.unicode11') }}</span>
+        </label>
+        <label class="field row">
+          <input v-model="settings.state.screenReaderMode" type="checkbox" />
+          <span>{{ t('settings.appearance.screenReaderMode') }}</span>
+          <small>{{ t('settings.appearance.screenReaderHint') }}</small>
+        </label>
+        <label class="field row">
+          <input v-model="settings.state.prefixModeEnabled" type="checkbox" />
+          <span>{{ t('settings.appearance.prefixMode') }}</span>
+          <small>{{ t('settings.appearance.prefixModeHint') }}</small>
+        </label>
+        <label v-if="settings.state.prefixModeEnabled" class="field">
+          <span>{{ t('settings.appearance.prefixCombo') }}</span>
+          <input v-model="settings.state.prefixCombo" type="text" placeholder="Ctrl+B" />
         </label>
         <label class="field">
           <span>{{ t('settings.appearance.vibrancy') }}</span>
@@ -781,6 +839,49 @@ void props.open;
   overflow-x: auto;
 }
 .note { font-size: 12px; opacity: 0.6; margin: 0; }
+.divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.06); margin: 6px 0; }
+.subhead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  opacity: 0.7;
+}
+.config-path {
+  font-size: 11px;
+  opacity: 0.7;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 8px;
+  border-radius: 3px;
+  word-break: break-all;
+  font-family: var(--font-family);
+}
+.config-actions { display: flex; gap: 6px; margin-top: 4px; }
+.config-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-fg);
+  font-family: var(--font-family);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.config-btn:hover {
+  opacity: 1;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.config-btn--accent {
+  border-color: rgba(0, 180, 216, 0.4);
+  color: var(--color-accent);
+}
 .provider { padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 6px; }
 .provider__header {
   display: flex;
@@ -814,25 +915,53 @@ void props.open;
   border-radius: 4px;
   font-family: var(--font-family);
 }
+/* Compact, ghost-style butonlar — terminal estetiğine uygun, hantal değil.
+   Primary: accent kenarlık + dolgu yarı saydam, hover'da koyulaşır.
+   Ghost  : nötr kenarlık, hover'da accent rengine geçer. */
 .primary {
-  background: var(--color-accent);
-  color: var(--color-bg);
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-weight: 600;
+  background: rgba(0, 180, 216, 0.12);
+  color: var(--color-accent);
+  border: 1px solid rgba(0, 180, 216, 0.45);
+  font-family: var(--font-family);
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 3px;
   cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.12s ease;
 }
+.primary:hover {
+  background: rgba(0, 180, 216, 0.22);
+  border-color: var(--color-accent);
+}
+.primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .ghost {
   background: transparent;
   color: var(--color-fg);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 6px 12px;
-  border-radius: 4px;
+  font-family: var(--font-family);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 3px;
   cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.12s ease;
 }
-.ghost.danger { color: var(--color-red); border-color: rgba(255, 95, 87, 0.3); }
-.ghost.danger:hover { background: rgba(255, 95, 87, 0.1); border-color: var(--color-red); }
+.ghost:hover {
+  opacity: 1;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.ghost.danger {
+  color: var(--color-red);
+  border-color: rgba(255, 95, 87, 0.3);
+}
+.ghost.danger:hover {
+  background: rgba(255, 95, 87, 0.1);
+  border-color: var(--color-red);
+  color: var(--color-red);
+}
 
 /* --- Triggers --- */
 .section-head {

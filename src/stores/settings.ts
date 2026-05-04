@@ -33,6 +33,13 @@ export interface SettingsState {
   /** History tabanlı inline öneri (fish/Warp tarzı) — boş prompt'ta yazarken
    *  geçmişten en son eşleşen komut gri renkte gösterilir; → veya Tab ile kabul. */
   inlineAutocomplete: boolean;
+  /** xterm screen reader modu — ekran okuyucu (NVDA/Narrator) için aria-live
+   *  bölge açar, çıktıyı sırayla okutur. Performans maliyeti var, default kapalı. */
+  screenReaderMode: boolean;
+  /** Tmux-style prefix key — açıkken `prefixCombo`'ya basınca 1 sn'lik modal
+   *  moda gir, sonraki harf tuşu (V/H/Z/X/C/N/P/T) action tetikler. */
+  prefixModeEnabled: boolean;
+  prefixCombo: string;
 }
 
 const DEFAULTS: SettingsState = {
@@ -50,6 +57,9 @@ const DEFAULTS: SettingsState = {
   windowVibrancy: 'auto',
   shortcutOverrides: {},
   inlineAutocomplete: true,
+  screenReaderMode: false,
+  prefixModeEnabled: false,
+  prefixCombo: 'Ctrl+B',
 };
 
 const KEY_PREFIX = 'ui.';

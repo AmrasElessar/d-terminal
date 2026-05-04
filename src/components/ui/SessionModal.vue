@@ -4,7 +4,12 @@ import { useI18n } from 'vue-i18n';
 import { api, type SessionRecord } from '@/api/tauri';
 import { usePanesStore } from '@/stores/panes';
 import { useToastsStore } from '@/stores/toasts';
-import { deserializeTree, serializeTree } from '@/stores/session';
+import {
+  deserializeTree,
+  serializeTree,
+  serializeWorkspace,
+  deserializeWorkspace,
+} from '@/stores/session';
 
 const props = defineProps<{ open: boolean; mode: 'save' | 'load' }>();
 const emit = defineEmits<{ close: [] }>();
@@ -15,6 +20,9 @@ const toasts = useToastsStore();
 
 const sessions = ref<SessionRecord[]>([]);
 const newName = ref('');
+/** Workspace modu: kapalıyken sadece aktif tab'ı kaydeder/yükler (eski davranış);
+ *  açıkken tüm tab'lar + her tab'ın profileId + tag bilgisini saklar. */
+const workspaceMode = ref(true);
 
 async function refresh() {
   sessions.value = await api.sessionList();
@@ -23,16 +31,25 @@ async function refresh() {
 async function save() {
   const name = newName.value.trim();
   if (!name) return;
-  const json = serializeTree(panes.tree);
+  const json = workspaceMode.value
+    ? serializeWorkspace(panes.tabs, panes.activeTabId)
+    : serializeTree(panes.tree);
   await api.sessionSave(name, json);
   toasts.success(t('session.saved', { name }));
   emit('close');
 }
 
 async function load(rec: SessionRecord) {
-  const root = deserializeTree(rec.layout_json);
-  panes.tree.root = root;
-  panes.tree.focusedId = root && root.kind === 'leaf' ? root.id : null;
+  // Önce workspace olarak çözümle (v2 schema). Eski v1 kayıtlar fallback ile
+  // tek tab içinde mount edilir.
+  const ws = deserializeWorkspace(rec.layout_json);
+  if (ws && ws.tabs.length > 0) {
+    await panes.loadWorkspace(ws.tabs, ws.activeTabId);
+  } else {
+    const root = deserializeTree(rec.layout_json);
+    panes.tree.root = root;
+    panes.tree.focusedId = root && root.kind === 'leaf' ? root.id : null;
+  }
   toasts.success(t('session.loaded', { name: rec.name }));
   emit('close');
 }
@@ -71,6 +88,10 @@ onMounted(refresh);
             autofocus
             @keydown.enter="save"
           />
+        </label>
+        <label class="workspace-toggle">
+          <input v-model="workspaceMode" type="checkbox" />
+          <span>{{ t('session.workspaceMode') }}</span>
         </label>
         <button type="button" class="primary" :disabled="!newName.trim()" @click="save">
           {{ t('common.save') }}
@@ -139,7 +160,8 @@ onMounted(refresh);
   align-items: flex-end;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
-.save label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.save label:not(.workspace-toggle) { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.workspace-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; opacity: 0.85; }
 .save input {
   background: rgba(255, 255, 255, 0.04);
   color: var(--color-fg);

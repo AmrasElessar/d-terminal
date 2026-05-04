@@ -124,6 +124,28 @@ function paletteNavigate(action: string) {
   }
 }
 
+/** Tmux-style prefix mode aktif et veya kapat. Settings'ten okunur, ayar
+ *  değiştiğinde watch ile yeniden çağrılır. Action haritası registry'ye
+ *  verilir; AppShell'de zaten register edilmiş action id'lerine map'lenir. */
+function applyPrefixMode() {
+  if (!settings.state.prefixModeEnabled || !settings.state.prefixCombo) {
+    keybindings.setPrefix(null, {});
+    return;
+  }
+  keybindings.setPrefix(settings.state.prefixCombo, {
+    v: 'pane.splitVertical',
+    h: 'pane.splitHorizontal',
+    z: 'pane.maximize',
+    x: 'pane.close',
+    n: 'pane.focusNext',
+    p: 'pane.focusPrev',
+    t: 'tab.new',
+    w: 'tab.close',
+    s: 'session.save',
+    o: 'session.load',
+  });
+}
+
 onMounted(async () => {
   await settings.load();
   locale.value = settings.state.language;
@@ -163,6 +185,10 @@ onMounted(async () => {
   keybindings.register('panes.broadcastToggle', () => panes.toggleBroadcast());
   keybindings.register('pane.maximize', () => panes.toggleMaximize());
   keybindings.register('ai.suggestCommand', () => modals.open('aiSuggest'));
+
+  // Prefix mode (tmux tarzı modal kısayollar) — ayardan açılır, kapalıysa
+  // setPrefix(null, ...) çağrısı listener'da hiçbir etki yapmaz.
+  applyPrefixMode();
 
   // Kullanıcı override'larını uygula (Settings → Kısayollar'dan değiştirilir).
   // Defensive: HMR/eski SQLite'ta key yoksa undefined gelebilir.
@@ -206,6 +232,11 @@ watch(
     });
   },
 );
+// Prefix mode toggle/combo değişince registry'yi güncelle.
+watch(
+  () => [settings.state.prefixModeEnabled, settings.state.prefixCombo] as const,
+  applyPrefixMode,
+);
 </script>
 
 <template>
@@ -240,10 +271,46 @@ watch(
     <AISuggestModal v-if="modals.state.aiSuggest" :open="true" @close="modals.close('aiSuggest')" />
     <ContextMenu />
     <ToastContainer />
+    <!-- Prefix-mode (tmux tarzı) aktif overlay — 1 sn pencere içinde
+         kullanıcıya hangi tuşa basabileceği hatırlatılır. -->
+    <div v-if="keybindings.prefixActive.value" class="prefix-overlay" aria-live="polite">
+      <span class="prefix-overlay__label">PREFIX</span>
+      <span class="prefix-overlay__hints">
+        V/H · Z · X · N/P · T/W · S/O · Esc
+      </span>
+    </div>
   </main>
 </template>
 
 <style scoped>
+.prefix-overlay {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  color: var(--color-fg);
+  font-family: var(--font-family);
+  font-size: 11px;
+  z-index: 1500;
+  pointer-events: none;
+  box-shadow: 0 0 12px rgba(0, 180, 216, 0.3);
+}
+.prefix-overlay__label {
+  font-weight: 700;
+  color: var(--color-accent);
+  letter-spacing: 1px;
+}
+.prefix-overlay__hints {
+  color: var(--color-dim);
+  font-size: 10px;
+}
 .shell {
   display: flex;
   flex-direction: column;

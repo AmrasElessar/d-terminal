@@ -144,6 +144,15 @@
       },
       "telemetry": "Telemetri",
       "telemetryHint": "D-Terminal hiçbir telemetri toplamaz.",
+      "configFile": "Yapılandırma Dosyası (TOML)",
+      "configFileHint": "Tüm ayarlarını TOML dosyasına dışa aktar / dosyadan içe aktar. Dotfile senkronizasyonu için kullanışlı. Hot-reload v1.0.5'te eklenecek — şu an manuel import gerekir.",
+      "configExport": "TOML'a Dışa Aktar",
+      "configExportOk": "Yapılandırma yazıldı: {path}",
+      "configExportFail": "Dışa aktarma başarısız",
+      "configImport": "TOML'dan İçe Aktar",
+      "configImportConfirm": "Mevcut ayarlar TOML dosyasındaki değerlerle değiştirilecek. Devam edilsin mi?",
+      "configImportOk": "{count} ayar içe aktarıldı — yeniden başlatma gerekebilir",
+      "configImportFail": "İçe aktarma başarısız",
       "aiPrefixHash": "Boş prompt'ta # ile AI komut üretici aç (Warp paritesi)",
       "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır."
     },
@@ -159,6 +168,11 @@
       "renderer": "Render motoru",
       "rendererHint": "GPU hızlandırma — uyumluluk sorunu olursa Canvas/DOM'a geç",
       "unicode11": "Unicode 11 (emoji + CJK genişliği)",
+      "screenReaderMode": "Ekran okuyucu modu",
+      "screenReaderHint": "NVDA/Narrator gibi ekran okuyucular için aria-live bölge açar (performans maliyeti var)",
+      "prefixMode": "Prefix-key modu (tmux tarzı)",
+      "prefixModeHint": "Combo'ya basınca 1 sn modal moda gir, sonra V/H/Z/X/N/P/T/W/S/O harflerinden biriyle action tetikle",
+      "prefixCombo": "Prefix kombosu",
       "vibrancy": "Pencere efekti",
       "vibrancyAuto": "Otomatik (Mica varsa, yoksa düz)",
       "vibrancyMica": "Mica (Win11 22H2+)",
@@ -220,7 +234,8 @@
     "delete": "Session Sil",
     "deleteConfirm": "{name} session'ı silinsin mi?",
     "empty": "Henüz kayıtlı session yok",
-    "lastUpdated": "Son güncelleme: {date}"
+    "lastUpdated": "Son güncelleme: {date}",
+    "workspaceMode": "Workspace olarak kaydet (tüm tab'lar + profile + grup tag'leri)"
   },
   "newPane": {
     "title": "Yeni Panel",
@@ -341,6 +356,9 @@
     "hostCopied": "Adres kopyalandı",
     "suggest": {
       "hint": "Geçmişten öneri — Tab veya → ile kabul et"
+    },
+    "scrollMode": {
+      "label": "SCROLL"
     },
     "renderer": {
       "auto": "Otomatik (WebGL → Canvas → DOM)",

@@ -144,6 +144,15 @@
       },
       "telemetry": "Telemetry",
       "telemetryHint": "D-Terminal collects no telemetry.",
+      "configFile": "Configuration File (TOML)",
+      "configFileHint": "Export your full settings to / import from a TOML file. Useful for dotfile sync. Hot-reload arrives in v1.0.5 — for now, import manually.",
+      "configExport": "Export to TOML",
+      "configExportOk": "Config written to: {path}",
+      "configExportFail": "Export failed",
+      "configImport": "Import from TOML",
+      "configImportConfirm": "Current settings will be replaced by the values in the TOML file. Continue?",
+      "configImportOk": "Imported {count} setting(s) — restart may be required",
+      "configImportFail": "Import failed",
       "aiPrefixHash": "Open AI command generator on # at empty prompt (Warp parity)",
       "aiPrefixHashHint": "When enabled: typing # at the start of an empty prompt opens the AI suggester instead of writing # to the terminal. Disable to use # normally."
     },
@@ -159,6 +168,11 @@
       "renderer": "Renderer",
       "rendererHint": "GPU acceleration — fall back to Canvas/DOM on compat issues",
       "unicode11": "Unicode 11 (emoji + CJK widths)",
+      "screenReaderMode": "Screen reader mode",
+      "screenReaderHint": "Opens an aria-live region for screen readers (NVDA/Narrator); has a performance cost",
+      "prefixMode": "Prefix-key mode (tmux-style)",
+      "prefixModeHint": "Press the combo to enter modal mode for 1s, then trigger an action with V/H/Z/X/N/P/T/W/S/O",
+      "prefixCombo": "Prefix combo",
       "vibrancy": "Window vibrancy",
       "vibrancyAuto": "Auto (Mica if available, else flat)",
       "vibrancyMica": "Mica (Win11 22H2+)",
@@ -220,7 +234,8 @@
     "delete": "Delete Session",
     "deleteConfirm": "Delete session {name}?",
     "empty": "No saved sessions yet",
-    "lastUpdated": "Last updated: {date}"
+    "lastUpdated": "Last updated: {date}",
+    "workspaceMode": "Save as workspace (all tabs + profiles + group tags)"
   },
   "newPane": {
     "title": "New Pane",
@@ -341,6 +356,9 @@
     "hostCopied": "Host copied to clipboard",
     "suggest": {
       "hint": "Suggestion from history — accept with Tab or →"
+    },
+    "scrollMode": {
+      "label": "SCROLL"
     },
     "renderer": {
       "auto": "Auto (WebGL → Canvas → DOM)",

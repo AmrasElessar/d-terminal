@@ -60,10 +60,41 @@ async function refreshSuggestion() {
     return;
   }
   try {
-    const results = await api.historySearch({ text: prefix, limit: 20 });
-    // İlk prefix-match'i bul (search substring döner; biz başlangıçta eşleşeni isteriz)
-    const match = results.find((h) => h.command.startsWith(prefix) && h.command.length > prefix.length);
-    suggestion.value = match ? match.command : null;
+    // Frecency tabanlı skorlama (Mozilla URL bar tarzı):
+    // score = frequency × exp(-ageHours/halfLife) × favoriteBonus
+    // Aynı komut tarihçede birden çok kez varsa frekans sayılır, en son
+    // çalıştırma zamanı recency olarak alınır. 1 hafta half-life ile eski
+    // komutlar zamanla geri sıralara düşer; favoriler 2× ağırlık alır.
+    const results = await api.historySearch({ text: prefix, limit: 200 });
+    const now = Date.now();
+    const HALF_LIFE_HOURS = 168;
+    type Group = { command: string; freq: number; lastSeen: number; favorite: boolean };
+    const groups = new Map<string, Group>();
+    for (const h of results) {
+      if (!h.command.startsWith(prefix) || h.command.length === prefix.length) continue;
+      const ts = Date.parse(h.executedAt);
+      if (Number.isNaN(ts)) continue;
+      const g = groups.get(h.command);
+      if (g) {
+        g.freq++;
+        if (ts > g.lastSeen) g.lastSeen = ts;
+        if (h.isFavorite) g.favorite = true;
+      } else {
+        groups.set(h.command, {
+          command: h.command,
+          freq: 1,
+          lastSeen: ts,
+          favorite: h.isFavorite,
+        });
+      }
+    }
+    let best: { command: string; score: number } | null = null;
+    for (const g of groups.values()) {
+      const ageHours = Math.max(0, (now - g.lastSeen) / 36e5);
+      const score = g.freq * Math.exp(-ageHours / HALF_LIFE_HOURS) * (g.favorite ? 2 : 1);
+      if (!best || score > best.score) best = { command: g.command, score };
+    }
+    suggestion.value = best ? best.command : null;
   } catch {
     suggestion.value = null;
   }
@@ -501,13 +532,52 @@ function copyBuffer() {
   navigator.clipboard.writeText(plain).then(() => toasts.success(t('terminal.bufferCopied'), 1500));
 }
 
-// Pane-scoped key handler: Ctrl+F arama, Ctrl+Shift+C buffer kopyala, Ctrl+Shift+V paste
+// --- Scrollback Navigation Mode (vim copy mode subset) ---
+// Ctrl+Shift+Space ile aç/kapat. Aktifken PTY input bloklanır, j/k/g/G/u/d
+// ile scroll, y mevcut selection'ı kopyala, / search overlay aç, Esc çık.
+const scrollMode = ref(false);
+
+function handleScrollModeKey(e: KeyboardEvent): boolean {
+  if (!term) return false;
+  if (e.key === 'Escape') { scrollMode.value = false; return true; }
+  // Modifier'lı kombolar (Ctrl+C vb) bu modda da iş yapar; normal akışa bırak
+  if (e.ctrlKey || e.altKey || e.metaKey) return false;
+  switch (e.key) {
+    case 'j': case 'ArrowDown': term.scrollLines(1); return true;
+    case 'k': case 'ArrowUp':   term.scrollLines(-1); return true;
+    case 'd': case 'PageDown':  term.scrollPages(0.5); return true;
+    case 'u': case 'PageUp':    term.scrollPages(-0.5); return true;
+    case 'g': case 'Home':      term.scrollToTop(); return true;
+    case 'G': case 'End':       term.scrollToBottom(); return true;
+    case 'y': case 'Y': {
+      const sel = term.getSelection();
+      if (sel) {
+        navigator.clipboard.writeText(sel);
+        toasts.success(t('common.copy') + ' ✓', 1200);
+        scrollMode.value = false;
+      }
+      return true;
+    }
+    case '/': openSearch(); return true;
+  }
+  // Bilinmeyen tuş — modu koru ama tuşu PTY'ye iletme (yanlışlıkla yazma yok)
+  return true;
+}
+
+// Pane-scoped key handler: Ctrl+F arama, Ctrl+Shift+Space scroll mode toggle
 function onContainerKeydown(e: KeyboardEvent) {
   // Ctrl+F → arama overlay (browser find'ı override etme — terminal context'te beklenir)
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     e.stopPropagation();
     openSearch();
+    return;
+  }
+  // Ctrl+Shift+Space → scroll/copy mode toggle
+  if (e.ctrlKey && e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
+    e.preventDefault();
+    e.stopPropagation();
+    scrollMode.value = !scrollMode.value;
   }
 }
 
@@ -524,6 +594,9 @@ onMounted(async () => {
     allowProposedApi: true,
     lineHeight: 1.2,
     letterSpacing: 0,
+    // Ekran okuyucu modu: settings'ten kontrollü, aria-live bölge açar.
+    // Default kapalı — performans etkisi var (terminal her satırı DOM'a aktarır).
+    screenReaderMode: settings.state.screenReaderMode,
   });
   fit = new FitAddon();
   search = new SearchAddon();
@@ -542,6 +615,14 @@ onMounted(async () => {
   }
 
   term.open(container.value);
+
+  // Scrollback navigation mode için custom key handler — return false PTY'ye
+  // tuşun gitmesini bloklar. Aktif değilse her zaman true (normal akış).
+  term.attachCustomKeyEventHandler((event) => {
+    if (event.type !== 'keydown') return true;
+    if (!scrollMode.value) return true;
+    return !handleScrollModeKey(event);
+  });
 
   // Renderer addon (WebGL / canvas / DOM) — open()'dan SONRA yüklenmeli
   applyRenderer(settings.state.renderer);
@@ -689,8 +770,14 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
 </script>
 
 <template>
-  <div class="terminal-host" @keydown="onContainerKeydown">
+  <div class="terminal-host" :class="{ 'scroll-mode': scrollMode }" @keydown="onContainerKeydown">
     <div ref="container" class="terminal" />
+
+    <!-- Scrollback navigation mode (Ctrl+Shift+Space) -->
+    <div v-if="scrollMode" class="scroll-mode-bar" aria-live="polite">
+      <span class="scroll-mode-bar__label">{{ t('terminal.scrollMode.label') }}</span>
+      <span class="scroll-mode-bar__hints">j/k · g/G · u/d · / · y · Esc</span>
+    </div>
 
     <!-- Inline autocomplete chip — history'den prefix-match öneri.
          → veya Tab ile kabul, başka tuşa basınca güncellenir. -->
@@ -842,6 +929,34 @@ ab|
 }
 
 /* Inline autocomplete chip — alt-sağda sticky, terminal cursor'una müdahale yok */
+.terminal-host.scroll-mode {
+  outline: 1px solid var(--color-yellow);
+  outline-offset: -1px;
+}
+.scroll-mode-bar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--color-yellow);
+  border-radius: 3px;
+  font-size: 9px;
+  font-family: var(--font-family);
+  z-index: 12;
+  pointer-events: none;
+}
+.scroll-mode-bar__label {
+  color: var(--color-yellow);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.scroll-mode-bar__hints {
+  color: var(--color-dim);
+}
 .suggest-chip {
   position: absolute;
   bottom: 6px;

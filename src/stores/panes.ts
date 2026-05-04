@@ -298,6 +298,26 @@ export const usePanesStore = defineStore('panes', () => {
    *  sökülür, `target` leaf'ın belirtilen kenarına yeni split olarak
    *  yerleştirilir. Aynı tab içinde çalışır (tab'lar arası taşıma v1+).
    *  Source ve target aynıysa, ya da source target'ın kendisi ise no-op. */
+  /** Workspace yükleme — mevcut tabs'i tamamen değiştirir. PTY kill yapmaz
+   *  (status: 'idle' leaf'ler ilk render'da spawn olur). */
+  async function loadWorkspace(newTabs: Tab[], targetActiveTabId: string | null) {
+    if (newTabs.length === 0) return;
+    // Mevcut açık PTY'leri sessizce kill et — yeni workspace fresh başlar
+    for (const tab of tabs.value) {
+      for (const leaf of listLeaves(tab.tree.root)) {
+        if (leaf.ptyId) {
+          try { await api.ptyKill(leaf.ptyId); } catch { /* zaten ölmüş */ }
+        }
+      }
+    }
+    tabs.value = newTabs;
+    activeTabId.value =
+      targetActiveTabId && newTabs.some((t) => t.id === targetActiveTabId)
+        ? targetActiveTabId
+        : newTabs[0]!.id;
+    maximizedByTab.value = {};
+  }
+
   function movePane(sourceLeafId: string, targetLeafId: string, side: 'left' | 'right' | 'top' | 'bottom') {
     if (sourceLeafId === targetLeafId) return;
     const tab = findTabOfLeaf(sourceLeafId);
@@ -441,6 +461,7 @@ export const usePanesStore = defineStore('panes', () => {
     setLeafState,
     setSplitRatio,
     movePane,
+    loadWorkspace,
     draggingPaneId,
     startListening,
     stopListening,

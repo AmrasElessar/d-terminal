@@ -3,6 +3,7 @@
 
 pub mod ai;
 pub mod ai_proxy;
+pub mod config_io;
 pub mod dfetch;
 pub mod history;
 pub mod logger;

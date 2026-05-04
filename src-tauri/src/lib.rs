@@ -143,6 +143,10 @@ pub fn run() {
             commands::settings::settings_set,
             commands::settings::settings_delete,
             commands::settings::settings_all,
+            // Config as Code (TOML import/export)
+            commands::config_io::config_dotfile_path,
+            commands::config_io::config_export,
+            commands::config_io::config_import,
             // Secrets
             commands::secrets::secrets_store,
             commands::secrets::secrets_delete,
