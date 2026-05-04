@@ -97,3 +97,51 @@ fn scan_dir(dir: &std::path::Path, out: &mut Vec<ThemeFile>) -> AppResult<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn scan_dir_reads_json_files_only() {
+        let tmp = std::env::temp_dir().join(format!("dterm-test-themes-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        // Geçerli JSON tema
+        let theme_path = tmp.join("D-Test.json");
+        let mut f = std::fs::File::create(&theme_path).unwrap();
+        f.write_all(br##"{"name":"D-Test","background":"#000000"}"##).unwrap();
+
+        // İlgisiz dosya — atlanmalı
+        std::fs::write(tmp.join("README.md"), "ignored").unwrap();
+
+        let mut out = Vec::new();
+        scan_dir(&tmp, &mut out).expect("scan_dir");
+        assert_eq!(out.len(), 1, "sadece .json dosyası okunmalı");
+        let entry = &out[0];
+        assert_eq!(entry.name, "D-Test");
+        assert!(entry.content.contains("D-Test"));
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn scan_dir_handles_empty_directory() {
+        let tmp = std::env::temp_dir().join(format!("dterm-test-empty-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let mut out = Vec::new();
+        scan_dir(&tmp, &mut out).expect("scan_dir");
+        assert!(out.is_empty());
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn user_themes_dir_resolves_to_app_data() {
+        let dir = user_themes_dir().expect("user_themes_dir");
+        // Path structure: <data_dir>/D-Terminal/themes
+        assert!(dir.ends_with("D-Terminal/themes") || dir.ends_with("D-Terminal\\themes"));
+    }
+}

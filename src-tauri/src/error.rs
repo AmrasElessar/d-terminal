@@ -74,3 +74,38 @@ impl From<crate::sidecar::protocol::ProtocolError> for AppError {
         AppError::Sidecar(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_emits_kind_and_message() {
+        let err = AppError::PaneNotFound("pane-42".into());
+        let json = serde_json::to_string(&err).expect("serialize");
+        assert!(json.contains("\"kind\":\"pane_not_found\""));
+        assert!(json.contains("\"message\":\"pane not found: pane-42\""));
+    }
+
+    #[test]
+    fn invalid_arg_kind() {
+        let err = AppError::InvalidArg("theme name".into());
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"kind\":\"invalid_arg\""));
+    }
+
+    #[test]
+    fn io_error_converts_via_from() {
+        let io = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let app: AppError = io.into();
+        let json = serde_json::to_string(&app).unwrap();
+        assert!(json.contains("\"kind\":\"io\""));
+        assert!(json.contains("missing"));
+    }
+
+    #[test]
+    fn migration_error_uses_string_payload() {
+        let err = AppError::Migration("v3 fail".into());
+        assert_eq!(err.to_string(), "migration: v3 fail");
+    }
+}
