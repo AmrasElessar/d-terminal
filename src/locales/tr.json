@@ -3,6 +3,9 @@
     "title": "D-Terminal",
     "tagline": "Windows kullanıcıları da matrix'e layık."
   },
+  "admin": {
+    "elevatedHint": "Bu uygulama yönetici yetkisiyle çalışıyor — açılan tüm pane'ler admin token miras alır."
+  },
   "welcome": {
     "title": "Hoş geldin",
     "subtitle": "Agent-aware Windows terminali — pre-alpha",
@@ -144,6 +147,16 @@
       },
       "telemetry": "Telemetri",
       "telemetryHint": "D-Terminal hiçbir telemetri toplamaz.",
+      "adminSection": "Yönetici (UAC) Yetkisi",
+      "adminRunningAsAdmin": "✓ Bu uygulama şu an yönetici yetkisiyle çalışıyor — winget upgrade, sistem servisleri, HKLM kayıt defteri yazma serbest.",
+      "adminRunningAsUser": "Bu uygulama standart kullanıcı yetkisiyle çalışıyor. Yönetici gerektiren komutlar (örn. `winget upgrade --all`) bazı paketler için başarısız olabilir.",
+      "adminRestart": "Yönetici olarak yeniden başlat",
+      "adminRestartConfirm": "D-Terminal kapatılıp UAC yetkisi ile yeniden açılacak. Açık tüm pane'lerin çalışan komutları sonlandırılacak. Devam edilsin mi?",
+      "adminRestartFail": "Yönetici olarak başlatma başarısız",
+      "adminSudoHint": "Tek bir komut için tüm uygulamayı admin olarak açmak yerine sudo benzeri bir araç kullanabilirsin: Win 11 23H2+ kullanıcılar Settings → Sistem → Geliştiriciler altında built-in `sudo`'yu açabilir; Win 10 kullanıcıları için gsudo (gerardog/gsudo) önerilir.",
+      "adminOpenDevSettings": "Win 11 sudo ayarlarını aç",
+      "adminCopyGsudo": "gsudo install komutunu kopyala",
+      "gsudoCopied": "Pano'ya kopyalandı: winget install gerardog.gsudo",
       "configFile": "Yapılandırma Dosyası (TOML)",
       "configFileHint": "Tüm ayarlarını TOML dosyasına dışa aktar / dosyadan içe aktar. Dotfile senkronizasyonu için kullanışlı. Hot-reload v1.0.5'te eklenecek — şu an manuel import gerekir.",
       "configExport": "TOML'a Dışa Aktar",

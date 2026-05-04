@@ -43,6 +43,11 @@ const profiles = useProfilesStore();
 const log = createLogger('shell');
 const modals = useModals();
 
+/** Process'in admin token'ı var mı (Windows UAC). Mount sırasında okunur,
+ *  değişmez (process lifetime boyunca elevation değişmez). Header'da rozet,
+ *  Settings'te "Yönetici olarak başlat" durum bilgisi için kullanılır. */
+const isElevated = ref(false);
+
 /** Aktif font + boyut'u CSS değişkenlerine yansıt — UI ile xterm aynı görünür. */
 function applyFontVars() {
   const root = document.documentElement;
@@ -156,6 +161,8 @@ onMounted(async () => {
   await triggers.load();
   await profiles.load();
   await panes.startListening();
+  // UAC elevation durumu — process lifetime boyunca sabit, tek seferlik fetch
+  api.adminIsElevated().then((v) => { isElevated.value = v; }).catch(() => {});
 
   if (settings.state.startup === 'welcome') {
     panes.openPane('welcome', t('pane.type.welcome'));
@@ -243,6 +250,14 @@ watch(
   <main class="shell">
     <header class="shell__header">
       <div class="shell__brand">{{ t('app.title') }}</div>
+      <span
+        v-if="isElevated"
+        class="shell__admin-badge"
+        :title="t('admin.elevatedHint')"
+        aria-label="Administrator"
+      >
+🛡 ADMIN
+</span>
       <nav class="shell__menu">
         <button type="button" @click="openNewPane">{{ t('pane.new') }}</button>
         <button type="button" @click="splitH">{{ t('pane.splitHorizontal') }}</button>
@@ -344,6 +359,21 @@ watch(
   color: transparent;
 }
 .shell__brand::before { content: '> '; }
+.shell__admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: rgba(255, 95, 87, 0.14);
+  border: 1px solid rgba(255, 95, 87, 0.55);
+  border-radius: 2px;
+  color: var(--color-red);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: var(--font-family);
+}
 .shell__menu {
   display: flex;
   align-items: center;

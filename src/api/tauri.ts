@@ -74,6 +74,11 @@ export const api = {
   configExport: () => invoke<string>('config_export'),
   configImport: () => invoke<number>('config_import'),
 
+  // Admin / UAC elevation (Windows only)
+  adminIsElevated: () => invoke<boolean>('admin_is_elevated'),
+  adminRestartElevated: () => invoke<void>('admin_restart_elevated'),
+  adminOpenDevSettings: () => invoke<void>('admin_open_dev_settings'),
+
   // Secrets
   secretsStore: (scope: string, name: string, value: string) =>
     invoke<void>('secrets_store', { scope, name, value }),

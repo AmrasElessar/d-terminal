@@ -147,6 +147,10 @@ pub fn run() {
             commands::config_io::config_dotfile_path,
             commands::config_io::config_export,
             commands::config_io::config_import,
+            // Admin / UAC elevation
+            commands::admin::admin_is_elevated,
+            commands::admin::admin_restart_elevated,
+            commands::admin::admin_open_dev_settings,
             // Secrets
             commands::secrets::secrets_store,
             commands::secrets::secrets_delete,

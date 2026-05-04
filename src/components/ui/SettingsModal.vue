@@ -34,9 +34,39 @@ const tab = ref<Tab>('general');
 // --- Config as Code (TOML import/export) ---
 const toasts = useToastsStore();
 const configPath = ref<string>('');
+
+// --- Admin (UAC elevation) ---
+const isElevated = ref(false);
+
 onMounted(async () => {
   try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
+  try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
 });
+
+async function restartAsAdmin() {
+  if (!confirm(t('settings.general.adminRestartConfirm'))) return;
+  try {
+    await api.adminRestartElevated();
+    // Process kapanacak, başka şey yapma
+  } catch (e: unknown) {
+    toasts.error(`${t('settings.general.adminRestartFail')}: ${(e as Error).message ?? e}`);
+  }
+}
+
+async function openSudoSettings() {
+  try {
+    await api.adminOpenDevSettings();
+  } catch (e: unknown) {
+    toasts.error(`${(e as Error).message ?? e}`);
+  }
+}
+
+function copyGsudoCommand() {
+  const cmd = 'winget install gerardog.gsudo';
+  navigator.clipboard.writeText(cmd).then(() => {
+    toasts.success(t('settings.general.gsudoCopied'), 3000);
+  });
+}
 
 async function exportConfig() {
   try {
@@ -327,6 +357,32 @@ void props.open;
         </label>
         <small class="note">{{ t('settings.general.aiPrefixHashHint') }}</small>
         <p class="note">{{ t('settings.general.telemetryHint') }}</p>
+
+        <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.adminSection') }}</h3>
+        <p class="note">
+          <span v-if="isElevated">{{ t('settings.general.adminRunningAsAdmin') }}</span>
+          <span v-else>{{ t('settings.general.adminRunningAsUser') }}</span>
+        </p>
+        <div class="config-actions">
+          <button
+            v-if="!isElevated"
+            type="button"
+            class="config-btn config-btn--accent"
+            @click="restartAsAdmin"
+          >
+🛡 {{ t('settings.general.adminRestart') }}
+</button>
+        </div>
+        <p class="note small-note">{{ t('settings.general.adminSudoHint') }}</p>
+        <div class="config-actions">
+          <button type="button" class="config-btn" @click="openSudoSettings">
+⚙ {{ t('settings.general.adminOpenDevSettings') }}
+</button>
+          <button type="button" class="config-btn" @click="copyGsudoCommand">
+⎘ {{ t('settings.general.adminCopyGsudo') }}
+</button>
+        </div>
 
         <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.configFile') }}</h3>
@@ -857,7 +913,8 @@ void props.open;
   word-break: break-all;
   font-family: var(--font-family);
 }
-.config-actions { display: flex; gap: 6px; margin-top: 4px; }
+.config-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.small-note { font-size: 11px; opacity: 0.55; margin: 8px 0 4px; }
 .config-btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);

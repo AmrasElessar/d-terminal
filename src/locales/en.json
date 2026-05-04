@@ -3,6 +3,9 @@
     "title": "D-Terminal",
     "tagline": "Windows users deserve the matrix too."
   },
+  "admin": {
+    "elevatedHint": "Running with administrator privileges — all spawned panes inherit the admin token."
+  },
   "welcome": {
     "title": "Welcome",
     "subtitle": "Agent-aware Windows terminal — pre-alpha",
@@ -144,6 +147,16 @@
       },
       "telemetry": "Telemetry",
       "telemetryHint": "D-Terminal collects no telemetry.",
+      "adminSection": "Administrator (UAC) Privileges",
+      "adminRunningAsAdmin": "✓ Running with administrator privileges — winget upgrade, system services, HKLM registry writes all permitted.",
+      "adminRunningAsUser": "Running with standard user privileges. Commands requiring admin (e.g. `winget upgrade --all`) may fail for some packages.",
+      "adminRestart": "Restart as Administrator",
+      "adminRestartConfirm": "D-Terminal will close and relaunch with UAC elevation. All running pane processes will be terminated. Continue?",
+      "adminRestartFail": "Failed to restart as administrator",
+      "adminSudoHint": "Instead of running the entire app as admin for one command, use a sudo-like tool: Win 11 23H2+ users can enable built-in `sudo` from Settings → System → For developers; Win 10 users can install gsudo (gerardog/gsudo).",
+      "adminOpenDevSettings": "Open Win 11 sudo settings",
+      "adminCopyGsudo": "Copy gsudo install command",
+      "gsudoCopied": "Copied to clipboard: winget install gerardog.gsudo",
       "configFile": "Configuration File (TOML)",
       "configFileHint": "Export your full settings to / import from a TOML file. Useful for dotfile sync. Hot-reload arrives in v1.0.5 — for now, import manually.",
       "configExport": "Export to TOML",
