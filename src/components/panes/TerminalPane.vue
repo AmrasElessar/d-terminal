@@ -302,10 +302,18 @@ function attachInput() {
       api.ptyWrite(myPtyId, bytes).catch(() => {});
     }
   });
+  // Resize IPC debounce: divider sürükleme sırasında her frame'de PTY'ye
+  // boyut göndermek shell prompt'unun defalarca redraw edilmesine yol açar
+  // (PowerShell her SIGWINCH'te prompt'u yeniden basar — scrollback'te
+  // duplikasyon görünür). Kullanıcı sürüklemeyi bitirene kadar bekle.
   term.onResize(({ cols, rows }) => {
     const ptyId = panes.getLeaf(props.leaf.id)?.ptyId;
     if (!ptyId) return;
-    api.ptyResize(ptyId, cols, rows).catch(() => {});
+    if (resizeIpcTimer) clearTimeout(resizeIpcTimer);
+    resizeIpcTimer = window.setTimeout(() => {
+      resizeIpcTimer = 0;
+      api.ptyResize(ptyId, cols, rows).catch(() => {});
+    }, 120);
   });
   // OSC 0 (`ESC ]0;<title>BEL`) — terminal title değiştiğinde pane başlığı güncelle.
   term.onTitleChange((title) => {
@@ -372,6 +380,8 @@ function attachInput() {
  *  tetiklenir, WebGL renderer'da siyah flicker'a sebep olur. rAF ile bir
  *  frame içindeki tüm resize istekleri tek fit çağrısında toplanır. */
 let resizeRafId = 0;
+let resizeIpcTimer = 0;
+let paneResizeObserver: ResizeObserver | null = null;
 function handleResize() {
   if (!fit) return;
   if (resizeRafId) return;
@@ -554,11 +564,24 @@ onMounted(async () => {
 
   attachInput();
   window.addEventListener('resize', handleResize);
+  // Pane container'ı kendi başına da boyut değiştirebilir (split divider drag,
+  // pane ekleme/kaldırma, layout değişimi). window resize bu durumlarda
+  // tetiklenmez; ResizeObserver ile container'ı izle.
+  if (container.value) {
+    paneResizeObserver = new ResizeObserver(() => handleResize());
+    paneResizeObserver.observe(container.value);
+  }
   await spawn();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  paneResizeObserver?.disconnect();
+  paneResizeObserver = null;
+  if (resizeIpcTimer) {
+    clearTimeout(resizeIpcTimer);
+    resizeIpcTimer = 0;
+  }
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
 
