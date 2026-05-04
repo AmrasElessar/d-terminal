@@ -132,11 +132,14 @@ For architectural decisions and detailed design, see [docs/architecture-v1.1.md]
 
 Get the latest release from [GitHub Releases](https://github.com/AmrasElessar/d-terminal/releases):
 
-| File | Size | Description |
-|---|---|---|
-| `D-Terminal_0.1.1_x64_en-US.msi` | 40.8 MB | **English installer** (recommended) |
-| `D-Terminal_0.1.1_x64_tr-TR.msi` | 40.9 MB | Turkish installer |
-| `D-Terminal_0.1.1_x64-setup.exe` | 27.2 MB | NSIS — single file with TR/EN language picker |
+| File | Size | Arch | Description |
+|---|---|---|---|
+| `D-Terminal_0.1.1_x64_en-US.msi` | ~41 MB | x86_64 | **English installer** (recommended) |
+| `D-Terminal_0.1.1_x64_tr-TR.msi` | ~41 MB | x86_64 | Turkish installer |
+| `D-Terminal_0.1.1_x64-setup.exe` | ~27 MB | x86_64 | NSIS — single file with TR/EN language picker |
+| `D-Terminal_0.1.1_arm64_en-US.msi` | ~40 MB | aarch64 | **ARM64 English** (Surface Pro X, Snapdragon laptops) |
+| `D-Terminal_0.1.1_arm64_tr-TR.msi` | ~40 MB | aarch64 | ARM64 Turkish |
+| `D-Terminal_0.1.1_arm64-setup.exe` | ~26 MB | aarch64 | ARM64 NSIS |
 
 > The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
 
