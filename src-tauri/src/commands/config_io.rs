@@ -57,8 +57,8 @@ pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
         )));
     }
     let content = std::fs::read_to_string(&path)?;
-    let doc: toml::Value = toml::from_str(&content)
-        .map_err(|e| AppError::InvalidArg(format!("toml parse: {e}")))?;
+    let doc: toml::Value =
+        toml::from_str(&content).map_err(|e| AppError::InvalidArg(format!("toml parse: {e}")))?;
     let settings = doc
         .get("settings")
         .and_then(|v| v.as_table())

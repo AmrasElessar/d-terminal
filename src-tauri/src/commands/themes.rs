@@ -58,7 +58,10 @@ fn bundled_themes_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     // `_up_/themes/` altında yerleştiriyor (Tauri'nin parent-path notasyonu).
     // Eski layout `themes/` da fallback olarak destekleniyor.
     if let Ok(resolver) = app.path().resource_dir() {
-        for candidate in [resolver.join("_up_").join("themes"), resolver.join("themes")] {
+        for candidate in [
+            resolver.join("_up_").join("themes"),
+            resolver.join("themes"),
+        ] {
             if candidate.exists() {
                 return Ok(candidate);
             }
@@ -111,7 +114,8 @@ mod tests {
         // Geçerli JSON tema
         let theme_path = tmp.join("D-Test.json");
         let mut f = std::fs::File::create(&theme_path).unwrap();
-        f.write_all(br##"{"name":"D-Test","background":"#000000"}"##).unwrap();
+        f.write_all(br##"{"name":"D-Test","background":"#000000"}"##)
+            .unwrap();
 
         // İlgisiz dosya — atlanmalı
         std::fs::write(tmp.join("README.md"), "ignored").unwrap();
