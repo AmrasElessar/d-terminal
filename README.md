@@ -4,9 +4,15 @@
 
 > Agent-aware Windows terminali — tek pencerede çoklu shell, AI entegrasyonu ve uzmanlaşmış pane tipleri.
 
+[![CI](https://img.shields.io/github/actions/workflow/status/AmrasElessar/d-terminal/ci.yml?branch=main&label=CI&logo=github)](https://github.com/AmrasElessar/d-terminal/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AmrasElessar/d-terminal?include_prereleases&label=release&color=blue)](https://github.com/AmrasElessar/d-terminal/releases)
+[![Downloads](https://img.shields.io/github/downloads/AmrasElessar/d-terminal/total?label=indirme&color=green)](https://github.com/AmrasElessar/d-terminal/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%C2%B7%20x64%20%2B%20ARM64-blue)
+![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri)
+![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs)
+![Rust](https://img.shields.io/badge/Rust-stable-CE412B?logo=rust)
 
 D-Terminal, Windows kullanıcılarına modern, hızlı ve AI-yerli bir terminal deneyimi sunan, tamamen açık kaynak bir uygulamadır.
 

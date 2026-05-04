@@ -4,9 +4,15 @@
 
 > An agent-aware Windows terminal — multiple shells, AI integration, and specialized pane types in a single window.
 
+[![CI](https://img.shields.io/github/actions/workflow/status/AmrasElessar/d-terminal/ci.yml?branch=main&label=CI&logo=github)](https://github.com/AmrasElessar/d-terminal/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AmrasElessar/d-terminal?include_prereleases&label=release&color=blue)](https://github.com/AmrasElessar/d-terminal/releases)
+[![Downloads](https://img.shields.io/github/downloads/AmrasElessar/d-terminal/total?label=downloads&color=green)](https://github.com/AmrasElessar/d-terminal/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%C2%B7%20x64%20%2B%20ARM64-blue)
+![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri)
+![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs)
+![Rust](https://img.shields.io/badge/Rust-stable-CE412B?logo=rust)
 
 D-Terminal is a fully open-source application that gives Windows users a modern, fast, and AI-native terminal experience.
 
