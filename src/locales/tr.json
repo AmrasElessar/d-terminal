@@ -117,9 +117,14 @@
     },
     "provider": {
       "anthropic": "Anthropic Claude",
-      "ollama": "Ollama (yerel)",
       "openai": "OpenAI",
-      "gemini": "Google Gemini"
+      "gemini": "Google Gemini",
+      "ollama": "Ollama",
+      "lmstudio": "LM Studio",
+      "jan": "Jan",
+      "llamacpp": "llama.cpp",
+      "foundry": "Foundry Local",
+      "custom": "Özel Endpoint"
     },
     "errors": {
       "noKey": "API key bulunamadı",
@@ -246,7 +251,25 @@
       "keyStored": "Anahtar yerel şifreli depoya kaydedildi (Windows DPAPI)",
       "keyNotSet": "Anahtar yok",
       "endpoint": "Endpoint",
-      "endpointHint": "OpenAI-uyumlu özel endpoint için URL"
+      "endpointHint": "OpenAI-uyumlu özel endpoint için URL",
+      "cloud": "Bulut Sağlayıcılar",
+      "cloudHint": "API anahtarınla — kullanım sizin hesabınızdan ücretlendirilir.",
+      "local": "Yerel Çalışan AI'lar",
+      "localHint": "Kullanıcı kendi makinesinde indirir/kurar. Servis ayaktayken D-Terminal otomatik bağlanır. Veri makineden çıkmaz, ücret yok.",
+      "download": "İndir",
+      "localDesc": {
+        "ollama":   "En popüler yerel AI runtime. Llama, Qwen, Mistral, DeepSeek vb. modelleri 'ollama pull' ile indir.",
+        "lmstudio": "GUI öncelikli yerel AI uygulaması. Model arama + yükleme + çalıştırma tek arayüzde.",
+        "jan":      "Açık kaynak yerel AI uygulaması. Ollama benzeri ama tam GUI ile kullanıcı dostu.",
+        "llamacpp": "Düşük seviye runtime — Ollama/LM Studio/Jan'ın temeli. CLI ile manuel başlatılır, ileri kullanıcılar için.",
+        "foundry":  "Microsoft'un Windows-yerel AI runtime'ı. NPU/DirectML hızlandırma desteği."
+      },
+      "customGroup": "Özel Endpoint",
+      "customHint": "Kendi OpenAI-uyumlu endpoint'in için (OpenRouter, Together AI, DeepInfra, Groq, kurumsal Azure OpenAI, kendi proxy'n).",
+      "customEndpoint": "Endpoint URL",
+      "customEndpointHint": "OpenAI Chat Completions API uyumlu base URL. /chat/completions ekini SİZ eklemeyin — D-Terminal otomatik ekler.",
+      "customApiKey": "API Anahtarı (opsiyonel)",
+      "customKeyHint": "Endpoint'in key gerektiriyorsa burada saklanır. Yerel proxy için gerekmeyebilir."
     },
     "shortcuts": {
       "title": "Klavye Kısayolları",

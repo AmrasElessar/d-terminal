@@ -1,6 +1,32 @@
 import type { UsageEstimate } from '@/types/aiPricing';
 
-export type ProviderId = 'anthropic' | 'ollama' | 'openai' | 'gemini' | 'custom';
+export type ProviderId =
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  // Yerel AI runtime'ları (kullanıcı kendi makinesinde çalıştırır)
+  | 'ollama'
+  | 'lmstudio'
+  | 'jan'
+  | 'llamacpp'
+  | 'foundry'
+  // Esnek slot — kullanıcı kendi OpenAI-uyumlu endpoint'ini girer
+  | 'custom';
+
+/** Provider kategorisi — Settings UI'sında gruplama için. */
+export type ProviderCategory = 'cloud' | 'local' | 'custom';
+
+export const PROVIDER_CATEGORY: Record<ProviderId, ProviderCategory> = {
+  anthropic: 'cloud',
+  openai:    'cloud',
+  gemini:    'cloud',
+  ollama:    'local',
+  lmstudio:  'local',
+  jan:       'local',
+  llamacpp:  'local',
+  foundry:   'local',
+  custom:    'custom',
+};
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -19,6 +45,9 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** OpenAI-uyumlu provider için endpoint override (custom provider zorunlu;
+   *  yerel runtime'larda kullanıcı default port'u değiştirmek istediğinde). */
+  endpoint?: string;
 }
 
 export interface AIModel {

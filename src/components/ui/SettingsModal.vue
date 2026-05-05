@@ -7,6 +7,26 @@ import { useAIStore } from '@/stores/ai';
 import { useTriggersStore } from '@/stores/triggers';
 import { useProfilesStore } from '@/stores/profiles';
 import { ALL_PROVIDER_IDS } from '@/providers/registry';
+import { PROVIDER_CATEGORY } from '@/types/ai';
+
+const cloudProviders = ALL_PROVIDER_IDS.filter((id) => PROVIDER_CATEGORY[id] === 'cloud');
+const localProviders = ALL_PROVIDER_IDS.filter((id) => PROVIDER_CATEGORY[id] === 'local');
+
+const DEFAULT_LOCAL_URL: Partial<Record<ProviderId, string>> = {
+  ollama:   'localhost:11434',
+  lmstudio: 'localhost:1234',
+  jan:      'localhost:1337',
+  llamacpp: 'localhost:8080',
+  foundry:  'localhost:5273',
+};
+
+const LOCAL_DOWNLOAD_URL: Partial<Record<ProviderId, string>> = {
+  ollama:   'https://ollama.com/download',
+  lmstudio: 'https://lmstudio.ai',
+  jan:      'https://jan.ai',
+  llamacpp: 'https://github.com/ggerganov/llama.cpp/releases',
+  foundry:  'https://github.com/microsoft/Foundry-Local',
+};
 import { BUNDLED_FONTS } from '@/fonts';
 import type { ProviderId } from '@/types/ai';
 import { defaultTrigger, type TriggerActionKind, type TriggerScope } from '@/types/trigger';
@@ -575,32 +595,97 @@ void props.open;
 
       <section v-if="tab === 'providers'" class="section">
         <h3>{{ t('settings.providers.title') }}</h3>
-        <div v-for="id in ALL_PROVIDER_IDS" :key="id" class="provider">
-          <div class="provider__header">
-            <strong>{{ t(`ai.provider.${id}`) }}</strong>
-            <span v-if="id === 'ollama'" class="badge">{{ t('settings.providers.keyStored').split(' ')[0] }}</span>
-            <span v-else-if="ai.statuses[id]?.hasKey" class="badge ok">{{ ai.statuses[id]?.maskedKey }}</span>
-            <span v-else class="badge">{{ t('settings.providers.keyNotSet') }}</span>
+
+        <!-- Bulut sağlayıcılar -->
+        <div class="provider-group">
+          <header class="section-head">
+            <strong>☁ {{ t('settings.providers.cloud') }}</strong>
+            <small>{{ t('settings.providers.cloudHint') }}</small>
+          </header>
+          <div v-for="id in cloudProviders" :key="id" class="provider">
+            <div class="provider__header">
+              <strong>{{ t(`ai.provider.${id}`) }}</strong>
+              <span v-if="ai.statuses[id]?.hasKey" class="badge ok">{{ ai.statuses[id]?.maskedKey }}</span>
+              <span v-else class="badge">{{ t('settings.providers.keyNotSet') }}</span>
+            </div>
+            <div class="provider__row">
+              <input
+                v-model="newKey[id]"
+                type="password"
+                :placeholder="t('settings.providers.addKey')"
+              />
+              <button type="button" class="primary" @click="saveKey(id)">{{ t('common.save') }}</button>
+              <button
+                v-if="ai.statuses[id]?.hasKey"
+                type="button"
+                class="ghost"
+                @click="deleteKey(id)"
+              >
+                {{ t('settings.providers.removeKey') }}
+              </button>
+            </div>
+            <small>{{ t('settings.providers.keyStored') }}</small>
           </div>
-          <div v-if="id !== 'ollama'" class="provider__row">
-            <input
-              v-model="newKey[id]"
-              type="password"
-              :placeholder="t('settings.providers.addKey')"
-            />
-            <button type="button" class="primary" @click="saveKey(id)">
-              {{ t('common.save') }}
-            </button>
-            <button
-              v-if="ai.statuses[id]?.hasKey"
-              type="button"
-              class="ghost"
-              @click="deleteKey(id)"
-            >
-              {{ t('settings.providers.removeKey') }}
-            </button>
+        </div>
+
+        <!-- Yerel runtime'lar -->
+        <div class="provider-group">
+          <header class="section-head">
+            <strong>💻 {{ t('settings.providers.local') }}</strong>
+            <small>{{ t('settings.providers.localHint') }}</small>
+          </header>
+          <div v-for="id in localProviders" :key="id" class="provider provider--local">
+            <div class="provider__header">
+              <strong>{{ t(`ai.provider.${id}`) }}</strong>
+              <code class="provider__url">{{ DEFAULT_LOCAL_URL[id] }}</code>
+              <a v-if="LOCAL_DOWNLOAD_URL[id]" class="link" :href="LOCAL_DOWNLOAD_URL[id]" target="_blank" rel="noopener">
+                ↗ {{ t('settings.providers.download') }}
+              </a>
+            </div>
+            <small>{{ t(`settings.providers.localDesc.${id}`) }}</small>
           </div>
-          <small>{{ t('settings.providers.keyStored') }}</small>
+        </div>
+
+        <!-- Custom (kullanıcı endpoint) -->
+        <div class="provider-group">
+          <header class="section-head">
+            <strong>🔧 {{ t('settings.providers.customGroup') }}</strong>
+            <small>{{ t('settings.providers.customHint') }}</small>
+          </header>
+          <div class="provider">
+            <label class="field">
+              <span>{{ t('settings.providers.customEndpoint') }}</span>
+              <input
+                v-model="settings.state.aiCustomEndpoint"
+                type="text"
+                placeholder="https://openrouter.ai/api/v1"
+                @blur="ai.refresh()"
+              />
+              <small>{{ t('settings.providers.customEndpointHint') }}</small>
+            </label>
+            <div class="provider__header" style="margin-top: 8px;">
+              <strong>{{ t('settings.providers.customApiKey') }}</strong>
+              <span v-if="ai.statuses.custom?.maskedKey" class="badge ok">{{ ai.statuses.custom.maskedKey }}</span>
+              <span v-else class="badge">{{ t('settings.providers.keyNotSet') }}</span>
+            </div>
+            <div class="provider__row">
+              <input
+                v-model="newKey.custom"
+                type="password"
+                :placeholder="t('settings.providers.addKey')"
+              />
+              <button type="button" class="primary" @click="saveKey('custom')">{{ t('common.save') }}</button>
+              <button
+                v-if="ai.statuses.custom?.maskedKey"
+                type="button"
+                class="ghost"
+                @click="deleteKey('custom')"
+              >
+                {{ t('settings.providers.removeKey') }}
+              </button>
+            </div>
+            <small>{{ t('settings.providers.customKeyHint') }}</small>
+          </div>
         </div>
       </section>
 
@@ -988,7 +1073,24 @@ void props.open;
   border-color: rgba(0, 180, 216, 0.4);
   color: var(--color-accent);
 }
-.provider { padding: 12px; background: color-mix(in srgb, var(--color-fg) 2%, transparent); border-radius: 6px; }
+.provider-group { margin-top: 12px; }
+.provider { padding: 12px; background: color-mix(in srgb, var(--color-fg) 2%, transparent); border-radius: 6px; margin-bottom: 8px; }
+.provider--local { background: color-mix(in srgb, var(--color-accent) 4%, transparent); }
+.provider__url {
+  font-size: 11px;
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  opacity: 0.8;
+}
+.provider__header .link {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.provider__header .link:hover { text-decoration: underline; }
 .provider__header {
   display: flex;
   align-items: center;

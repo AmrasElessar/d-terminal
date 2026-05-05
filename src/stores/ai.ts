@@ -6,8 +6,9 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { api } from '@/api/tauri';
-import type { ProviderId } from '@/types/ai';
+import { type ProviderId, PROVIDER_CATEGORY } from '@/types/ai';
 import { getProvider, ALL_PROVIDER_IDS } from '@/providers/registry';
+import { useSettingsStore } from '@/stores/settings';
 
 export interface ProviderStatus {
   id: ProviderId;
@@ -28,16 +29,32 @@ export const useAIStore = defineStore('ai', () => {
   const pendingPrompt = ref<string | null>(null);
 
   const isConfigured = computed(() =>
-    Object.values(statuses.value).some((s) => s.hasKey || s.id === 'ollama'),
+    Object.values(statuses.value).some((s) => s.hasKey),
   );
 
   async function refresh() {
+    const settings = useSettingsStore();
     for (const id of ALL_PROVIDER_IDS) {
-      // Ollama key gerektirmez — local
-      if (id === 'ollama') {
+      const cat = PROVIDER_CATEGORY[id];
+      if (cat === 'local') {
+        // Yerel runtime'lar key gerektirmez. "Aktif" sayılırlar; UI'da kullanıcıya
+        // "Servisin çalıştığından emin olun" hint gösterilir. Servisin gerçekten
+        // ayakta olup olmadığı runtime'da chat çağrısında belli olur.
         statuses.value[id] = { id, hasKey: true, maskedKey: null };
         continue;
       }
+      if (cat === 'custom') {
+        // Custom: endpoint girilmişse aktif. Key opsiyonel (girilmiş olabilir).
+        const endpoint = settings.state.aiCustomEndpoint?.trim() ?? '';
+        const masked = await api.aiKeyMasked(id);
+        statuses.value[id] = {
+          id,
+          hasKey: endpoint !== '' || masked !== null,
+          maskedKey: masked,
+        };
+        continue;
+      }
+      // Bulut: key zorunlu
       const masked = await api.aiKeyMasked(id);
       statuses.value[id] = { id, hasKey: masked !== null, maskedKey: masked };
     }

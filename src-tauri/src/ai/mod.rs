@@ -31,6 +31,11 @@ pub struct ChatOptions {
     pub temperature: Option<f32>,
     #[serde(default)]
     pub max_tokens: Option<u32>,
+    /// OpenAI-uyumlu provider'lar için kullanıcı override endpoint'i.
+    /// Custom provider'da zorunlu; LM Studio/Jan/llama.cpp/Foundry için
+    /// kullanıcı default localhost portunu değiştirmek isterse kullanır.
+    #[serde(default)]
+    pub endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,9 +72,18 @@ pub trait ChatProvider: Send + Sync {
 pub fn provider_for(id: &str) -> Option<Box<dyn ChatProvider>> {
     match id {
         "anthropic" => Some(Box::new(anthropic::Anthropic)),
-        "openai" => Some(Box::new(openai::OpenAi)),
+        "openai" => Some(Box::new(openai::OpenAi::openai())),
         "gemini" => Some(Box::new(gemini::Gemini)),
         "ollama" => Some(Box::new(ollama::Ollama)),
+        // OpenAI-uyumlu yerel runtime'lar — kullanıcının kendi makinesinde
+        // koşan AI sunucularına bağlanır.
+        "lmstudio" => Some(Box::new(openai::OpenAi::lmstudio())),
+        "jan" => Some(Box::new(openai::OpenAi::jan())),
+        "llamacpp" => Some(Box::new(openai::OpenAi::llamacpp())),
+        "foundry" => Some(Box::new(openai::OpenAi::foundry())),
+        // Esnek slot — kullanıcı endpoint girer (OpenRouter, Together AI,
+        // DeepInfra, kendi proxy'si, vb).
+        "custom" => Some(Box::new(openai::OpenAi::custom())),
         _ => None,
     }
 }

@@ -42,6 +42,9 @@ export interface SettingsState {
    *  moda gir, sonraki harf tuşu (V/H/Z/X/C/N/P/T) action tetikler. */
   prefixModeEnabled: boolean;
   prefixCombo: string;
+  /** Custom AI provider'ın OpenAI-uyumlu endpoint'i (örn. https://openrouter.ai/api/v1).
+   *  Boş ise custom provider devre dışı sayılır. */
+  aiCustomEndpoint: string;
 }
 
 const DEFAULTS: SettingsState = {
@@ -62,6 +65,7 @@ const DEFAULTS: SettingsState = {
   screenReaderMode: false,
   prefixModeEnabled: false,
   prefixCombo: 'Ctrl+B',
+  aiCustomEndpoint: '',
 };
 
 const KEY_PREFIX = 'ui.';

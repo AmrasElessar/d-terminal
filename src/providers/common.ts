@@ -64,6 +64,7 @@ export async function* streamChat(
       model: options.model,
       temperature: options.temperature,
       max_tokens: options.maxTokens,
+      endpoint: options.endpoint,
     },
     onChunk: channel,
   })

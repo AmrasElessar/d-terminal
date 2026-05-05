@@ -117,9 +117,14 @@
     },
     "provider": {
       "anthropic": "Anthropic Claude",
-      "ollama": "Ollama (local)",
       "openai": "OpenAI",
-      "gemini": "Google Gemini"
+      "gemini": "Google Gemini",
+      "ollama": "Ollama",
+      "lmstudio": "LM Studio",
+      "jan": "Jan",
+      "llamacpp": "llama.cpp",
+      "foundry": "Foundry Local",
+      "custom": "Custom Endpoint"
     },
     "errors": {
       "noKey": "API key not found",
@@ -246,7 +251,25 @@
       "keyStored": "Key stored in local encrypted vault (Windows DPAPI)",
       "keyNotSet": "No key set",
       "endpoint": "Endpoint",
-      "endpointHint": "URL for OpenAI-compatible custom endpoint"
+      "endpointHint": "URL for OpenAI-compatible custom endpoint",
+      "cloud": "Cloud Providers",
+      "cloudHint": "Uses your API key — billed to your account.",
+      "local": "Local AI Runtimes",
+      "localHint": "User installs on their own machine. D-Terminal auto-connects when the service is running. Data stays local, zero cost.",
+      "download": "Download",
+      "localDesc": {
+        "ollama":   "Most popular local AI runtime. Pull models (Llama, Qwen, Mistral, DeepSeek, ...) with 'ollama pull'.",
+        "lmstudio": "GUI-first local AI app. Browse + download + run models in one place.",
+        "jan":      "Open-source local AI app. Ollama-like but with a full friendly GUI.",
+        "llamacpp": "Low-level runtime — the foundation of Ollama / LM Studio / Jan. CLI-launched, for advanced users.",
+        "foundry":  "Microsoft's Windows-native AI runtime. NPU / DirectML acceleration support."
+      },
+      "customGroup": "Custom Endpoint",
+      "customHint": "For your own OpenAI-compatible endpoint (OpenRouter, Together AI, DeepInfra, Groq, enterprise Azure OpenAI, your own proxy).",
+      "customEndpoint": "Endpoint URL",
+      "customEndpointHint": "OpenAI Chat Completions API compatible base URL. Do NOT include /chat/completions — D-Terminal appends it automatically.",
+      "customApiKey": "API Key (optional)",
+      "customKeyHint": "Stored here if your endpoint needs it. Local proxies may not require a key."
     },
     "shortcuts": {
       "title": "Keyboard Shortcuts",
