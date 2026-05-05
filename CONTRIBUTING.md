@@ -1,131 +1,86 @@
 # Katkı Rehberi — D-Terminal
 
-D-Terminal'e katkıda bulunmak istediğin için teşekkürler! Bu rehber katkı sürecini açıklar.
+D-Terminal'e ilgilendiğin için teşekkürler! Bu proje **kişisel bir Windows terminal projesidir** ve katkı kapsamı bilinçli olarak dar tutulmuştur.
 
-## Katkı Türleri
+## Kabul Edilen Katkılar
 
-| Tür | Detay | Sürüm |
-|---|---|---|
-| 🐛 Bug report | GitHub Issues | her zaman |
-| 💡 Feature request | GitHub Issues + Discussion | her zaman |
-| 🌍 Dil paketi | `/src/locales/<kod>.json` | v1.0+ |
-| 🎨 Tema | `themes/` veya `d-terminal-themes` repo'su | v1.0+ |
-| 🤖 AI provider adapter | `/src/providers/` altında yeni dosya | v1.0+ |
-| 🧩 Plugin | Plugin API (Web Worker sandbox) | v1.1+ |
-| 📝 Dokümantasyon | `docs/` altında | her zaman |
-| 🔧 Kod (PR) | Aşağıdaki süreç | her zaman |
+| Tür | Detay |
+|---|---|
+| 🐛 Bug report | GitHub Issues — `[BUG]` template'i |
+| 💡 Feature request | GitHub Issues — `[FEATURE]` template'i (sadece **fikir**, kod PR'ı değil) |
+| 🌍 Dil paketi | `src/locales/<kod>.json` çevirisi → PR |
+| 🎨 Tema | `themes/D-<isim>.json` → PR ([rehber](./themes/COMMUNITY.md)) |
 
-## Geliştirme Ortamı
+## Kabul Edilmeyen Katkılar (Şu An)
 
-### Gereksinimler
+| Tür | Sebep |
+|---|---|
+| 🤖 AI provider adapter | Çekirdek alana çok yakın, ben yöneteceğim |
+| 🧩 Plugin | Plugin altyapısı v2.0+ hedefli, henüz hazır değil — PR kabul edilmiyor |
+| 🏗️ Mimari değişiklik | ADR ve mimari karar tek elden ilerliyor |
+| ✨ Yeni özellik (kod) | Issue açıp önerin yeter — değerlendirip kendim implementlerim |
+| ♻️ Refactor / temizlik | Çekirdek bakımım benim sorumluluğumda |
 
-- **Node.js** 20.x+
-- **pnpm** 9.x+ (npm/yarn değil)
-- **Rust** stable (rustup ile)
-- **Windows 10 1511+** (Tauri v2 hedefi)
-- **WebView2 Runtime** (Win11'de yüklü gelir)
+> **Neden bu kadar dar?** D-Terminal v0.1 aşamasında, mimari hızla şekilleniyor. Çekirdek üzerinde dış katkı şu an benim için bakım yükü oluşturuyor — bunun yerine **dil ve tema** topluluk katkısına çok uygun: yan etkisi yok, kullanıcıya doğrudan değer.
 
-### Kurulum
+---
 
-```bash
-# Klonla
-git clone https://github.com/<user>/d-terminal.git
-cd d-terminal
+## 🌍 Dil Paketi Eklemek
 
-# Bağımlılıkları yükle
-pnpm install
+`src/locales/` altında **31'den fazla boş stub** dil dosyası hazır bekliyor (`de.json`, `es.json`, `fr.json`, `ja.json`, `zh-CN.json`, `ar.json`, `ru.json`, …). Her stub sadece `_meta` header'ı içerir; çevrilmemiş anahtarlar otomatik olarak **Türkçeye düşer** (`fallbackLocale: 'tr'`).
 
-# Sidecar bağımlılıkları
-pnpm --filter ./sidecar install
+### Adımlar
 
-# Geliştirme modunda çalıştır
-pnpm tauri dev
-```
+1. Repo'yu **fork** et.
+2. `feat/i18n-<dil>` branch'i aç (örn. `feat/i18n-de`).
+3. `src/locales/<kod>.json` dosyasını **yan tarafta** aç (boş stub).
+4. Referans için `src/locales/en.json` (kaynak, İngilizce) veya `src/locales/tr.json` (yazarın dili, en zengin) dosyalarından birini açık tut.
+5. Çevirmek istediğin bölümü referanstan **kopyala**, stub'a yapıştır, **sağ taraftaki STRING değerleri** kendi dilinize çevir. **Sol taraftaki anahtarlara DOKUNMA**.
+6. `{parametre}` ve `{'{{0}}'}` şablonlarını **aynen bırak** — bunlar runtime'da değişkenle değiştiriliyor.
+7. Tamamlanan oranı `_meta.completion` alanında güncelle (örn. `"60%"`). **%80'in altında PR kabul edilmiyor.**
+8. `_meta.translator` alanına adını/handle'ını yaz — krediye eklenir.
+9. `pnpm tauri dev` ile aç, **Settings → Genel → Dil** menüsünden seç ve test et. Çevirmediğin anahtarlar Türkçe görünmeli (eğer İngilizce görünüyorsa key veya placeholder'da hata var demektir).
+10. PR aç. Başlık: `i18n: <Dil Adı> tercümesi (X%)`.
 
-## Kod Standartları
+### İpuçları
 
-### TypeScript / Vue
+- Hepsini bir oturumda çevirmek zorunda değilsin — kısmi katkı (≥ %80) da kabul.
+- Belirsiz teknik terimler (PTY, sidecar, vb.) İngilizce kalabilir.
+- **Stub'a İngilizce metin kopyalama** — eksik anahtar Türkçeye düşmesi için key'i hiç yazmamak daha doğru. Yarım yamalak bir İngilizce kopya, fallback'i devre dışı bırakır.
+- Çevrilmiş satırların değeri boş string olmamalı.
 
-- **Strict mode**: `any` yasak
-- **Composition API only** (Options API kullanma)
-- Komponent max 300 satır — büyürse parçala
-- Pinia store max 200 satır
-- ESLint + Prettier, commit öncesi otomatik (husky)
+### Yeni bir dil yoksa
 
-### Rust
+Stub'lar arasında dilini bulamadıysan: yeni `<ISO-kod>.json` dosyası oluştur, en az `_meta` field'ını doldur, sonra çeviriye başla. (Veya `scripts/seed-locales.ps1`'e dilini ekleyip script'i çalıştır.)
 
-- `cargo fmt` + `cargo clippy -- -D warnings`
-- `unsafe` yasak — istisna sadece `windows-rs` FFI çağrılarında, yorumlu
-- `cargo test` ile yeni kod test edilmeli
+---
 
-## Test
+## 🎨 Tema Eklemek
 
-PR merge için:
+Detaylı rehber: [`themes/COMMUNITY.md`](./themes/COMMUNITY.md).
 
-- Unit test coverage düşmemeli (hedef ≥ %70)
-- E2E testlerin hepsi geçmeli
-- Performance budget aşılmamalı
+Kısaca:
+1. `themes/_template.json` kopyala → `D-<TemaAdı>.json`
+2. Renkleri düzenle, `pnpm tauri dev` ile test et
+3. PR aç (kontrast, JSON şeması, telif kontrolleri için rehbere bak)
 
-```bash
-pnpm test          # Vitest (TS)
-pnpm test:e2e      # Playwright
-cd src-tauri && cargo test
-```
+---
 
-## PR Süreci
+## 🐛 Bug Report
 
-1. Issue aç (önce tartış, sonra kod) — küçük fix için skip edilebilir
-2. Fork + feature branch (`feat/<kısa-açıklama>` veya `fix/<kısa-açıklama>`)
-3. Commit mesajları: [Conventional Commits](https://www.conventionalcommits.org/)
-   - `feat: add ollama provider`
-   - `fix: pty resize race condition`
-   - `docs: update ADR-0002 risk note`
-4. PR aç — template'i doldur
-5. CI yeşil olmalı
-6. Review (maintainer onayı)
-7. Squash + merge
+[Bug template](./.github/ISSUE_TEMPLATE/bug_report.md)'i doldur. Şunları **mutlaka** ekle:
+- D-Terminal sürümü (Hakkında menüsünden)
+- Windows sürümü (`winver`)
+- Yeniden üretim adımları
+- Log dosyası (`%APPDATA%/D-Terminal/logs/` altında)
 
-## Yeni AI Provider Ekleme
+---
 
-```typescript
-// src/providers/<provider-name>.ts
-import { AIProvider } from './types';
+## 💡 Feature Request
 
-export class MyProvider implements AIProvider {
-  name = 'my-provider';
+[Feature template](./.github/ISSUE_TEMPLATE/feature_request.md)'i doldur. Beğenirsem roadmap'e ekler kendim implementlerim. **Lütfen önce Issue aç, kod yazıp PR atma** — kabul edilmeme ihtimali var, emeğin boşa gitmesin.
 
-  async *chat(messages, options) {
-    // OpenAI-compat REST veya native SDK
-    // yield string chunks
-  }
-
-  async models() { /* ... */ }
-  async isAvailable() { /* ... */ }
-}
-```
-
-`src/providers/registry.ts` içinde register et + test yaz.
-
-## Yeni Tema Ekleme
-
-`themes/` klasörüne JSON ekle ([architecture-v1.1.md §6.1](./docs/architecture-v1.1.md#61-tema-json-yapısı) şemasına uygun). Topluluk temaları için ayrı `d-terminal-themes` repo'sunu kullan.
-
-## Yeni Dil Paketi
-
-`src/locales/en.json` dosyasını referans al, `<kod>.json` olarak kopyala, çevir. Eksik key'ler EN'e fallback eder, ama %80+ tamamlanmamış dosya merge edilmez.
-
-## Plugin Geliştirme (v1.1+)
-
-[ADR-0004](./docs/adr/0004-plugin-worker-sandbox.md) — plugin sandbox modelini açıklar. Plugin yazımı için ayrı `PLUGIN_API.md` v1.1 ile birlikte yayınlanacak.
-
-## ADR (Architecture Decision Record) Yazma
-
-Mimari değişiklik öneriyorsan:
-
-1. `docs/adr/template.md` kopyala
-2. `docs/adr/00NN-kebab-case-baslik.md` olarak kaydet
-3. PR aç, "Status: Proposed"
-4. Tartışma sonrası "Accepted" veya reddedilir
+---
 
 ## Davranış Kuralları
 
@@ -134,9 +89,9 @@ Saygılı, yapıcı ve kapsayıcı bir topluluk hedefliyoruz. [Contributor Coven
 ## İletişim
 
 - GitHub Issues: bug, feature
-- GitHub Discussions: genel sohbet, soru
+- GitHub Discussions: sohbet, soru, dil/tema önizleme paylaşımı
 - Email (kritik güvenlik açığı): security@d-terminal.dev *(v1.0 ile aktifleşir)*
 
 ---
 
-Teşekkürler! 💙
+Teşekkürler! 💙 — Orhan Engin OKAY

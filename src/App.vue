@@ -28,7 +28,7 @@ const booted = ref(false);
   --color-cyan: #00b4d8;
   --color-white: #e2e8f0;
   --color-dim: #5a6478;
-  --color-line: rgba(255, 255, 255, 0.05);
+  --color-line: color-mix(in srgb, var(--color-fg) 5%, transparent);
   --font-family: 'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
   --font-size: 11px;
   --line-height: 1.35;
@@ -75,7 +75,7 @@ button {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }

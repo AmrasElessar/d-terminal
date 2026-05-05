@@ -46,7 +46,7 @@ const { t } = useI18n();
   pointer-events: auto;
   background: var(--color-bg);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-left-width: 3px;
   padding: 10px 12px;
   border-radius: 6px;

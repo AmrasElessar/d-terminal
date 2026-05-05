@@ -80,7 +80,7 @@ const secondStyle = computed(() => ({
   min-height: 0;
 }
 .split__divider {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   transition: background 0.15s ease;
   flex-shrink: 0;
 }

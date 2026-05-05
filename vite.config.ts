@@ -13,7 +13,9 @@ export default defineConfig({
   plugins: [
     vue(),
     VueI18nPlugin({
-      include: [resolve(__dirname, './src/locales/**')],
+      // Sadece JSON locale dosyalarını AST'ye derle. `src/locales/index.ts`
+      // bir loader (import.meta.glob) — onu locale message gibi davranmasın.
+      include: [resolve(__dirname, './src/locales/**/*.json')],
       runtimeOnly: true,
       // Strict-mode: compile fail olursa fallback runtime compile değil, hata
       jitCompilation: false,

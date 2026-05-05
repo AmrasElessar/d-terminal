@@ -17,7 +17,10 @@ import {
   type Tab,
   findLeaf,
   listLeaves,
+  PANE_FONT_MIN,
+  PANE_FONT_MAX,
 } from '@/types/pane';
+import { useSettingsStore } from '@/stores/settings';
 
 function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
@@ -439,6 +442,44 @@ export const usePanesStore = defineStore('panes', () => {
     }
   }
 
+  // --- Pane font zoom ---
+  // Effective fontSize = settings.fontSize + leaf.fontSizeOffset (clamp [8, 32]).
+  // delta=+1 zoom in, delta=-1 zoom out, delta=0 sayılırsa yine clamp uygular.
+  function adjustFontSize(leafId: string, delta: number) {
+    const leaf = getLeaf(leafId);
+    if (!leaf) return;
+    const settings = useSettingsStore();
+    const base = settings.state.fontSize;
+    const currentOffset = leaf.fontSizeOffset ?? 0;
+    const desired = base + currentOffset + delta;
+    const clamped = Math.max(PANE_FONT_MIN, Math.min(PANE_FONT_MAX, desired));
+    const newOffset = clamped - base;
+    const tab = findTabOfLeaf(leafId);
+    if (!tab) return;
+    tab.tree.root = replaceNode(tab.tree.root, leafId, (n) =>
+      n.kind === 'leaf' ? { ...n, fontSizeOffset: newOffset } : n,
+    );
+  }
+
+  function resetFontSize(leafId: string) {
+    const leaf = getLeaf(leafId);
+    if (!leaf) return;
+    const tab = findTabOfLeaf(leafId);
+    if (!tab) return;
+    tab.tree.root = replaceNode(tab.tree.root, leafId, (n) =>
+      n.kind === 'leaf' ? { ...n, fontSizeOffset: 0 } : n,
+    );
+  }
+
+  function adjustFocusedFontSize(delta: number) {
+    const id = activeTab.value?.tree.focusedId;
+    if (id) adjustFontSize(id, delta);
+  }
+  function resetFocusedFontSize() {
+    const id = activeTab.value?.tree.focusedId;
+    if (id) resetFontSize(id);
+  }
+
   return {
     tabs,
     activeTabId,
@@ -477,5 +518,10 @@ export const usePanesStore = defineStore('panes', () => {
     maximizedLeaf,
     toggleMaximize,
     clearMaximize,
+    // pane font zoom
+    adjustFontSize,
+    resetFontSize,
+    adjustFocusedFontSize,
+    resetFocusedFontSize,
   };
 });

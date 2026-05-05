@@ -233,7 +233,7 @@ function previewLines(output: string, max: number = 6): string[] {
   font-size: 11px;
 }
 .block {
-  background: rgba(255, 255, 255, 0.025);
+  background: color-mix(in srgb, var(--color-fg) 2.5%, transparent);
   border-left: 2px solid var(--color-dim);
   border-radius: 2px;
   overflow: hidden;
@@ -256,7 +256,7 @@ function previewLines(output: string, max: number = 6): string[] {
   user-select: none;
 }
 .block__head:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
 }
 .block__icon {
   text-align: center;

@@ -4,20 +4,29 @@ import { createI18n } from 'vue-i18n';
 
 import './fonts'; // Bundled @fontsource fontları (8 popüler dev mono)
 import App from './App.vue';
-import tr from './locales/tr.json';
-import en from './locales/en.json';
+import { messages, availableLocales, pickInitialLocale } from '@/locales';
 import { installGlobalErrorHandlers, createLogger } from '@/utils/logger';
 
 installGlobalErrorHandlers();
-createLogger('main').info('frontend bootstrap');
+const log = createLogger('main');
+log.info('frontend bootstrap');
 
 const i18n = createI18n({
   legacy: false,
-  locale: navigator.language.startsWith('tr') ? 'tr' : 'en',
-  fallbackLocale: 'en',
-  messages: { tr, en },
+  locale: pickInitialLocale(),
+  // Eksik çeviri anahtarları Türkçeye düşer — D-Terminal'in birincil dili
+  // Türkçe; çevrilmemiş bir stub dilinde key bulunamayınca İngilizce yerine
+  // Türkçe görünür.
+  fallbackLocale: 'tr',
+  messages,
   warnHtmlMessage: false,
+  // Stub locale'ler için: eksik anahtar uyarılarını sustur (fallback yine
+  // İngilizceye düşer). Çevirmen çalışırken konsolu doldurmasın.
+  missingWarn: false,
+  fallbackWarn: false,
 });
+
+log.info('locales loaded', { count: availableLocales.length });
 
 const app = createApp(App);
 app.use(createPinia());

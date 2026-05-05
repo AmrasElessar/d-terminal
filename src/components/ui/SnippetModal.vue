@@ -218,7 +218,7 @@ void props.open;
 }
 .panel {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: var(--ui-radius, 8px);
   width: min(640px, 92vw);
   max-height: 80vh;
@@ -230,16 +230,16 @@ void props.open;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .panel__header h2 { margin: 0; flex: 1; font-size: 14px; }
 .close { background: transparent; border: none; color: var(--color-fg); cursor: pointer; font-size: 20px; line-height: 1; }
 .form { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .form input, .form textarea {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 6px 8px;
   border-radius: 4px;
   font-family: var(--font-family);
@@ -253,7 +253,7 @@ void props.open;
   grid-template-columns: 1fr auto auto;
   gap: 12px;
   padding: 10px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 4%, transparent);
   align-items: center;
 }
 .info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -268,8 +268,8 @@ void props.open;
   text-overflow: ellipsis;
 }
 .meta kbd {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 11px;
@@ -279,7 +279,7 @@ void props.open;
 .empty { padding: 32px; text-align: center; opacity: 0.5; font-size: 13px; }
 .primary { background: var(--color-accent); color: var(--color-bg); border: none; padding: 5px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
 .primary.small, .ghost.small, .danger.small { font-size: 11px; padding: 3px 8px; }
-.ghost { background: transparent; color: var(--color-fg); border: 1px solid rgba(255, 255, 255, 0.1); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
+.ghost { background: transparent; color: var(--color-fg); border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
 .danger { background: transparent; color: var(--color-red); border: 1px solid rgba(255, 95, 87, 0.3); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
 .danger:hover { background: var(--color-red); color: var(--color-bg); }
 </style>

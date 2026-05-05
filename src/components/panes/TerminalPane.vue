@@ -13,7 +13,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { listen } from '@tauri-apps/api/event';
 import { api } from '@/api/tauri';
-import type { LeafNode, PaneType } from '@/types/pane';
+import { type LeafNode, type PaneType, PANE_FONT_MIN, PANE_FONT_MAX } from '@/types/pane';
 import type { PtyEvent } from '@/types/events';
 import { usePanesStore } from '@/stores/panes';
 import { useThemeStore } from '@/stores/theme';
@@ -39,6 +39,23 @@ const triggers = useTriggersStore();
 const profiles = useProfilesStore();
 const modals = useModals();
 const { t } = useI18n();
+
+/** Effective fontSize = global ayar + pane-bazlı offset (Ctrl+= / Ctrl+- / Ctrl+0).
+ *  PANE_FONT_MIN/MAX sınırlarına clamp uygulanır. */
+const effectiveFontSize = computed(() => {
+  const base = settings.state.fontSize;
+  const offset = props.leaf.fontSizeOffset ?? 0;
+  return Math.max(PANE_FONT_MIN, Math.min(PANE_FONT_MAX, base + offset));
+});
+
+/** Ctrl + Mouse wheel → pane içinde zoom. xterm scroll'unun üzerine geçer
+ *  (capture phase + preventDefault). Modifier yoksa normal scroll. */
+function onWheelZoom(e: WheelEvent) {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  panes.adjustFontSize(props.leaf.id, e.deltaY < 0 ? +1 : -1);
+}
 
 /** Komut girdi buffer'ı — `#` prefix interception + inline autocomplete için.
  *  PROMPT'tan sonra sıfırlanır, Enter'da temizlenir, backspace'i kabul eder.
@@ -586,7 +603,7 @@ onMounted(async () => {
   const xtheme = themeStore.active ? xtermThemeOf(themeStore.active) : undefined;
   term = new Terminal({
     fontFamily: buildFontFamily(settings.state.fontFamily),
-    fontSize: settings.state.fontSize,
+    fontSize: effectiveFontSize.value,
     cursorBlink: true,
     cursorStyle: 'bar',
     scrollback: 10000,
@@ -644,6 +661,9 @@ onMounted(async () => {
   }));
 
   attachInput();
+  // Ctrl + wheel zoom — capture phase ile xterm'in scroll handler'ından önce
+  // yakalanır; ctrlKey yoksa pasif geçer ve scroll normal akar.
+  container.value.addEventListener('wheel', onWheelZoom, { capture: true, passive: false });
   window.addEventListener('resize', handleResize);
   // Pane container'ı kendi başına da boyut değiştirebilir (split divider drag,
   // pane ekleme/kaldırma, layout değişimi). window resize bu durumlarda
@@ -656,6 +676,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  container.value?.removeEventListener('wheel', onWheelZoom, { capture: true } as EventListenerOptions);
   window.removeEventListener('resize', handleResize);
   paneResizeObserver?.disconnect();
   paneResizeObserver = null;
@@ -719,7 +740,7 @@ watch(
 );
 
 watch(
-  () => [settings.state.fontFamily, settings.state.fontSize] as const,
+  () => [settings.state.fontFamily, effectiveFontSize.value] as const,
   ([family, size]) => {
     if (term) {
       term.options.fontFamily = buildFontFamily(family);

@@ -8,6 +8,7 @@ import { useSnippetsStore } from '@/stores/snippets';
 import { useToastsStore } from '@/stores/toasts';
 import { api } from '@/api/tauri';
 import type { PaneType } from '@/types/pane';
+import { availableLocales, localeMeta } from '@/locales';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{
@@ -49,6 +50,9 @@ const actions = computed<Action[]>(() => {
     { id: 'pane.split.h',        category: 'panes', label: t('commandPalette.actions.splitHorizontal'),    invoke: () => { panes.splitFocused('horizontal', 'powershell', t('pane.type.powershell')); emit('close'); } },
     { id: 'pane.split.v',        category: 'panes', label: t('commandPalette.actions.splitVertical'),      invoke: () => { panes.splitFocused('vertical', 'powershell', t('pane.type.powershell')); emit('close'); } },
     { id: 'pane.close',          category: 'panes', label: t('commandPalette.actions.closePane'),          invoke: () => { if (panes.tree.focusedId) panes.closePane(panes.tree.focusedId); emit('close'); } },
+    { id: 'pane.zoomIn',         category: 'panes', label: t('commandPalette.actions.zoomIn'),    invoke: () => { panes.adjustFocusedFontSize(+1); emit('close'); } },
+    { id: 'pane.zoomOut',        category: 'panes', label: t('commandPalette.actions.zoomOut'),   invoke: () => { panes.adjustFocusedFontSize(-1); emit('close'); } },
+    { id: 'pane.zoomReset',      category: 'panes', label: t('commandPalette.actions.zoomReset'), invoke: () => { panes.resetFocusedFontSize(); emit('close'); } },
 
     { id: 'settings.open',       category: 'settings', label: t('commandPalette.actions.openSettings'), invoke: () => emit('navigate', 'settings') },
     { id: 'history.open',        category: 'history',  label: t('commandPalette.actions.openHistory'),  invoke: () => emit('navigate', 'history') },
@@ -87,14 +91,16 @@ const actions = computed<Action[]>(() => {
     });
   }
 
-  for (const lang of [{ id: 'tr', name: 'Türkçe' }, { id: 'en', name: 'English' }] as const) {
+  for (const code of availableLocales) {
+    const meta = localeMeta[code];
+    const label = meta?.nativeName || meta?.language || code;
     list.push({
-      id: `lang.switch.${lang.id}`,
+      id: `lang.switch.${code}`,
       category: 'settings',
-      label: t('commandPalette.actions.switchLanguage', { name: lang.name }),
+      label: t('commandPalette.actions.switchLanguage', { name: label }),
       invoke: () => {
-        settings.state.language = lang.id;
-        locale.value = lang.id;
+        settings.state.language = code;
+        locale.value = code;
         emit('close');
       },
     });
@@ -220,7 +226,7 @@ onMounted(() => snippets.load());
 }
 .palette {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-radius: var(--ui-radius, 8px);
   width: min(640px, 92vw);
   max-height: 60vh;
@@ -233,7 +239,7 @@ onMounted(() => snippets.load());
 .palette input {
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   color: var(--color-fg);
   padding: 14px 18px;
   font-size: 14px;
@@ -252,7 +258,7 @@ onMounted(() => snippets.load());
 }
 .results li.selected { background: rgba(0, 180, 216, 0.08); }
 .cat {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   color: var(--color-accent);
   padding: 1px 8px;
   border-radius: 999px;

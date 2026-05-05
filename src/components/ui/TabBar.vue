@@ -158,7 +158,7 @@ function cancelRename() {
   transition: background 0.1s ease, color 0.1s ease;
 }
 .tab:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
   color: var(--color-fg);
 }
 .tab.active {
@@ -211,7 +211,7 @@ function cancelRename() {
 .tab__count {
   font-size: 9px;
   opacity: 0.5;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   padding: 0 4px;
   border-radius: 2px;
 }

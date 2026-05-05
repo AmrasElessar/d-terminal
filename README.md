@@ -185,9 +185,18 @@ Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen
 
 ## Katkı
 
-Katkıya açığız. Tema, dil paketi, AI provider adapter veya plugin yazabilirsiniz.
+Bu proje **kişisel bir Windows terminal projesidir** ve topluluk katkı kapsamı bilinçli olarak dar tutulmuştur. Çekirdek mimari, plugin altyapısı ve özellik geliştirme tek elden ilerliyor — ama topluluğun değer katabileceği üç şerit açık:
 
-Detaylar için [CONTRIBUTING.md](./CONTRIBUTING.md).
+| ✅ Kabul edilen | ❌ Şu an kabul edilmeyen |
+|---|---|
+| 🐛 Bug raporu | 🤖 AI provider adapter PR'ı |
+| 💡 Feature **fikri** (Issue) | 🧩 Plugin PR'ı (v2.0+ hedefli) |
+| 🌍 Dil paketi (`src/locales/<kod>.json`) | 🏗️ Mimari / refactor PR'ı |
+| 🎨 Tema (`themes/D-<isim>.json`) | ✨ Özellik kodu PR'ı |
+
+`src/locales/` altında **30+ stub dil dosyası** çevirmen bekliyor (Almanca, İspanyolca, Fransızca, Japonca, Çince, Arapça, Rusça, …).
+
+Detaylar için: [CONTRIBUTING.md](./CONTRIBUTING.md) · [Tema rehberi](./themes/COMMUNITY.md)
 
 ## D Brand Ailesi
 

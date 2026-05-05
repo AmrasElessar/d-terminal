@@ -28,7 +28,14 @@ export interface LeafNode {
   /** Çalışma odağı için kullanıcı etiketi. Aynı tag'i taşıyan pane'ler aynı
    *  renkte gösterilir (renk tag string hash'inden derive edilir). Boş = grup yok. */
   tag?: string;
+  /** Pane-bazlı font size offset'i (Ctrl+= / Ctrl+- / Ctrl+0 ile). Effective
+   *  font size = settings.fontSize + (fontSizeOffset ?? 0), clamp [8, 32]. */
+  fontSizeOffset?: number;
 }
+
+/** Pane font-size sınırları — global ayar üstüne offset eklenirken bu aralığa clamp. */
+export const PANE_FONT_MIN = 8;
+export const PANE_FONT_MAX = 32;
 
 export interface SplitNode {
   kind: 'split';

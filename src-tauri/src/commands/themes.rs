@@ -86,12 +86,17 @@ fn scan_dir(dir: &std::path::Path, out: &mut Vec<ThemeFile>) -> AppResult<()> {
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
         }
-        let content = std::fs::read_to_string(&path)?;
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown")
             .to_string();
+        // `_` ile başlayan dosyalar şablon/private — tema seçicide listelenmez.
+        // (`_template.json`, ileride başka örnekler için aynı kural.)
+        if name.starts_with('_') {
+            continue;
+        }
+        let content = std::fs::read_to_string(&path)?;
         out.push(ThemeFile {
             name,
             path: path.to_string_lossy().into_owned(),
@@ -138,6 +143,23 @@ mod tests {
         let mut out = Vec::new();
         scan_dir(&tmp, &mut out).expect("scan_dir");
         assert!(out.is_empty());
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn scan_dir_skips_underscore_prefixed_files() {
+        let tmp = std::env::temp_dir().join(format!("dterm-test-tpl-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        std::fs::write(tmp.join("D-Real.json"), br#"{"name":"D-Real"}"#).unwrap();
+        std::fs::write(tmp.join("_template.json"), br#"{"name":"X"}"#).unwrap();
+        std::fs::write(tmp.join("_private.json"), br#"{"name":"Y"}"#).unwrap();
+
+        let mut out = Vec::new();
+        scan_dir(&tmp, &mut out).expect("scan_dir");
+        assert_eq!(out.len(), 1, "sadece D-Real listelensin");
+        assert_eq!(out[0].name, "D-Real");
 
         std::fs::remove_dir_all(&tmp).ok();
     }

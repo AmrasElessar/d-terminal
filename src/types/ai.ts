@@ -1,3 +1,5 @@
+import type { UsageEstimate } from '@/types/aiPricing';
+
 export type ProviderId = 'anthropic' | 'ollama' | 'openai' | 'gemini' | 'custom';
 
 export interface ChatMessage {
@@ -7,6 +9,9 @@ export interface ChatMessage {
   model?: string;
   /** Hangi provider yanıtladı. Multi-pane karşılaştırmalarda kullanışlı. */
   provider?: string;
+  /** Token + maliyet tahmini (frontend heuristik; exact usage Rust stream'inde
+   *  henüz yok). Stream tamamlandıktan sonra hesaplanır. */
+  usage?: UsageEstimate;
 }
 
 export interface ChatOptions {

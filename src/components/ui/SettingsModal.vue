@@ -17,6 +17,9 @@ import { DEFAULT_SHORTCUTS } from '@/keybindings/defaults';
 import { api } from '@/api/tauri';
 import { useToastsStore } from '@/stores/toasts';
 import { onMounted } from 'vue';
+import { availableLocales, localeMeta } from '@/locales';
+import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
+import AICostPanel from '@/components/ui/AICostPanel.vue';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -28,7 +31,7 @@ const ai = useAIStore();
 const triggers = useTriggersStore();
 const profiles = useProfilesStore();
 
-type Tab = 'general' | 'appearance' | 'providers' | 'profiles' | 'triggers' | 'shortcuts';
+type Tab = 'general' | 'appearance' | 'providers' | 'profiles' | 'triggers' | 'shortcuts' | 'aiCost';
 const tab = ref<Tab>('general');
 
 // --- Config as Code (TOML import/export) ---
@@ -291,7 +294,78 @@ function editTrigger(id: string) {
 
 const newKey = ref<Record<ProviderId, string>>({} as Record<ProviderId, string>);
 
-async function applyLanguage(lang: 'tr' | 'en') {
+// Topluluk dil paketleri: `src/locales/*.json` olarak gelir, build-time pickup.
+// Liste alfabetik kod sırasında — `localeMeta` üzerinden native isimle gösterilir.
+// `completionPct ≥ 75` → kullanılabilir kabul edilir; daha düşüğü silik gösterilir.
+const READY_THRESHOLD = 75;
+const languageOptions = computed<DarkSelectOption[]>(() =>
+  availableLocales.map((code) => {
+    const meta = localeMeta[code];
+    const completion = meta?.completion ?? '?';
+    const pct = parseFloat(String(completion).replace('%', ''));
+    const completionPct = Number.isFinite(pct) ? pct : 0;
+    const ready = completionPct >= READY_THRESHOLD;
+    const showBadge = completion !== '100%' && completion !== '?';
+    return {
+      value: code,
+      label: meta?.nativeName || meta?.language || code,
+      badge: showBadge ? completion : undefined,
+      dim: !ready,
+      highlight: ready,
+    };
+  }),
+);
+
+// Diğer dropdown'lar — hepsi DarkSelect kullanır (Webview2 native select bug'ı için).
+const startupOptions = computed<DarkSelectOption[]>(() => [
+  { value: 'welcome',     label: t('settings.general.startupOptions.welcome') },
+  { value: 'lastSession', label: t('settings.general.startupOptions.lastSession') },
+  { value: 'empty',       label: t('settings.general.startupOptions.empty') },
+]);
+
+const fontOptions = computed<DarkSelectOption[]>(() =>
+  BUNDLED_FONTS.map((f) => ({
+    value: f.family,
+    label: f.label,
+    badge: f.ligatures ? `ligatures · ${f.license}` : f.license,
+  })),
+);
+
+const rendererOptions = computed<DarkSelectOption[]>(() => [
+  { value: 'auto',   label: t('terminal.renderer.auto') },
+  { value: 'webgl',  label: t('terminal.renderer.webgl') },
+  { value: 'canvas', label: t('terminal.renderer.canvas') },
+  { value: 'dom',    label: t('terminal.renderer.dom') },
+]);
+
+const vibrancyOptions = computed<DarkSelectOption[]>(() => [
+  { value: 'auto',    label: t('settings.appearance.vibrancyAuto') },
+  { value: 'mica',    label: t('settings.appearance.vibrancyMica') },
+  { value: 'acrylic', label: t('settings.appearance.vibrancyAcrylic') },
+  { value: 'none',    label: t('settings.appearance.vibrancyNone') },
+]);
+
+const paneTypeOptions: DarkSelectOption[] = [
+  { value: 'powershell', label: 'powershell' },
+  { value: 'cmd',        label: 'cmd' },
+  { value: 'wsl',        label: 'wsl' },
+];
+
+const triggerScopeOptions: DarkSelectOption[] = [
+  { value: 'all',        label: 'all' },
+  { value: 'powershell', label: 'powershell' },
+  { value: 'cmd',        label: 'cmd' },
+  { value: 'wsl',        label: 'wsl' },
+];
+
+const triggerActionOptions = computed<DarkSelectOption[]>(() => [
+  { value: 'toast',      label: t('triggers.action.toast') },
+  { value: 'sendToAi',   label: t('triggers.action.sendToAi') },
+  { value: 'runSnippet', label: t('triggers.action.runSnippet') },
+  { value: 'capture',    label: t('triggers.action.capture') },
+]);
+
+async function applyLanguage(lang: string) {
   settings.state.language = lang;
   locale.value = lang;
 }
@@ -324,7 +398,7 @@ void props.open;
       </header>
       <nav class="tabs">
         <button
-          v-for="key in ['general', 'appearance', 'providers', 'profiles', 'triggers', 'shortcuts'] as Tab[]"
+          v-for="key in ['general', 'appearance', 'providers', 'profiles', 'triggers', 'shortcuts', 'aiCost'] as Tab[]"
           :key="key"
           type="button"
           :class="{ active: tab === key }"
@@ -337,19 +411,16 @@ void props.open;
       <section v-if="tab === 'general'" class="section">
         <label class="field">
           <span>{{ t('settings.general.language') }}</span>
-          <select :value="settings.state.language" @change="applyLanguage(($event.target as HTMLSelectElement).value as 'tr' | 'en')">
-            <option value="tr">Türkçe</option>
-            <option value="en">English</option>
-          </select>
+          <DarkSelect
+            :model-value="settings.state.language"
+            :options="languageOptions"
+            @update:model-value="applyLanguage"
+          />
           <small>{{ t('settings.general.languageHint') }}</small>
         </label>
         <label class="field">
           <span>{{ t('settings.general.startup') }}</span>
-          <select v-model="settings.state.startup">
-            <option value="welcome">{{ t('settings.general.startupOptions.welcome') }}</option>
-            <option value="lastSession">{{ t('settings.general.startupOptions.lastSession') }}</option>
-            <option value="empty">{{ t('settings.general.startupOptions.empty') }}</option>
-          </select>
+          <DarkSelect v-model="settings.state.startup" :options="startupOptions" />
         </label>
         <label class="field row">
           <input v-model="settings.state.aiPrefixHash" type="checkbox" />
@@ -443,11 +514,7 @@ void props.open;
         </div>
         <label class="field">
           <span>{{ t('settings.appearance.fontFamily') }}</span>
-          <select v-model="settings.state.fontFamily">
-            <option v-for="font in BUNDLED_FONTS" :key="font.family" :value="font.family">
-              {{ font.label }}{{ font.ligatures ? ' · ligatures' : '' }} ({{ font.license }})
-            </option>
-          </select>
+          <DarkSelect v-model="settings.state.fontFamily" :options="fontOptions" />
           <div
             class="font-preview"
             :style="{ fontFamily: settings.state.fontFamily }"
@@ -478,12 +545,7 @@ void props.open;
         </label>
         <label class="field">
           <span>{{ t('settings.appearance.renderer') }}</span>
-          <select v-model="settings.state.renderer">
-            <option value="auto">{{ t('terminal.renderer.auto') }}</option>
-            <option value="webgl">{{ t('terminal.renderer.webgl') }}</option>
-            <option value="canvas">{{ t('terminal.renderer.canvas') }}</option>
-            <option value="dom">{{ t('terminal.renderer.dom') }}</option>
-          </select>
+          <DarkSelect v-model="settings.state.renderer" :options="rendererOptions" />
           <small>{{ t('settings.appearance.rendererHint') }}</small>
         </label>
         <label class="field row">
@@ -506,12 +568,7 @@ void props.open;
         </label>
         <label class="field">
           <span>{{ t('settings.appearance.vibrancy') }}</span>
-          <select v-model="settings.state.windowVibrancy">
-            <option value="auto">{{ t('settings.appearance.vibrancyAuto') }}</option>
-            <option value="mica">{{ t('settings.appearance.vibrancyMica') }}</option>
-            <option value="acrylic">{{ t('settings.appearance.vibrancyAcrylic') }}</option>
-            <option value="none">{{ t('settings.appearance.vibrancyNone') }}</option>
-          </select>
+          <DarkSelect v-model="settings.state.windowVibrancy" :options="vibrancyOptions" />
           <small>{{ t('settings.appearance.vibrancyHint') }}</small>
         </label>
       </section>
@@ -617,11 +674,7 @@ void props.open;
             </label>
             <label class="field">
               <span>{{ t('profiles.field.paneType') }}</span>
-              <select v-model="draftProfile.paneType">
-                <option v-for="t2 in (['powershell','cmd','wsl'] as PaneType[])" :key="t2" :value="t2">
-                  {{ t2 }}
-                </option>
-              </select>
+              <DarkSelect v-model="draftProfile.paneType" :options="paneTypeOptions" />
             </label>
           </div>
           <label class="field">
@@ -710,21 +763,13 @@ void props.open;
             </label>
             <label class="field">
               <span>{{ t('triggers.field.scope') }}</span>
-              <select v-model="draftTrigger.scope">
-                <option v-for="s in (['all','powershell','cmd','wsl'] as TriggerScope[])" :key="s" :value="s">
-                  {{ s }}
-                </option>
-              </select>
+              <DarkSelect v-model="draftTrigger.scope" :options="triggerScopeOptions" />
             </label>
           </div>
           <div class="row-2">
             <label class="field">
               <span>{{ t('triggers.field.action') }}</span>
-              <select v-model="draftTrigger.action.kind">
-                <option v-for="k in (['toast','sendToAi','runSnippet','capture'] as TriggerActionKind[])" :key="k" :value="k">
-                  {{ t(`triggers.action.${k}`) }}
-                </option>
-              </select>
+              <DarkSelect v-model="draftTrigger.action.kind" :options="triggerActionOptions" />
             </label>
             <label class="field">
               <span>{{ t('triggers.field.cooldown') }}</span>
@@ -750,6 +795,10 @@ void props.open;
             </button>
           </div>
         </fieldset>
+      </section>
+
+      <section v-if="tab === 'aiCost'" class="section">
+        <AICostPanel />
       </section>
 
       <section v-if="tab === 'shortcuts'" class="section">
@@ -835,7 +884,7 @@ void props.open;
 }
 .dialog__panel {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: var(--ui-radius, 8px);
   width: min(720px, 92vw);
   max-height: 80vh;
@@ -846,7 +895,7 @@ void props.open;
   display: flex;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .dialog__header h2 { margin: 0; font-size: 16px; flex: 1; }
 .close { background: transparent; border: none; color: var(--color-fg); cursor: pointer; font-size: 22px; line-height: 1; }
@@ -854,7 +903,7 @@ void props.open;
   display: flex;
   gap: 4px;
   padding: 8px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .tabs button {
   background: transparent;
@@ -866,7 +915,7 @@ void props.open;
   opacity: 0.6;
 }
 .tabs button.active {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   opacity: 1;
   color: var(--color-accent);
 }
@@ -876,9 +925,9 @@ void props.open;
 .field span { font-size: 12px; opacity: 0.8; }
 .field small { font-size: 11px; opacity: 0.5; }
 .field input, .field select {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-radius: 4px;
   padding: 6px 8px;
   font-family: inherit;
@@ -895,7 +944,7 @@ void props.open;
   overflow-x: auto;
 }
 .note { font-size: 12px; opacity: 0.6; margin: 0; }
-.divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.06); margin: 6px 0; }
+.divider { border: none; border-top: 1px solid color-mix(in srgb, var(--color-fg) 6%, transparent); margin: 6px 0; }
 .subhead {
   font-size: 11px;
   text-transform: uppercase;
@@ -907,7 +956,7 @@ void props.open;
   font-size: 11px;
   opacity: 0.7;
   margin: 0;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
   padding: 6px 8px;
   border-radius: 3px;
   word-break: break-all;
@@ -917,7 +966,7 @@ void props.open;
 .small-note { font-size: 11px; opacity: 0.55; margin: 8px 0 4px; }
 .config-btn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   color: var(--color-fg);
   font-family: var(--font-family);
   font-size: 11px;
@@ -939,7 +988,7 @@ void props.open;
   border-color: rgba(0, 180, 216, 0.4);
   color: var(--color-accent);
 }
-.provider { padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 6px; }
+.provider { padding: 12px; background: color-mix(in srgb, var(--color-fg) 2%, transparent); border-radius: 6px; }
 .provider__header {
   display: flex;
   align-items: center;
@@ -947,7 +996,7 @@ void props.open;
   margin-bottom: 8px;
 }
 .badge {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
@@ -965,8 +1014,8 @@ void props.open;
 }
 .provider__row input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   color: var(--color-fg);
   padding: 6px 8px;
   border-radius: 4px;
@@ -996,7 +1045,7 @@ void props.open;
 .ghost {
   background: transparent;
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   font-family: var(--font-family);
   font-size: 11px;
   padding: 4px 10px;
@@ -1035,7 +1084,7 @@ void props.open;
   gap: 8px;
   align-items: center;
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--color-fg) 2%, transparent);
   border-radius: 4px;
 }
 .trigger-row.is-disabled { opacity: 0.5; }
@@ -1058,7 +1107,7 @@ void props.open;
 }
 .trigger-form {
   margin-top: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: 6px;
   padding: 12px;
   display: flex;
@@ -1121,9 +1170,9 @@ void props.open;
   border-radius: 1px;
 }
 .field textarea {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-radius: 4px;
   padding: 6px 8px;
   font-family: inherit;
@@ -1157,10 +1206,10 @@ void props.open;
   gap: 10px;
   align-items: center;
   padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--color-fg) 2%, transparent);
   border-radius: 4px;
 }
-.shortcut-row:hover { background: rgba(255, 255, 255, 0.04); }
+.shortcut-row:hover { background: color-mix(in srgb, var(--color-fg) 4%, transparent); }
 .shortcut-row__info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .shortcut-row__info strong { font-size: 12px; }
 .shortcut-row__info .dim { font-size: 10px; opacity: 0.5; font-family: var(--font-family); }

@@ -9,7 +9,9 @@ export type StartupMode = 'welcome' | 'lastSession' | 'empty';
 export type RendererMode = 'auto' | 'webgl' | 'canvas' | 'dom';
 
 export interface SettingsState {
-  language: 'tr' | 'en';
+  /** ISO dil kodu (`tr`, `en`, `de`, `pt-BR`, ...). Topluluk bir dil paketi
+   *  eklediğinde `src/locales/<kod>.json` bırakması yeterli — kod değişmez. */
+  language: string;
   themeName: string;
   fontFamily: string;
   fontSize: number;

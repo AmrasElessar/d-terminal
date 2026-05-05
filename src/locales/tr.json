@@ -1,7 +1,17 @@
 {
+  "_meta": {
+    "language": "Turkish",
+    "nativeName": "Türkçe",
+    "code": "tr",
+    "translator": "Orhan Engin OKAY",
+    "completion": "100%"
+  },
   "app": {
     "title": "D-Terminal",
     "tagline": "Windows kullanıcıları da matrix'e layık."
+  },
+  "splash": {
+    "ok": "tamam"
   },
   "admin": {
     "elevatedHint": "Bu uygulama yönetici yetkisiyle çalışıyor — açılan tüm pane'ler admin token miras alır."
@@ -37,6 +47,9 @@
     "duplicate": "Çoğalt",
     "rename": "Yeniden Adlandır",
     "untitled": "Adsız",
+    "zoomIn": "Yazı Tipini Büyült",
+    "zoomOut": "Yazı Tipini Küçült",
+    "zoomReset": "Yazı Boyutunu Sıfırla",
     "type": {
       "powershell": "PowerShell",
       "cmd": "Komut İstemi",
@@ -74,6 +87,18 @@
     }
   },
   "ai": {
+    "usage": {
+      "session": "Bu oturum",
+      "heuristicNote": "Token sayısı yaklaşık (~4 karakter/token). Maliyet model fiyatından hesaplandı; gerçek API faturası ufak farklar gösterebilir."
+    },
+    "brainstorm": {
+      "short": "Beyin Fırtınası",
+      "toggle": "Birden fazla AI'a aynı soruyu paralel sor (max {0} model, 1 round)",
+      "needTwo": "En az 2 farklı AI provider'ın API key'i girili olmalı.",
+      "pickAIs": "Konsey üyeleri (max {max}):",
+      "pickAtLeastOne": "En az bir AI seçmen gerek.",
+      "limitReached": "En fazla {max} AI seçilebilir — token uçmasın diye sınır var."
+    },
     "title": "AI Sohbet",
     "send": "Gönder",
     "cancel": "İptal",
@@ -134,7 +159,27 @@
       "profiles": "Profiller",
       "triggers": "Tetikleyiciler",
       "shortcuts": "Kısayollar",
+      "aiCost": "AI Maliyetleri",
       "advanced": "Gelişmiş"
+    },
+    "aiCost": {
+      "title": "AI Token & Maliyet Takibi",
+      "note": "Token sayıları yaklaşık (~4 karakter/token). Maliyet tahmini model fiyatından hesaplandı; gerçek API faturası ufak farklar gösterebilir.",
+      "today": "Bugün",
+      "week": "Bu hafta",
+      "month": "Bu ay",
+      "allTime": "Tüm zamanlar",
+      "byProvider": "Bu ay provider dağılımı",
+      "empty": "Bu ay henüz kayıt yok.",
+      "monthlyLimit": "Aylık Limit (USD)",
+      "limitHint": "Aşılınca pano kartında uyarı görünür. Boş = limit yok.",
+      "limitExceeded": "Aylık limit aşıldı",
+      "exportJson": "JSON olarak dışa aktar",
+      "clearAll": "Tüm kayıtları sil",
+      "clearConfirm": "Tüm AI kullanım kayıtları silinsin mi? Geri alınamaz.",
+      "cleared": "Kayıtlar silindi",
+      "exported": "Dosya kaydedildi",
+      "local": "yerel"
     },
     "general": {
       "language": "Dil",
@@ -342,6 +387,9 @@
       "splitHorizontal": "Aktif paneli yatay böl",
       "splitVertical": "Aktif paneli dikey böl",
       "closePane": "Aktif paneli kapat",
+      "zoomIn": "Aktif panelde yazı tipini büyült",
+      "zoomOut": "Aktif panelde yazı tipini küçült",
+      "zoomReset": "Aktif panelde yazı boyutunu sıfırla",
       "openSettings": "Ayarları aç",
       "openHistory": "Komut geçmişini aç",
       "openSnippets": "Snippet'ları yönet",

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import type { ChatMessage, AIModel } from '@/types/ai';
 import { useAIStore } from '@/stores/ai';
+import { useAIUsageStore } from '@/stores/aiUsage';
 import { formatError } from '@/utils/error';
+import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
+import type { ProviderId } from '@/types/ai';
+import { estimateCost, formatUsageBadge, sumUsage } from '@/types/aiPricing';
+import { getProvider } from '@/providers/registry';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const { t } = useI18n();
 const ai = useAIStore();
+const aiUsage = useAIUsageStore();
 
 const messages = ref<ChatMessage[]>([]);
 const input = ref('');
@@ -21,6 +27,76 @@ let abort: AbortController | null = null;
 
 const hasProvider = computed(() => ai.activeProvider !== null);
 
+// --- Beyin fırtınası modu ---
+// Birden fazla AI'a aynı soruyu paralel sor. Hard limit 3 — token uçmasın.
+// Round limit 1 (AI'lar birbirini görmez); tartışma istenirse Faz 4'te açılır.
+const BRAINSTORM_MAX = 3;
+const brainstormMode = ref(false);
+const brainstormPicks = reactive(new Set<ProviderId>());
+
+const activeProviderIds = computed<ProviderId[]>(() =>
+  (Object.values(ai.statuses) as Array<{ id: ProviderId; hasKey: boolean }>)
+    .filter((s) => s.hasKey)
+    .map((s) => s.id),
+);
+
+const canBrainstorm = computed(() => activeProviderIds.value.length >= 2);
+
+interface BrainstormChip {
+  id: ProviderId;
+  label: string;
+  picked: boolean;
+}
+const brainstormChips = computed<BrainstormChip[]>(() =>
+  activeProviderIds.value.map((id) => ({
+    id,
+    label: t(`ai.provider.${id}`),
+    picked: brainstormPicks.has(id),
+  })),
+);
+
+function toggleBrainstormPick(id: ProviderId) {
+  if (brainstormPicks.has(id)) {
+    brainstormPicks.delete(id);
+    return;
+  }
+  if (brainstormPicks.size >= BRAINSTORM_MAX) {
+    error.value = t('ai.brainstorm.limitReached', { max: BRAINSTORM_MAX });
+    return;
+  }
+  brainstormPicks.add(id);
+}
+
+function toggleBrainstormMode() {
+  if (!canBrainstorm.value) return;
+  brainstormMode.value = !brainstormMode.value;
+  if (brainstormMode.value && brainstormPicks.size === 0) {
+    // İlk açılışta aktif olanların ilk MAX kadarını seç
+    for (const id of activeProviderIds.value.slice(0, BRAINSTORM_MAX)) {
+      brainstormPicks.add(id);
+    }
+  }
+}
+
+const providerOptions = computed<DarkSelectOption[]>(() =>
+  Object.entries(ai.statuses).map(([id, status]) => ({
+    value: id,
+    label: t(`ai.provider.${id}`),
+    disabled: !status.hasKey,
+  })),
+);
+
+const modelOptions = computed<DarkSelectOption[]>(() =>
+  models.value.map((m) => ({ value: m.id, label: m.label })),
+);
+
+function onProviderPick(v: string) {
+  ai.activeProvider = v as ProviderId;
+}
+function onModelPick(v: string) {
+  ai.setActiveModel(v);
+}
+
 async function refreshModels() {
   models.value = [];
   const provider = await ai.resolveProvider();
@@ -31,15 +107,108 @@ async function refreshModels() {
   }
 }
 
+/** Tek provider için stream — kendi assistant mesajına yazar, usage hesaplar.
+ *  Brainstorm modunda paralel olarak birden çok kez çağrılır. */
+async function streamInto(
+  msgIdx: number,
+  providerId: ProviderId,
+  modelId: string,
+  priorContext: ChatMessage[],
+  signal: AbortSignal,
+) {
+  const provider = getProvider(providerId);
+  if (!provider) throw new Error(`provider çözülemedi: ${providerId}`);
+  let acc = '';
+  for await (const chunk of provider.chat(priorContext, { model: modelId, signal })) {
+    acc += chunk;
+    const m = messages.value[msgIdx];
+    if (m) m.content = acc;
+    scrollToBottom();
+  }
+  const m = messages.value[msgIdx];
+  if (m) {
+    const inputText = priorContext.map((x) => x.content).join('\n');
+    const u = estimateCost(providerId, modelId, inputText, acc);
+    m.usage = u;
+    aiUsage.recordEstimate(providerId, modelId, props.leaf.id, u, brainstormMode.value);
+  }
+}
+
 async function send() {
   const text = input.value.trim();
   if (!text || streaming.value) return;
+  error.value = null;
+  abort = new AbortController();
+
+  // --- Beyin fırtınası modu: paralel multi-AI ---
+  if (brainstormMode.value) {
+    const picks = [...brainstormPicks];
+    if (picks.length === 0) {
+      error.value = t('ai.brainstorm.pickAtLeastOne');
+      return;
+    }
+    // Her provider için varsayılan model — provider.models()[0]
+    const resolved: { id: ProviderId; model: string }[] = [];
+    for (const id of picks) {
+      const p = getProvider(id);
+      if (!p) continue;
+      const list = await p.models();
+      const m = list[0]?.id;
+      if (m) resolved.push({ id, model: m });
+    }
+    if (resolved.length === 0) {
+      error.value = t('ai.errors.modelMissing', { model: '?' });
+      return;
+    }
+
+    messages.value.push({ role: 'user', content: text });
+    const userMsgIdx = messages.value.length - 1;
+    // Her provider için bir assistant placeholder
+    const startIdxes: number[] = [];
+    for (const r of resolved) {
+      messages.value.push({
+        role: 'assistant',
+        content: '',
+        model: r.model,
+        provider: r.id,
+      });
+      startIdxes.push(messages.value.length - 1);
+    }
+    input.value = '';
+    scrollToBottom(true);
+
+    // Brainstorm context: her AI önceki kullanıcı + kendi geçmiş asistan mesajlarını görsün,
+    // diğer AI'ların paralel cevaplarını GÖRMESİN (round limit 1).
+    const priorBase = messages.value.slice(0, userMsgIdx + 1).filter(
+      (m) => m.role === 'user' || m.role === 'system',
+    );
+
+    streaming.value = true;
+    try {
+      await Promise.all(
+        resolved.map((r, i) =>
+          streamInto(startIdxes[i]!, r.id, r.model, priorBase, abort!.signal).catch((e) => {
+            if ((e as Error).name !== 'AbortError') {
+              const msg = formatError(e);
+              const m = messages.value[startIdxes[i]!];
+              if (m) m.content = `[${t('common.error')}] ${msg}`;
+            }
+          }),
+        ),
+      );
+    } finally {
+      streaming.value = false;
+      abort = null;
+    }
+    return;
+  }
+
+  // --- Tekli mod (default) ---
   const provider = await ai.resolveProvider();
   if (!provider || !ai.activeModel) {
     error.value = t('ai.noProvider');
     return;
   }
-  error.value = null;
   messages.value.push({ role: 'user', content: text });
   messages.value.push({
     role: 'assistant',
@@ -48,24 +217,19 @@ async function send() {
     provider: provider.id,
   });
   input.value = '';
-  scrollToBottom(true); // user gönderdi — her zaman alta in
-
+  scrollToBottom(true);
   streaming.value = true;
-  abort = new AbortController();
   try {
-    let acc = '';
-    for await (const chunk of provider.chat(messages.value.slice(0, -1), {
-      model: ai.activeModel,
-      signal: abort.signal,
-    })) {
-      acc += chunk;
-      const last = messages.value[messages.value.length - 1];
-      if (last) last.content = acc;
-      scrollToBottom();
-    }
+    const priorMessages = messages.value.slice(0, -1);
+    await streamInto(
+      messages.value.length - 1,
+      provider.id,
+      ai.activeModel,
+      priorMessages,
+      abort.signal,
+    );
   } catch (e: unknown) {
     if ((e as Error).name === 'AbortError') {
-      // kullanıcı iptal etti — sonuncu mesajı kaldır
       messages.value.pop();
     } else {
       const msg = formatError(e);
@@ -85,6 +249,22 @@ function cancel() {
 function clearAll() {
   messages.value = [];
   error.value = null;
+}
+
+/** Pane footer için: tüm assistant mesajlarının toplam usage'ı. */
+const sessionUsage = computed(() =>
+  sumUsage(
+    messages.value.flatMap((m) => (m.role === 'assistant' && m.usage ? [m.usage] : [])),
+  ),
+);
+const sessionBadge = computed(() =>
+  sessionUsage.value.inputTokens + sessionUsage.value.outputTokens > 0
+    ? formatUsageBadge(sessionUsage.value)
+    : '',
+);
+
+function badgeOf(m: ChatMessage): string {
+  return m.usage ? formatUsageBadge(m.usage) : '';
 }
 
 /** Smart auto-scroll: kullanıcı scrollback içine girdiyse otomatik scroll
@@ -161,19 +341,44 @@ void props.leaf; // ileride leaf.state restore burada
     </div>
     <template v-else>
       <header class="ai-pane__toolbar">
-        <select v-model="ai.activeProvider" :aria-label="t('ai.selectProvider')">
-          <option
-            v-for="(status, id) in ai.statuses"
-            :key="id"
-            :value="id"
-            :disabled="!status.hasKey"
+        <template v-if="!brainstormMode">
+          <DarkSelect
+            width="auto"
+            :model-value="ai.activeProvider ?? ''"
+            :options="providerOptions"
+            :aria-label="t('ai.selectProvider')"
+            @update:model-value="onProviderPick"
+          />
+          <DarkSelect
+            width="auto"
+            :model-value="ai.activeModel ?? ''"
+            :options="modelOptions"
+            :aria-label="t('ai.selectModel')"
+            @update:model-value="onModelPick"
+          />
+        </template>
+        <template v-else>
+          <span class="ai-pane__bsLabel">{{ t('ai.brainstorm.pickAIs', { max: BRAINSTORM_MAX }) }}</span>
+          <label
+            v-for="chip in brainstormChips"
+            :key="chip.id"
+            class="ai-pane__chip"
+            :class="{ 'ai-pane__chip--on': chip.picked }"
           >
-            {{ t(`ai.provider.${id}`) }}
-          </option>
-        </select>
-        <select v-model="ai.activeModel" :aria-label="t('ai.selectModel')">
-          <option v-for="m in models" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </select>
+            <input type="checkbox" :checked="chip.picked" @change="toggleBrainstormPick(chip.id)" />
+            <span>{{ chip.label }}</span>
+          </label>
+        </template>
+        <button
+          type="button"
+          class="ai-pane__bsToggle"
+          :class="{ 'ai-pane__bsToggle--on': brainstormMode }"
+          :disabled="!canBrainstorm"
+          :title="canBrainstorm ? t('ai.brainstorm.toggle') : t('ai.brainstorm.needTwo')"
+          @click="toggleBrainstormMode"
+        >
+          🌪️ {{ t('ai.brainstorm.short') }}
+        </button>
         <button type="button" class="link" :title="t('ai.clearHistory')" @click="clearAll">
           {{ t('ai.clearHistory') }}
         </button>
@@ -189,9 +394,17 @@ void props.leaf; // ileride leaf.state restore burada
             <template v-else>{{ t(`ai.messageRole.${m.role}`) }}</template>
           </div>
           <pre class="msg__content">{{ m.content || (streaming && idx === messages.length - 1 ? t('ai.thinking') : '') }}</pre>
+          <div v-if="m.role === 'assistant' && m.usage" class="msg__usage" :title="t('ai.usage.heuristicNote')">
+            {{ badgeOf(m) }}
+          </div>
         </article>
         <p v-if="error" class="msg__error">{{ error }}</p>
       </div>
+
+      <footer v-if="sessionBadge" class="ai-pane__usage" :title="t('ai.usage.heuristicNote')">
+        <span class="ai-pane__usage-label">{{ t('ai.usage.session') }}:</span>
+        <span class="ai-pane__usage-value">{{ sessionBadge }}</span>
+      </footer>
 
       <form class="ai-pane__input" @submit="onSubmit">
         <textarea
@@ -240,13 +453,13 @@ void props.leaf; // ileride leaf.state restore burada
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
   font-size: 12px;
 }
 .ai-pane__toolbar select {
   background: var(--color-bg);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 4px 8px;
   border-radius: 4px;
   font-family: inherit;
@@ -303,8 +516,73 @@ void props.leaf; // ileride leaf.state restore burada
   font-size: 12px;
   margin: 8px 0;
 }
+.msg__usage {
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.5;
+  font-family: var(--font-family);
+  letter-spacing: 0.02em;
+}
+.ai-pane__usage {
+  display: flex;
+  gap: 6px;
+  padding: 4px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
+  font-size: 11px;
+  opacity: 0.7;
+}
+.ai-pane__usage-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+.ai-pane__usage-value {
+  font-family: var(--font-family);
+  color: var(--color-accent);
+}
+.ai-pane__bsLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+.ai-pane__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+  cursor: pointer;
+  user-select: none;
+}
+.ai-pane__chip--on {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  border-color: var(--color-accent);
+}
+.ai-pane__chip input { display: none; }
+.ai-pane__bsToggle {
+  background: transparent;
+  color: var(--color-fg);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 14%, transparent);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: auto;
+}
+.ai-pane__bsToggle:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
+}
+.ai-pane__bsToggle--on {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.ai-pane__bsToggle:disabled { opacity: 0.4; cursor: not-allowed; }
 .ai-pane__input {
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
@@ -313,7 +591,7 @@ void props.leaf; // ileride leaf.state restore burada
 .ai-pane__input textarea {
   background: var(--color-bg);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-radius: 6px;
   padding: 8px;
   font-family: var(--font-family);

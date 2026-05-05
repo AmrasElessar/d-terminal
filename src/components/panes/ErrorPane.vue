@@ -44,9 +44,9 @@ h3 {
   opacity: 0.8;
 }
 button {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 6px 14px;
   border-radius: 4px;
   cursor: pointer;

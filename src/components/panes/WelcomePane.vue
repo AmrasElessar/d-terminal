@@ -434,7 +434,7 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   padding: 0 2px;
   border-radius: 2px;
 }
-.row:hover { background: rgba(255, 255, 255, 0.03); }
+.row:hover { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
 .row__key {
   color: var(--color-accent);
   white-space: pre;

@@ -1,0 +1,11 @@
+{
+  "_meta": {
+    "language": "Italian",
+    "nativeName": "Italiano",
+    "code": "it",
+    "translator": "TODO",
+    "completion": "0%",
+    "instructions_tr": "Bu dosya bos bir stub. Cevirmek icin: en.json (kaynak) veya tr.json (referans) dosyalarini acin, kopyaladiginiz key'leri buraya ekleyin ve sag tarafi kendi dilinize cevirin. Eksik key'ler otomatik olarak Turkceye dusecektir. {parametre} ve {'{{0}}'} sablonlarina dokunmayin.",
+    "instructions_en": "This file is an empty stub. To translate: open en.json (source) or tr.json (reference), copy the keys here, and translate the right-hand strings into your language. Missing keys automatically fall back to Turkish. Keep {placeholders} and {'{{0}}'} templates intact."
+  }
+}

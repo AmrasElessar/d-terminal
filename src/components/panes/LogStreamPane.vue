@@ -196,7 +196,7 @@ onBeforeUnmount(() => {
   white-space: pre;
   font-family: var(--font-family);
 }
-.line:hover { background: rgba(255, 255, 255, 0.03); }
+.line:hover { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
 .empty { text-align: center; color: var(--color-dim); padding: 32px; }
 .primary { background: var(--color-accent); color: var(--color-bg); border: none; padding: 4px 10px; border-radius: 3px; font-weight: 600; cursor: pointer; }
 .primary:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Genel Sohbet / General Discussion
+    url: https://github.com/AmrasElessar/d-terminal/discussions
+    about: Soru, fikir paylaşımı veya genel sohbet için Discussions kullanın. / Use Discussions for questions, ideas, or general chat.
+  - name: 📚 Katkı Rehberi / Contribution Guide
+    url: https://github.com/AmrasElessar/d-terminal/blob/main/CONTRIBUTING.md
+    about: Kod / dil / tema PR'ı atmadan önce kapsamı okuyun. / Read the scope before opening any PR.

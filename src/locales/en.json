@@ -1,7 +1,17 @@
 {
+  "_meta": {
+    "language": "English",
+    "nativeName": "English",
+    "code": "en",
+    "translator": "Orhan Engin OKAY",
+    "completion": "100%"
+  },
   "app": {
     "title": "D-Terminal",
     "tagline": "Windows users deserve the matrix too."
+  },
+  "splash": {
+    "ok": "ok"
   },
   "admin": {
     "elevatedHint": "Running with administrator privileges — all spawned panes inherit the admin token."
@@ -37,6 +47,9 @@
     "duplicate": "Duplicate",
     "rename": "Rename",
     "untitled": "Untitled",
+    "zoomIn": "Increase Font Size",
+    "zoomOut": "Decrease Font Size",
+    "zoomReset": "Reset Font Size",
     "type": {
       "powershell": "PowerShell",
       "cmd": "Command Prompt",
@@ -74,6 +87,18 @@
     }
   },
   "ai": {
+    "usage": {
+      "session": "This session",
+      "heuristicNote": "Token count is an estimate (~4 chars/token). Cost computed from model pricing; actual API bill may differ slightly."
+    },
+    "brainstorm": {
+      "short": "Brainstorm",
+      "toggle": "Send the same question to multiple AIs in parallel (max {0} models, 1 round)",
+      "needTwo": "At least 2 different AI providers must have API keys configured.",
+      "pickAIs": "Council members (max {max}):",
+      "pickAtLeastOne": "Pick at least one AI.",
+      "limitReached": "At most {max} AIs — token limit to keep cost in check."
+    },
     "title": "AI Chat",
     "send": "Send",
     "cancel": "Cancel",
@@ -134,7 +159,27 @@
       "profiles": "Profiles",
       "triggers": "Triggers",
       "shortcuts": "Shortcuts",
+      "aiCost": "AI Costs",
       "advanced": "Advanced"
+    },
+    "aiCost": {
+      "title": "AI Token & Cost Tracking",
+      "note": "Token counts are estimated (~4 chars/token). Cost computed from model pricing; actual API bill may differ slightly.",
+      "today": "Today",
+      "week": "This week",
+      "month": "This month",
+      "allTime": "All time",
+      "byProvider": "This month by provider",
+      "empty": "No records yet this month.",
+      "monthlyLimit": "Monthly Limit (USD)",
+      "limitHint": "When exceeded, a warning shows on the Month card. Empty = no limit.",
+      "limitExceeded": "Monthly limit exceeded",
+      "exportJson": "Export as JSON",
+      "clearAll": "Clear all records",
+      "clearConfirm": "Delete all AI usage records? This cannot be undone.",
+      "cleared": "Records cleared",
+      "exported": "File saved",
+      "local": "local"
     },
     "general": {
       "language": "Language",
@@ -342,6 +387,9 @@
       "splitHorizontal": "Split active pane horizontally",
       "splitVertical": "Split active pane vertically",
       "closePane": "Close active pane",
+      "zoomIn": "Increase font size in active pane",
+      "zoomOut": "Decrease font size in active pane",
+      "zoomReset": "Reset font size in active pane",
       "openSettings": "Open settings",
       "openHistory": "Open command history",
       "openSnippets": "Manage snippets",

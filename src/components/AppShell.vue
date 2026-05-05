@@ -192,6 +192,10 @@ onMounted(async () => {
   keybindings.register('panes.broadcastToggle', () => panes.toggleBroadcast());
   keybindings.register('pane.maximize', () => panes.toggleMaximize());
   keybindings.register('ai.suggestCommand', () => modals.open('aiSuggest'));
+  // Pane font zoom (per-pane, base settings.fontSize üstüne offset)
+  keybindings.register('pane.zoomIn',    () => panes.adjustFocusedFontSize(+1));
+  keybindings.register('pane.zoomOut',   () => panes.adjustFocusedFontSize(-1));
+  keybindings.register('pane.zoomReset', () => panes.resetFocusedFontSize());
 
   // Prefix mode (tmux tarzı modal kısayollar) — ayardan açılır, kapalıysa
   // setPrefix(null, ...) çağrısı listener'da hiçbir etki yapmaz.

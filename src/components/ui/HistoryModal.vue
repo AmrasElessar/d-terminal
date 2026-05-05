@@ -5,6 +5,7 @@ import { api } from '@/api/tauri';
 import type { HistoryEntry } from '@/types/history';
 import { usePanesStore } from '@/stores/panes';
 import { useToastsStore } from '@/stores/toasts';
+import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -20,6 +21,14 @@ const filter = ref<Filter>('all');
 const results = ref<HistoryEntry[]>([]);
 const selectedIdx = ref(0);
 const inputEl = ref<HTMLInputElement>();
+
+const filterOptions = computed<DarkSelectOption[]>(() => [
+  { value: 'all',       label: t('history.filter.all') },
+  { value: 'thisPane',  label: t('history.filter.thisPane') },
+  { value: 'favorites', label: t('history.filter.favorites') },
+]);
+
+function onFilterPick(v: string) { filter.value = v as Filter; }
 
 async function refresh() {
   const focusedPty = panes.focused?.ptyId ?? null;
@@ -107,11 +116,12 @@ function onKey(e: KeyboardEvent) {
           :placeholder="t('history.search')"
           autofocus
         />
-        <select v-model="filter">
-          <option value="all">{{ t('history.filter.all') }}</option>
-          <option value="thisPane">{{ t('history.filter.thisPane') }}</option>
-          <option value="favorites">{{ t('history.filter.favorites') }}</option>
-        </select>
+        <DarkSelect
+          width="auto"
+          :model-value="filter"
+          :options="filterOptions"
+          @update:model-value="onFilterPick"
+        />
       </div>
       <div class="panel__count">{{ t('history.results', { count: results.length }) }}</div>
 
@@ -167,7 +177,7 @@ function onKey(e: KeyboardEvent) {
 }
 .panel {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: var(--ui-radius, 8px);
   width: min(800px, 92vw);
   max-height: 70vh;
@@ -180,7 +190,7 @@ function onKey(e: KeyboardEvent) {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .panel__header h2 { margin: 0; flex: 1; font-size: 14px; }
 .close { background: transparent; border: none; color: var(--color-fg); cursor: pointer; font-size: 20px; line-height: 1; }
@@ -191,9 +201,9 @@ function onKey(e: KeyboardEvent) {
 }
 .panel__bar input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 6px 10px;
   border-radius: 4px;
   font-family: var(--font-family);
@@ -201,9 +211,9 @@ function onKey(e: KeyboardEvent) {
 }
 .panel__bar input:focus { outline: none; border-color: var(--color-accent); }
 .panel__bar select {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 6px 8px;
   border-radius: 4px;
 }
@@ -227,7 +237,7 @@ function onKey(e: KeyboardEvent) {
     'meta actions';
   gap: 4px 12px;
   padding: 8px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 3%, transparent);
   cursor: pointer;
 }
 .results li.selected { background: rgba(0, 180, 216, 0.08); }
@@ -257,7 +267,7 @@ function onKey(e: KeyboardEvent) {
 }
 .results__actions button {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   color: var(--color-fg);
   width: 26px;
   height: 26px;
@@ -265,7 +275,7 @@ function onKey(e: KeyboardEvent) {
   cursor: pointer;
   font-size: 12px;
 }
-.results__actions button:hover { background: rgba(255, 255, 255, 0.05); }
+.results__actions button:hover { background: color-mix(in srgb, var(--color-fg) 5%, transparent); }
 .results__actions button.on { color: var(--color-yellow); border-color: var(--color-yellow); }
 .results__actions button.danger:hover { background: var(--color-red); border-color: var(--color-red); }
 .empty {

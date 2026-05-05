@@ -228,7 +228,7 @@ function onResultKey(e: KeyboardEvent) {
   color: var(--color-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   padding: 2px 6px;
   border-radius: 2px;
 }

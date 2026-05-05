@@ -138,7 +138,7 @@ onMounted(refresh);
 }
 .panel {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: var(--ui-radius, 8px);
   width: min(560px, 92vw);
   max-height: 80vh;
@@ -149,7 +149,7 @@ onMounted(refresh);
   display: flex;
   align-items: center;
   padding: 14px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .panel__header h2 { margin: 0; font-size: 15px; flex: 1; }
 .close { background: transparent; border: none; color: var(--color-fg); cursor: pointer; font-size: 20px; line-height: 1; }
@@ -158,14 +158,14 @@ onMounted(refresh);
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
 }
 .save label:not(.workspace-toggle) { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .workspace-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; opacity: 0.85; }
 .save input {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
   color: var(--color-fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   padding: 6px 10px;
   border-radius: 4px;
   font-family: var(--font-family);
@@ -184,7 +184,7 @@ li {
   justify-content: space-between;
   align-items: center;
   padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 4%, transparent);
 }
 .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .info strong { font-size: 13px; }

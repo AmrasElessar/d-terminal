@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const emit = defineEmits<{ done: [] }>();
 
 interface Line {
@@ -18,7 +20,7 @@ const lines = ref<Line[]>([
   { text: 'register Tauri commands',   status: 'pending', delay: 60 },
   { text: 'mount Vue + Pinia stores',  status: 'pending', delay: 70 },
   { text: 'load themes (3)',           status: 'pending', delay: 50 },
-  { text: 'load locales (TR, EN)',     status: 'pending', delay: 50 },
+  { text: 'load locales',              status: 'pending', delay: 50 },
   { text: 'bind keyboard shortcuts',   status: 'pending', delay: 60 },
   { text: 'subscribe sidecar events',  status: 'pending', delay: 80 },
   { text: 'D-Terminal ready',          status: 'pending', delay: 120 },
@@ -64,7 +66,7 @@ onMounted(play);
         </span>
         <span class="splash__text">{{ line.text }}</span>
         <span v-if="line.status === 'loading'" class="splash__dots">…</span>
-        <span v-else-if="line.status === 'ok'" class="splash__elapsed">[ ok ]</span>
+        <span v-else-if="line.status === 'ok'" class="splash__elapsed">[ {{ t('splash.ok') }} ]</span>
       </div>
     </div>
   </div>

@@ -116,7 +116,7 @@ function create() {
 }
 .dialog__panel {
   background: var(--color-bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
   border-radius: var(--ui-radius, 8px);
   padding: 20px;
   min-width: 480px;
@@ -151,9 +151,9 @@ h2 {
   grid-template-columns: 24px 1fr auto;
   gap: 8px;
   align-items: center;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--color-fg) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   color: var(--color-fg);
   padding: 8px 10px;
   border-radius: 4px;
@@ -164,7 +164,7 @@ h2 {
   transition: background 0.1s ease;
 }
 .card:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
 }
 .card.active {
   border-color: var(--color-accent);
@@ -175,7 +175,7 @@ h2 {
 .card__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card__badge {
   font-size: 9px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
   color: var(--color-dim);
   padding: 1px 4px;
   border-radius: 2px;
@@ -198,7 +198,7 @@ h2 {
 .ghost {
   background: transparent;
   color: var(--color-fg);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: color-mix(in srgb, var(--color-fg) 10%, transparent);
 }
 .primary {
   background: var(--color-accent);

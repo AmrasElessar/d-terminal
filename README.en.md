@@ -185,9 +185,18 @@ Code signing is missing (SignPath FOSS application in progress) — Windows Smar
 
 ## Contributing
 
-Contributions are welcome. You can write a theme, a language pack, an AI provider adapter, or a plugin.
+This is a **personal Windows terminal project** and the community contribution scope is intentionally narrow. Core architecture, plugin runtime, and feature work are owned by the maintainer — but three lanes are open where the community can add real value:
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+| ✅ Accepted | ❌ Not currently accepted |
+|---|---|
+| 🐛 Bug reports | 🤖 AI provider adapter PRs |
+| 💡 Feature **ideas** (Issues) | 🧩 Plugin PRs (targeting v2.0+) |
+| 🌍 Language packs (`src/locales/<code>.json`) | 🏗️ Architecture / refactor PRs |
+| 🎨 Themes (`themes/D-<name>.json`) | ✨ Feature code PRs |
+
+There are **30+ stub language files** under `src/locales/` waiting for translators (German, Spanish, French, Japanese, Chinese, Arabic, Russian, …).
+
+See: [CONTRIBUTING.md](./CONTRIBUTING.md) · [Theme guide](./themes/COMMUNITY.md)
 
 ## D Brand Family
 
