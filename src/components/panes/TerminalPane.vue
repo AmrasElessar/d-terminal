@@ -540,6 +540,40 @@ function onSearchKey(e: KeyboardEvent) {
   }
 }
 
+/** Multi-line güvenli paste — bracketed paste mode varsa shell input'u
+ *  atomik alır, hiçbir satır Enter olarak yorumlanmaz. PSReadLine 2.x ve
+ *  modern shell'ler destekler; cmd.exe desteklemez (her \r Enter olur,
+ *  kullanıcı satırları sırayla execute edilir — uyarı toast). */
+async function handlePaste(): Promise<void> {
+  if (!term) return;
+  const myPtyId = panes.getLeaf(props.leaf.id)?.ptyId;
+  if (!myPtyId) return;
+  let text: string;
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (e) {
+    toasts.error(t('terminal.pasteFailed', { error: String(e) }));
+    return;
+  }
+  if (!text) return;
+
+  // \r\n / \n → \r (terminal CR = Enter). Bracketed paste markers shell'e
+  // "bu blok paste, otomatik execute etme" der.
+  const normalized = text.replace(/\r?\n/g, '\r');
+  const lineCount = (text.match(/\r?\n/g)?.length ?? 0) + 1;
+  const bracketed = term.modes.bracketedPasteMode;
+  const payload = bracketed
+    ? `\x1b[200~${normalized}\x1b[201~`
+    : normalized;
+  const bytes = new TextEncoder().encode(payload);
+  await api.ptyWrite(myPtyId, bytes).catch(() => {});
+
+  if (lineCount > 1) {
+    const key = bracketed ? 'terminal.pastedBracketed' : 'terminal.pastedRaw';
+    toasts.info(t(key, { count: lineCount }), bracketed ? 1800 : 3000);
+  }
+}
+
 /** Buffer'ı text olarak export et — clipboard'a kopyala. */
 function copyBuffer() {
   if (!serialize) return;
@@ -633,10 +667,17 @@ onMounted(async () => {
 
   term.open(container.value);
 
-  // Scrollback navigation mode için custom key handler — return false PTY'ye
-  // tuşun gitmesini bloklar. Aktif değilse her zaman true (normal akış).
+  // Scrollback navigation mode + Multi-line paste için custom key handler —
+  // return false PTY'ye tuşun gitmesini bloklar.
   term.attachCustomKeyEventHandler((event) => {
     if (event.type !== 'keydown') return true;
+    // Ctrl+V veya Ctrl+Shift+V → multi-line güvenli paste (bracketed paste
+    // mode varsa shell paste'i atomik alır, her \n Enter olmaz).
+    if (event.ctrlKey && event.code === 'KeyV') {
+      event.preventDefault();
+      void handlePaste();
+      return false;
+    }
     if (!scrollMode.value) return true;
     return !handleScrollModeKey(event);
   });

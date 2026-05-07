@@ -449,6 +449,9 @@
     "pathCopied": "Yol panoya kopyalandı",
     "shaCopied": "SHA kopyalandı: {sha}",
     "hostCopied": "Adres kopyalandı",
+    "pastedBracketed": "{count} satır yapıştırıldı (bracketed)",
+    "pastedRaw": "{count} satır yapıştırıldı — shell her satırı çalıştırır",
+    "pasteFailed": "Yapıştırma başarısız: {error}",
     "suggest": {
       "hint": "Geçmişten öneri — Tab veya → ile kabul et"
     },

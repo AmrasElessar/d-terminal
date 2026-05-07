@@ -449,6 +449,9 @@
     "pathCopied": "Path copied to clipboard",
     "shaCopied": "SHA copied: {sha}",
     "hostCopied": "Host copied to clipboard",
+    "pastedBracketed": "Pasted {count} lines (bracketed)",
+    "pastedRaw": "Pasted {count} lines — shell will execute each line",
+    "pasteFailed": "Paste failed: {error}",
     "suggest": {
       "hint": "Suggestion from history — accept with Tab or →"
     },
