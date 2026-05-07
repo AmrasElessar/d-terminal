@@ -465,6 +465,16 @@
       "dom": "DOM (yedek, en yavaş)"
     }
   },
+  "agentWatch": {
+    "title": "Agent Watch",
+    "toggle": "Agent Watch aç/kapa ({count} aktif)",
+    "runningShort": "çalışıyor",
+    "doneShort": "tamam",
+    "emptyTitle": "Aktivite yok",
+    "emptyHint": "AI tool'ları (Claude Code, Codex, aider, …) bu pane'e OSC 9999 event'i yayarsa burada görünür. `dterm-watch` wrapper ile sar veya araç D-Terminal'i direkt destekliyorsa otomatik çalışır.",
+    "subagentOf": "{parent} alt agent'ı",
+    "thinkingBlocks": "Reasoning ({count} blok)"
+  },
   "block": {
     "title": "Komut Blokları",
     "empty": "Henüz komut çalıştırılmadı (OSC 133 marker bekliyor)",

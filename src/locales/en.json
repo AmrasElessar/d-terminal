@@ -465,6 +465,16 @@
       "dom": "DOM (fallback, slowest)"
     }
   },
+  "agentWatch": {
+    "title": "Agent Watch",
+    "toggle": "Toggle Agent Watch ({count} active)",
+    "runningShort": "running",
+    "doneShort": "done",
+    "emptyTitle": "No agent activity",
+    "emptyHint": "AI tools (Claude Code, Codex, aider, …) emit OSC 9999 events into this pane to appear here. Run them through `dterm-watch` wrapper or update them to support D-Terminal directly.",
+    "subagentOf": "subagent of {parent}",
+    "thinkingBlocks": "Reasoning ({count} blocks)"
+  },
   "block": {
     "title": "Command Blocks",
     "empty": "No commands executed yet (waiting for OSC 133 markers)",

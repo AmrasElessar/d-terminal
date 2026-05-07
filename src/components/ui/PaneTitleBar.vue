@@ -3,8 +3,10 @@ import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import { usePanesStore } from '@/stores/panes';
+import { useAgentWatchStore } from '@/stores/agentWatch';
 
 const panes = usePanesStore();
+const agentWatch = useAgentWatchStore();
 
 const props = defineProps<{
   leaf: LeafNode;
@@ -114,6 +116,13 @@ const broadcasting = computed(
     && !!props.leaf.ptyId
     && props.leaf.status === 'running',
 );
+
+/** Agent Watch sidebar'ı bu pane için. Reactive view paneView'dan gelir. */
+const agentView = agentWatch.paneView(props.leaf.id);
+const agentRunning = computed(() => agentView.value.agents.some((a) => a.status === 'running'));
+function toggleAgentWatch() {
+  agentWatch.toggleVisible(props.leaf.id);
+}
 </script>
 
 <template>
@@ -192,6 +201,19 @@ const broadcasting = computed(
 #
 </button>
 
+    <button
+      v-if="agentView.hasAny || agentView.visible"
+      type="button"
+      class="title-bar__agent"
+      :class="{
+        active: agentView.visible,
+        running: agentRunning,
+      }"
+      :title="t('agentWatch.toggle', { count: agentView.agents.length })"
+      @click.stop="toggleAgentWatch"
+    >
+👁 {{ agentView.agents.length }}
+</button>
     <button
       v-if="blockCount && blockCount > 0"
       type="button"
@@ -371,7 +393,8 @@ const broadcasting = computed(
   width: 90px;
   height: 14px;
 }
-.title-bar__blocks {
+.title-bar__blocks,
+.title-bar__agent {
   background: transparent;
   border: 1px solid var(--color-line);
   color: var(--color-dim);
@@ -383,9 +406,21 @@ const broadcasting = computed(
   font-family: inherit;
 }
 .title-bar__blocks:hover,
-.title-bar__blocks.active {
+.title-bar__blocks.active,
+.title-bar__agent:hover,
+.title-bar__agent.active {
   color: var(--color-accent);
   border-color: var(--color-accent);
+}
+/* Agent çalışıyorsa nabız + vurgu — kullanıcı görmezden gelmesin. */
+.title-bar__agent.running {
+  color: var(--color-green);
+  border-color: var(--color-green);
+  animation: titleAgentPulse 1.5s ease-in-out infinite;
+}
+@keyframes titleAgentPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
 .title-bar__close {
   background: transparent;

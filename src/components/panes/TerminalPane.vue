@@ -24,11 +24,14 @@ import { xtermThemeOf } from '@/themes/apply';
 import { createBlockTracker, registerBlockTracker, unregisterBlockTracker } from '@/composables/useBlocks';
 import { createSmartLinkProvider } from '@/composables/useSmartLinks';
 import { useTriggersStore } from '@/stores/triggers';
+import { useAgentWatchStore } from '@/stores/agentWatch';
+import { parseAgentEvent } from '@/types/agent';
 import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
 import { formatError } from '@/utils/error';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { useI18n } from 'vue-i18n';
+import AgentWatchPanel from '@/components/ui/AgentWatchPanel.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const panes = usePanesStore();
@@ -36,6 +39,8 @@ const themeStore = useThemeStore();
 const settings = useSettingsStore();
 const toasts = useToastsStore();
 const triggers = useTriggersStore();
+const agentWatch = useAgentWatchStore();
+const agentView = agentWatch.paneView(props.leaf.id);
 const profiles = useProfilesStore();
 const modals = useModals();
 const { t } = useI18n();
@@ -667,6 +672,17 @@ onMounted(async () => {
 
   term.open(container.value);
 
+  // Agent Watch — D-Terminal özel OSC 9999 sequence'i: AI tool'lar opt-in
+  // olarak agent yaşam döngüsü event'lerini buradan yayar (start/progress/
+  // tokens/thinking/end). Parse + dispatch → store + sidebar güncellenir.
+  // Return true = OSC handle edildi, xterm output'a yansıtmasın.
+  term.parser.registerOscHandler(9999, (data) => {
+    const ev = parseAgentEvent(data);
+    if (!ev) return false; // bozuk payload — xterm normal akışa devam etsin
+    agentWatch.dispatch(props.leaf.id, ev);
+    return true;
+  });
+
   // Scrollback navigation mode + Multi-line paste için custom key handler —
   // return false PTY'ye tuşun gitmesini bloklar.
   term.attachCustomKeyEventHandler((event) => {
@@ -839,7 +855,16 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
 
 <template>
   <div class="terminal-host" :class="{ 'scroll-mode': scrollMode }" @keydown="onContainerKeydown">
-    <div ref="container" class="terminal" />
+    <!-- Ana akış: terminal + opsiyonel Agent Watch sidebar.
+         Sidebar açıldığında flex-1 terminal'i daraltır, fit addon resize ile uyum sağlar. -->
+    <div class="terminal-host__row">
+      <div ref="container" class="terminal" />
+      <AgentWatchPanel
+        v-if="agentView.visible"
+        :pane-id="props.leaf.id"
+        @close="agentWatch.setVisible(props.leaf.id, false)"
+      />
+    </div>
 
     <!-- Scrollback navigation mode (Ctrl+Shift+Space) -->
     <div v-if="scrollMode" class="scroll-mode-bar" aria-live="polite">
@@ -906,9 +931,18 @@ ab|
   </div>
 </template>
 
+
 <style scoped>
 .terminal-host {
   position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* Yatay düzen: solda xterm, sağda opsiyonel Agent Watch sidebar */
+.terminal-host__row {
   flex: 1;
   display: flex;
   min-width: 0;
