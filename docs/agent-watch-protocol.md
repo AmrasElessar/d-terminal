@@ -61,6 +61,17 @@ Reasoning bloğu. Sidebar'da accordion altında gizli, kullanıcı isterse açar
 { "k": "thinking", "id": "a1", "text": "Düşünme metni..." }
 ```
 
+### `await`
+Agent kullanıcı onayı bekliyor (örn. `Run this command? (y/n)`). UI durumu `⏸ waiting` olur, sarı pulse + title bar yanıp söner. Sonraki `progress` veya `end` event'inde otomatik clear olur.
+
+```json
+{ "k": "await", "id": "a1", "prompt": "Run npm install? (y/n)" }
+```
+
+| Alan | Tip | Açıklama |
+|---|---|---|
+| `prompt` | string? | Onay istenen işlem — sidebar'da satır altında gösterilir |
+
 ### `end`
 Agent yaşam döngüsünün sonu.
 

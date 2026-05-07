@@ -469,11 +469,15 @@
     "title": "Agent Watch",
     "toggle": "Agent Watch aç/kapa ({count} aktif)",
     "runningShort": "çalışıyor",
+    "waitingShort": "bekliyor",
     "doneShort": "tamam",
     "emptyTitle": "Aktivite yok",
     "emptyHint": "AI tool'ları (Claude Code, Codex, aider, …) bu pane'e OSC 9999 event'i yayarsa burada görünür. `dterm-watch` wrapper ile sar veya araç D-Terminal'i direkt destekliyorsa otomatik çalışır.",
     "subagentOf": "{parent} alt agent'ı",
-    "thinkingBlocks": "Reasoning ({count} blok)"
+    "thinkingBlocks": "Reasoning ({count} blok)",
+    "model": "Model",
+    "stopAgent": "Agent'ı durdur",
+    "stopHint": "Terminal'e Ctrl+C (SIGINT) gönderir — sadece bu agent değil, tüm AI oturumunu durdurur"
   },
   "block": {
     "title": "Komut Blokları",

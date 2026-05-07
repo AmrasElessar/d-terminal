@@ -20,7 +20,7 @@
 // Cooperation yoksa: heuristic detector (Triggers preset) ile yaklaşık
 // agent yaşam döngüsü tespit edilir, doğruluk düşük olabilir.
 
-export type AgentEventKind = 'start' | 'progress' | 'tokens' | 'thinking' | 'end';
+export type AgentEventKind = 'start' | 'progress' | 'tokens' | 'thinking' | 'await' | 'end';
 
 /** OSC 9999 wire payload — minimal, agresif kısaltma kullanılır. */
 export interface AgentEventStart {
@@ -55,6 +55,15 @@ export interface AgentEventThinking {
   text: string;
 }
 
+/** Agent kullanıcı onayı bekliyor (örn. "Run this command? (y/n)"). UI
+ *  duruma sarı pulse + "Onay bekliyor" rozeti gösterir, title bar yanıp söner. */
+export interface AgentEventAwait {
+  k: 'await';
+  id: string;
+  /** Onay istenen işlem — kısa açıklama. UI'da satır altında gösterilir. */
+  prompt?: string;
+}
+
 export interface AgentEventEnd {
   k: 'end';
   id: string;
@@ -68,11 +77,12 @@ export type AgentEvent =
   | AgentEventProgress
   | AgentEventTokens
   | AgentEventThinking
+  | AgentEventAwait
   | AgentEventEnd;
 
 // ─── Store-side state ────────────────────────────────────────────────────────
 
-export type AgentStatus = 'running' | 'done' | 'error' | 'aborted';
+export type AgentStatus = 'running' | 'waiting' | 'done' | 'error' | 'aborted';
 
 export interface AgentInfo {
   id: string;
@@ -83,11 +93,16 @@ export interface AgentInfo {
   endedAt?: number;
   inputTokens: number;
   outputTokens: number;
+  /** Cost — provider event'te explicit gönderdiyse bu set edilir, yoksa
+   *  store'da seçili modelden hesaplanır (modelden hesap costUsd null tutar
+   *  ve UI on-the-fly hesaplar). */
   costUsd: number;
   /** Stream'e gelen toplam metin (truncate'li). UI'da scroll edilir. */
   output: string;
   /** Reasoning blokları — accordion için. */
   thinking: string[];
+  /** Onay beklerken kullanıcıya gösterilen kısa açıklama. */
+  awaitPrompt?: string;
   error?: string;
 }
 
@@ -102,6 +117,7 @@ export function parseAgentEvent(raw: string): AgentEvent | null {
       case 'progress':
       case 'tokens':
       case 'thinking':
+      case 'await':
       case 'end':
         return obj as AgentEvent;
       default:

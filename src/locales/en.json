@@ -469,11 +469,15 @@
     "title": "Agent Watch",
     "toggle": "Toggle Agent Watch ({count} active)",
     "runningShort": "running",
+    "waitingShort": "waiting",
     "doneShort": "done",
     "emptyTitle": "No agent activity",
     "emptyHint": "AI tools (Claude Code, Codex, aider, …) emit OSC 9999 events into this pane to appear here. Run them through `dterm-watch` wrapper or update them to support D-Terminal directly.",
     "subagentOf": "subagent of {parent}",
-    "thinkingBlocks": "Reasoning ({count} blocks)"
+    "thinkingBlocks": "Reasoning ({count} blocks)",
+    "model": "Model",
+    "stopAgent": "Stop agent",
+    "stopHint": "Sends Ctrl+C (SIGINT) to terminal — interrupts the whole AI session, not just this agent"
   },
   "block": {
     "title": "Command Blocks",

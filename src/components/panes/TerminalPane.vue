@@ -545,6 +545,17 @@ function onSearchKey(e: KeyboardEvent) {
   }
 }
 
+/** Agent Watch sidebar'ından "Stop" basıldığında parent terminal'e SIGINT
+ *  (\x03 = Ctrl+C) gönder. Tek PTY var; bu, parent CLI'ın TÜM aktif
+ *  subagent'larını durdurur. UI tooltip'inde dürüstçe yazılı. */
+function onStopAgent(_agentId: string) {
+  void _agentId;
+  const myPtyId = panes.getLeaf(props.leaf.id)?.ptyId;
+  if (!myPtyId) return;
+  const sigint = new Uint8Array([0x03]);
+  api.ptyWrite(myPtyId, sigint).catch(() => {});
+}
+
 /** Multi-line güvenli paste — bracketed paste mode varsa shell input'u
  *  atomik alır, hiçbir satır Enter olarak yorumlanmaz. PSReadLine 2.x ve
  *  modern shell'ler destekler; cmd.exe desteklemez (her \r Enter olur,
@@ -863,6 +874,7 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
         v-if="agentView.visible"
         :pane-id="props.leaf.id"
         @close="agentWatch.setVisible(props.leaf.id, false)"
+        @stop-agent="onStopAgent"
       />
     </div>
 

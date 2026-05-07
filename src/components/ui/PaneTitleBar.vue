@@ -120,6 +120,7 @@ const broadcasting = computed(
 /** Agent Watch sidebar'ı bu pane için. Reactive view paneView'dan gelir. */
 const agentView = agentWatch.paneView(props.leaf.id);
 const agentRunning = computed(() => agentView.value.agents.some((a) => a.status === 'running'));
+const agentWaiting = computed(() => agentView.value.agents.some((a) => a.status === 'waiting'));
 function toggleAgentWatch() {
   agentWatch.toggleVisible(props.leaf.id);
 }
@@ -207,7 +208,8 @@ function toggleAgentWatch() {
       class="title-bar__agent"
       :class="{
         active: agentView.visible,
-        running: agentRunning,
+        running: agentRunning && !agentWaiting,
+        waiting: agentWaiting,
       }"
       :title="t('agentWatch.toggle', { count: agentView.agents.length })"
       @click.stop="toggleAgentWatch"
@@ -417,6 +419,13 @@ function toggleAgentWatch() {
   color: var(--color-green);
   border-color: var(--color-green);
   animation: titleAgentPulse 1.5s ease-in-out infinite;
+}
+/* Onay bekleniyor — sarı + daha hızlı pulse, dikkat çekici. */
+.title-bar__agent.waiting {
+  color: var(--color-yellow);
+  border-color: var(--color-yellow);
+  animation: titleAgentPulse 0.8s ease-in-out infinite;
+  text-shadow: 0 0 4px var(--color-yellow);
 }
 @keyframes titleAgentPulse {
   0%, 100% { opacity: 1; }
