@@ -21,10 +21,16 @@ pub struct SpawnArgs {
 
 #[tauri::command]
 pub fn pty_spawn(state: State<'_, AppState>, args: SpawnArgs) -> AppResult<String> {
+    // Profile cwd boşsa kullanıcının home dizini ile başlat — Windows
+    // PowerShell/CMD'in default davranışı (C:\Users\<name>). Aksi halde PTY
+    // parent process'in cwd'sini miras alırdı (dev mode'da repo dizini).
+    let cwd = args.cwd.filter(|s| !s.is_empty()).or_else(|| {
+        dirs::home_dir().and_then(|p| p.to_str().map(|s| s.to_string()))
+    });
     let payload = SpawnPayload {
         shell: args.shell,
         args: args.args,
-        cwd: args.cwd,
+        cwd,
         env: args.env,
         cols: args.cols,
         rows: args.rows,

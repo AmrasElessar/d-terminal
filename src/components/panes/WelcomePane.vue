@@ -34,12 +34,12 @@ const fullyRevealed = ref(false);
 let cursorTimer: number | undefined;
 let typeTimers: number[] = [];
 
-const LOGO = `██████╗      ████████╗
-██╔══██╗     ╚══██╔══╝
-██║  ██║━━━     ██║
-██║  ██║        ██║
-██████╔╝        ██║
-╚═════╝         ╚═╝`;
+const LOGO = `██████╗       ████████╗
+██╔══██╗      ╚══██╔══╝
+██║  ██║██████╗  ██║
+██║  ██║╚═════╝  ██║
+██████╔╝         ██║
+╚═════╝          ╚═╝`;
 
 const LOGO_LINES = LOGO.split('\n');
 

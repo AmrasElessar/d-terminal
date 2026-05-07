@@ -14,7 +14,7 @@
     "ok": "tamam"
   },
   "admin": {
-    "elevatedHint": "Bu uygulama yönetici yetkisiyle çalışıyor — açılan tüm pane'ler admin token miras alır."
+    "elevatedHint": "Bu uygulama yönetici yetkisiyle çalışıyor — açılan tüm paneller admin token miras alır."
   },
   "welcome": {
     "title": "Hoş geldin",
@@ -158,9 +158,9 @@
       "insertHint": "Komutu aktif terminale yapıştır, Enter göndermez",
       "execute": "Çalıştır (Ctrl+⏎)",
       "executeHint": "Aktif terminale yapıştır + Enter ile gönder",
-      "noTerminal": "Aktif bir terminal pane'i yok",
+      "noTerminal": "Aktif bir terminal paneli yok",
       "failed": "Üretim başarısız: {message}",
-      "hint": "Aktif pane tipi (PowerShell/CMD/WSL) için uygun komut üretir. Komutu görmeden çalıştırma."
+      "hint": "Aktif panel tipi (PowerShell/CMD/WSL) için uygun komut üretir. Komutu görmeden çalıştırma."
     }
   },
   "settings": {
@@ -209,7 +209,7 @@
       "adminRunningAsAdmin": "✓ Bu uygulama şu an yönetici yetkisiyle çalışıyor — winget upgrade, sistem servisleri, HKLM kayıt defteri yazma serbest.",
       "adminRunningAsUser": "Bu uygulama standart kullanıcı yetkisiyle çalışıyor. Yönetici gerektiren komutlar (örn. `winget upgrade --all`) bazı paketler için başarısız olabilir.",
       "adminRestart": "Yönetici olarak yeniden başlat",
-      "adminRestartConfirm": "D-Terminal kapatılıp UAC yetkisi ile yeniden açılacak. Açık tüm pane'lerin çalışan komutları sonlandırılacak. Devam edilsin mi?",
+      "adminRestartConfirm": "D-Terminal kapatılıp UAC yetkisi ile yeniden açılacak. Açık tüm panellerin çalışan komutları sonlandırılacak. Devam edilsin mi?",
       "adminRestartFail": "Yönetici olarak başlatma başarısız",
       "adminSudoHint": "Tek bir komut için tüm uygulamayı admin olarak açmak yerine sudo benzeri bir araç kullanabilirsin: Win 11 23H2+ kullanıcılar Settings → Sistem → Geliştiriciler altında built-in `sudo`'yu açabilir; Win 10 kullanıcıları için gsudo (gerardog/gsudo) önerilir.",
       "adminOpenDevSettings": "Win 11 sudo ayarlarını aç",
@@ -225,11 +225,11 @@
       "configImportOk": "{count} ayar içe aktarıldı — yeniden başlatma gerekebilir",
       "configImportFail": "İçe aktarma başarısız",
       "aiPrefixHash": "Boş prompt'ta # ile AI komut üretici aç (Warp paritesi)",
-      "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır.",
+      "aiPrefixHashHint": "Etkinse: terminal panelde boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır.",
       "dfetchPollInterval": "Welcome canlı stat yenileme (ms)",
-      "dfetchPollIntervalHint": "Welcome pane CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500.",
-      "autoSplitOnAgent": "Agent başlayınca pane'i otomatik böl",
-      "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında pane sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı."
+      "dfetchPollIntervalHint": "Karşılama paneli CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500.",
+      "autoSplitOnAgent": "Agent başlayınca paneli otomatik böl",
+      "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında panel sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı."
     },
     "appearance": {
       "theme": "Tema",
@@ -332,7 +332,7 @@
   },
   "newPane": {
     "title": "Yeni Panel",
-    "selectType": "Bir profil veya pane tipi seç",
+    "selectType": "Bir profil veya panel tipi seç",
     "shellLabel": "Shell",
     "cwdLabel": "Çalışma dizini",
     "cwdPlaceholder": "varsayılan: kullanıcı klasörü",
@@ -361,7 +361,7 @@
       "argsHint": "Boşluk ayraçlı; \"x y\" veya 'x y' ile içinde boşluk olan argüman.",
       "cwd": "Çalışma Dizini",
       "cwdPh": "C:\\Projeler veya boş bırak",
-      "paneType": "Pane Tipi (shell-init için)",
+      "paneType": "Panel Tipi (shell-init için)",
       "env": "Environment (KEY=VALUE / satır)",
       "color": "Renk Badge"
     }
@@ -390,8 +390,8 @@
     "broadcastHint": "Aktif tab'daki tüm terminal panellerine paralel klavye girişi (Ctrl+Shift+B)",
     "broadcastEnabledToast": "Yayın AÇIK — tuşlar {count} panele aynı anda gidiyor",
     "broadcastDisabledToast": "Yayın KAPALI",
-    "agentTokensHint": "Tüm pane'lerdeki AI agent'lar tarafından harcanan toplam token",
-    "agentCostHint": "Tüm AI agent'ların tahmini toplam maliyeti (her pane'in seçili modeline göre)"
+    "agentTokensHint": "Tüm panellerdeki AI agent'lar tarafından harcanan toplam token",
+    "agentCostHint": "Tüm AI agent'ların tahmini toplam maliyeti (her panelin seçili modeline göre)"
   },
   "about": {
     "title": "D-Terminal Hakkında",
@@ -477,16 +477,22 @@
     "waitingShort": "bekliyor",
     "doneShort": "tamam",
     "emptyTitle": "Aktivite yok",
-    "emptyHint": "AI tool'ları (Claude Code, Codex, aider, …) bu pane'e OSC 9999 event'i yayarsa burada görünür. `dterm-watch` wrapper ile sar veya araç D-Terminal'i direkt destekliyorsa otomatik çalışır.",
+    "emptyHint": "AI tool'ları (Claude Code, Codex, aider, …) bu panele OSC 9999 event'i yayarsa burada görünür. `dterm-watch` wrapper ile sar veya araç D-Terminal'i direkt destekliyorsa otomatik çalışır.",
     "subagentOf": "{parent} alt agent'ı",
     "thinkingBlocks": "Reasoning ({count} blok)",
     "model": "Model",
     "stopAgent": "Agent'ı durdur",
     "stopHint": "Terminal'e Ctrl+C (SIGINT) gönderir — sadece bu agent değil, tüm AI oturumunu durdurur",
-    "tokenCounterHint": "Bu pane'deki AI agent'lar tarafından harcanan token (maliyet tahminiyle)"
+    "tokenCounterHint": "Bu paneldeki AI agent'lar tarafından harcanan token (maliyet tahminiyle)"
   },
   "git": {
     "diffHint": "HEAD'e karşı kaydedilmemiş değişiklikler ({files} dosya)"
+  },
+  "window": {
+    "minimize": "Küçült",
+    "maximize": "Büyüt",
+    "restore": "Önceki Boyut",
+    "close": "Kapat"
   },
   "block": {
     "title": "Komut Blokları",

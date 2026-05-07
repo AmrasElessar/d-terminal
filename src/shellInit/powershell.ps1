@@ -16,6 +16,21 @@ function global:prompt {
   return "$end$cwd$osc7$start$head$body$cmd_start"
 }
 Clear-Host
-Write-Host "$([char]27)[36m┌─ D-Terminal session ready$([char]27)[0m  $([char]27)[38;5;243m($([char]27)[35mpwsh$([char]27)[38;5;243m, ConPTY, OSC 133)$([char]27)[0m"
-Write-Host "$([char]27)[38;5;243m└─ ❯ type a command, $([char]27)[36mGet-Help$([char]27)[38;5;243m for built-ins$([char]27)[0m"
+# D-Terminal banner — Splash ile aynı kalın D-T logosu, sürüm + ipucu.
+# 256-color ANSI: cyan logo + magenta versiyon + dim açıklama.
+$dtVersion = '0.9.1'
+$psVersion = $PSVersionTable.PSVersion.ToString()
+# $PSEdition built-in read-only değişken — case-insensitive collision; farklı isim:
+$dtPsEdition = $PSVersionTable.PSEdition
+Write-Host ""
+Write-Host "$([char]27)[36m  ██████╗     ████████╗$([char]27)[0m"
+Write-Host "$([char]27)[36m  ██╔══██╗    ╚══██╔══╝$([char]27)[0m"
+Write-Host "$([char]27)[36m  ██║  ██║━━━    ██║      $([char]27)[35mD-Terminal v$dtVersion$([char]27)[0m"
+Write-Host "$([char]27)[36m  ██████╔╝       ██║      $([char]27)[38;5;243mAgent-aware Windows terminal$([char]27)[0m"
+Write-Host "$([char]27)[36m  ╚═════╝        ╚═╝$([char]27)[0m"
+Write-Host ""
+Write-Host "$([char]27)[38;5;243m  PowerShell $psVersion  ·  $dtPsEdition  ·  ConPTY + OSC 133$([char]27)[0m"
+Write-Host "$([char]27)[38;5;243m  Copyright (c) 2026 Orhan Engin OKAY (D Brand) — MIT License$([char]27)[0m"
+Write-Host ""
+Write-Host "$([char]27)[38;5;243m  Type $([char]27)[36mGet-Help$([char]27)[38;5;243m for built-ins, $([char]27)[36mCtrl+Shift+P$([char]27)[38;5;243m for command palette.$([char]27)[0m"
 Write-Host ""
