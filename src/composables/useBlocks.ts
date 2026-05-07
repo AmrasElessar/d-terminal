@@ -5,6 +5,12 @@
 import { ref, type Ref } from 'vue';
 import { type CommandBlock, newBlock } from '@/types/block';
 
+/** Block output buffer üst sınırı — büyük log akışlarında (npm install,
+ *  cargo build) string'in sınırsız büyümesini engelle. V8'de string append
+ *  her seferinde yeni allocation + GC; bu sınır sürekli rotate ile baskıyı
+ *  bounded tutar. 256KB ekran scrollback'inden çok daha fazlasını hatırlar. */
+const MAX_OUTPUT_BYTES = 256 * 1024;
+
 export interface BlockTracker {
   blocks: Ref<CommandBlock[]>;
   /** Şu an aktif (çalışan veya prompt yazılan) block. */
@@ -95,8 +101,18 @@ export function createBlockTracker(): BlockTracker {
 
     onOutput(text: string) {
       if (!activeBlock) return;
-      // Output OSC marker'larını strip etmemize gerek yok — xterm zaten render etti
-      activeBlock.output += text;
+      // Output OSC marker'larını strip etmemize gerek yok — xterm zaten render etti.
+      // Rotate at MAX_OUTPUT_BYTES — büyük log akışlarında V8 GC baskısını önler.
+      // Yeni metin tek başına sınırı aşarsa direkt sondan al; aksi halde mevcut+yeni
+      // birlikte sınırı aşarsa baştan kırp.
+      if (text.length >= MAX_OUTPUT_BYTES) {
+        activeBlock.output = text.slice(text.length - MAX_OUTPUT_BYTES);
+      } else {
+        const combined = activeBlock.output + text;
+        activeBlock.output = combined.length > MAX_OUTPUT_BYTES
+          ? combined.slice(combined.length - MAX_OUTPUT_BYTES)
+          : combined;
+      }
       activeBlock.outputLineCount += (text.match(/\n/g) || []).length;
     },
 
