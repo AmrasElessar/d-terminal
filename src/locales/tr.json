@@ -485,6 +485,9 @@
     "stopHint": "Terminal'e Ctrl+C (SIGINT) gönderir — sadece bu agent değil, tüm AI oturumunu durdurur",
     "tokenCounterHint": "Bu pane'deki AI agent'lar tarafından harcanan token (maliyet tahminiyle)"
   },
+  "git": {
+    "diffHint": "HEAD'e karşı kaydedilmemiş değişiklikler ({files} dosya)"
+  },
   "block": {
     "title": "Komut Blokları",
     "empty": "Henüz komut çalıştırılmadı (OSC 133 marker bekliyor)",

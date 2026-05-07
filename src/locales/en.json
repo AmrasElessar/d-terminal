@@ -485,6 +485,9 @@
     "stopHint": "Sends Ctrl+C (SIGINT) to terminal — interrupts the whole AI session, not just this agent",
     "tokenCounterHint": "Tokens consumed by AI agents in this pane (with cost estimate)"
   },
+  "git": {
+    "diffHint": "Uncommitted changes vs HEAD ({files} file(s))"
+  },
   "block": {
     "title": "Command Blocks",
     "empty": "No commands executed yet (waiting for OSC 133 markers)",

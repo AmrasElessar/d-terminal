@@ -165,6 +165,7 @@ pub fn run() {
             commands::dfetch::dfetch_get,
             commands::dfetch::dfetch_live,
             commands::dfetch::dfetch_save_snapshot,
+            commands::git_stat::git_diff_shortstat,
             // Themes
             commands::themes::themes_list,
             commands::themes::themes_save_user,

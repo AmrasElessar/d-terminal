@@ -27,6 +27,12 @@ import { useTriggersStore } from '@/stores/triggers';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { parseAgentEvent } from '@/types/agent';
 import { feedAgentDetector, feedAgentDetectorChunk, clearAgentDetectorState } from '@/composables/useAgentDetector';
+import {
+  setPaneCwd,
+  startGitStatPolling,
+  clearGitStatState,
+  parseOsc7CwdPayload,
+} from '@/composables/useGitStat';
 import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
 import { formatError } from '@/utils/error';
@@ -702,6 +708,16 @@ onMounted(async () => {
     return true;
   });
 
+  // OSC 7 — current working directory bildirimi (modern shell'lerde standard).
+  // D-Terminal git diff tracking bunu kullanır; PowerShell init script'i her
+  // prompt'ta yayınlar. Format: file://hostname/path
+  // Return false → xterm de görsün (başka tüketici varsa, normalde no-op).
+  term.parser.registerOscHandler(7, (data) => {
+    const path = parseOsc7CwdPayload(data);
+    if (path) setPaneCwd(props.leaf.id, path);
+    return false;
+  });
+
   // Scrollback navigation mode + Multi-line paste için custom key handler —
   // return false PTY'ye tuşun gitmesini bloklar.
   term.attachCustomKeyEventHandler((event) => {
@@ -749,6 +765,10 @@ onMounted(async () => {
     paneResizeObserver.observe(container.value);
   }
   await spawn();
+  // Git diff tracking — OSC 7 ile cwd geldikçe `setPaneCwd` çağrılır;
+  // poller arka planda 10sn'de bir refresh eder. TerminalPane zaten yalnızca
+  // PTY'li tipler için mount edilir (powershell/cmd/wsl), ek koşula gerek yok.
+  startGitStatPolling(props.leaf.id);
 });
 
 onBeforeUnmount(() => {
@@ -769,6 +789,7 @@ onBeforeUnmount(() => {
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
   clearAgentDetectorState(props.leaf.id);
+  clearGitStatState(props.leaf.id);
 
   // PTY hâlâ canlıysa (split kapatma sonrası tree restructure) buffer'ı
   // cache'le ki remount'ta replay edilsin. PTY ölmüşse cache'lemenin anlamı yok.

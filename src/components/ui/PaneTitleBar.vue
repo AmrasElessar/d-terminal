@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import { usePanesStore } from '@/stores/panes';
 import { useAgentWatchStore } from '@/stores/agentWatch';
+import { gitStatRef } from '@/composables/useGitStat';
 
 const panes = usePanesStore();
 const agentWatch = useAgentWatchStore();
@@ -145,6 +146,13 @@ const agentCounterText = computed(() => {
 function toggleAgentWatch() {
   agentWatch.toggleVisible(props.leaf.id);
 }
+
+/** Git diff +/- chip — sadece terminal pane'lerinde (PTY var) ve repo
+ *  içindeyken görünür. OSC 7 ile cwd alındıktan sonra populate olur. */
+const gitStat = gitStatRef(props.leaf.id);
+const showGitStat = computed(
+  () => gitStat.value.is_repo && (gitStat.value.added > 0 || gitStat.value.removed > 0),
+);
 </script>
 
 <template>
@@ -223,6 +231,14 @@ function toggleAgentWatch() {
 #
 </button>
 
+    <span
+      v-if="showGitStat"
+      class="title-bar__git"
+      :title="t('git.diffHint', { files: gitStat.files })"
+    >
+      <span class="title-bar__git-add" v-if="gitStat.added > 0">+{{ gitStat.added }}</span>
+      <span class="title-bar__git-rem" v-if="gitStat.removed > 0">-{{ gitStat.removed }}</span>
+    </span>
     <span
       v-if="agentCounterText"
       class="title-bar__counter"
@@ -421,6 +437,21 @@ function toggleAgentWatch() {
   width: 90px;
   height: 14px;
 }
+/* Git diff +/- chip — terminal pane working dir'i bir git repo ve değişiklik
+   varsa göster. PowerShell init script OSC 7 ile cwd yayar, backend git
+   diff --shortstat çağrır, polling 10sn'de bir refresh. */
+.title-bar__git {
+  display: inline-flex;
+  gap: 5px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+  border-radius: 2px;
+  cursor: help;
+}
+.title-bar__git-add { color: var(--color-green); }
+.title-bar__git-rem { color: var(--color-red);   }
 /* Token + cost mini sayacı — agent var ve token > 0 olduğunda görünür.
    Title bar'da gerçek estate kazanmadan AI session metrikleri verir. */
 .title-bar__counter {

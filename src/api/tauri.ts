@@ -103,6 +103,11 @@ export const api = {
   dfetchLive: () => invoke<LiveStats>('dfetch_live'),
   dfetchSaveSnapshot: (path: string, bytes: number[]) =>
     invoke<void>('dfetch_save_snapshot', { path, bytes }),
+  gitDiffShortstat: (path: string) =>
+    invoke<{ files: number; added: number; removed: number; is_repo: boolean }>(
+      'git_diff_shortstat',
+      { path },
+    ),
 
   // Themes
   themesList: () => invoke<ThemeFile[]>('themes_list'),
