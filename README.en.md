@@ -206,6 +206,20 @@ D-Terminal is the Windows arm of the D Brand family. Members are inspired by the
 - **D-Watchtower** — surveillance and monitoring platform *(in development)*
 - **D-Terminal** — Windows agent-aware terminal *(this project, pre-alpha)*
 
+## 💖 Sponsors
+
+D-Terminal is open source (MIT) and actively developed. Sponsorships translate directly into **new app development** — six more ideas in the queue.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-AmrasElessar-db61a2?logo=githubsponsors)](https://github.com/sponsors/AmrasElessar)
+
+<!-- SPONSORS:HERO -->
+<!-- Hero tier ($25/mo) sponsors are pinned here -->
+<!-- /SPONSORS:HERO -->
+
+<!-- SPONSORS:LIST -->
+<sub>No sponsors yet. **Be the first →** [github.com/sponsors/AmrasElessar](https://github.com/sponsors/AmrasElessar)</sub>
+<!-- /SPONSORS:LIST -->
+
 ## License
 
 MIT © Orhan Engin OKAY — see [LICENSE](./LICENSE)

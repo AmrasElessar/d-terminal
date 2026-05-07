@@ -206,6 +206,20 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 - **D-Watchtower** — gözetim ve izleme platformu *(geliştirme aşamasında)*
 - **D-Terminal** — Windows agent-aware terminal *(bu proje, pre-alpha)*
 
+## 💖 Sponsorlar
+
+D-Terminal açık kaynak (MIT) ve sürekli geliştiriliyor. Sponsorluk doğrudan **yeni uygulama geliştirmeye** dönüşür — yapılacaklar listesinde 6 fikir daha var.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-AmrasElessar-db61a2?logo=githubsponsors)](https://github.com/sponsors/AmrasElessar)
+
+<!-- SPONSORS:HERO -->
+<!-- Hero tier ($25/ay) sponsorları buraya pinlenir -->
+<!-- /SPONSORS:HERO -->
+
+<!-- SPONSORS:LIST -->
+<sub>Henüz sponsor yok. **İlk sponsor sen olabilirsin →** [github.com/sponsors/AmrasElessar](https://github.com/sponsors/AmrasElessar)</sub>
+<!-- /SPONSORS:LIST -->
+
 ## Lisans
 
 MIT © Orhan Engin OKAY — bkz. [LICENSE](./LICENSE)

@@ -5,6 +5,12 @@ import { api } from '@/api/tauri';
 import type { SystemInfo } from '@/types/events';
 import { useDialogA11y } from '@/composables/useDialogA11y';
 import { APP_VERSION } from '@/version';
+import { SPONSORS, type SponsorTier } from '@/data/sponsors';
+
+const TIER_ORDER: Record<SponsorTier, number> = { hero: 0, patron: 1, backer: 2, coffee: 3 };
+const sortedSponsors = computed(() =>
+  [...SPONSORS].sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier]),
+);
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -88,7 +94,8 @@ void props.open;
       <section class="section">
         <h3>{{ t('about.author') }}</h3>
         <p><strong>Orhan Engin OKAY</strong> · D Brand</p>
-        <p class="muted">D-Player · DCar Launcher · D-Terminal</p>
+        <p class="muted">{{ t('about.platformAndroid') }}: D-Car Launcher · D-Player · D-Watchtower</p>
+        <p class="muted">{{ t('about.platformWindows') }}: D-Terminal · AdminPDFToolkit</p>
       </section>
 
       <section class="section">
@@ -99,6 +106,33 @@ void props.open;
       <section class="section">
         <h3>{{ t('about.repo') }}</h3>
         <p><a href="https://github.com/AmrasElessar/d-terminal" target="_blank" rel="noopener">github.com/AmrasElessar/d-terminal</a></p>
+      </section>
+
+      <section class="section sponsor">
+        <h3>{{ t('about.sponsor') }}</h3>
+        <p class="muted">{{ t('about.sponsorHint') }}</p>
+        <a
+          class="sponsor-btn"
+          href="https://github.com/sponsors/AmrasElessar"
+          target="_blank"
+          rel="noopener"
+        >
+          ♥ {{ t('about.sponsorButton') }}
+        </a>
+
+        <div class="sponsor-list">
+          <h4 class="sponsor-list__title">{{ t('about.sponsorListTitle') }}</h4>
+          <p v-if="sortedSponsors.length === 0" class="muted small-note">
+            {{ t('about.sponsorListEmpty') }}
+          </p>
+          <ul v-else class="sponsor-list__items">
+            <li v-for="s in sortedSponsors" :key="s.name" :class="`sponsor-item sponsor-item--${s.tier}`">
+              <a v-if="s.url" :href="s.url" target="_blank" rel="noopener">{{ s.name }}</a>
+              <span v-else>{{ s.name }}</span>
+              <span class="sponsor-tier">{{ t(`about.tier.${s.tier}`) }}</span>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section v-if="logPaths" class="section">
@@ -249,4 +283,66 @@ void props.open;
   color: var(--color-dim);
   margin: 2px 0;
 }
+.sponsor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(90deg, color-mix(in srgb, #db61a2 80%, transparent), color-mix(in srgb, #b04fff 80%, transparent));
+  color: #fff !important;
+  text-decoration: none !important;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.sponsor-btn:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+.sponsor-list {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-line);
+}
+.sponsor-list__title {
+  margin: 0 0 6px 0;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-dim);
+}
+.small-note { font-size: 11px; }
+.sponsor-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+}
+.sponsor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sponsor-item a {
+  color: var(--color-fg);
+}
+.sponsor-tier {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--color-line);
+  color: var(--color-dim);
+}
+.sponsor-item--hero   .sponsor-tier { color: #f4c542; border-color: #f4c542; }
+.sponsor-item--patron .sponsor-tier { color: #b04fff; border-color: #b04fff; }
+.sponsor-item--backer .sponsor-tier { color: #db61a2; border-color: #db61a2; }
+.sponsor-item--coffee .sponsor-tier { color: var(--color-accent); border-color: var(--color-accent); }
 </style>

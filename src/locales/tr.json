@@ -410,7 +410,20 @@
     "logs": "Log Dosyası",
     "copyLogPath": "Log yolunu kopyala",
     "credits": "Krediler",
-    "bundledFonts": "Dahili Fontlar"
+    "bundledFonts": "Dahili Fontlar",
+    "platformAndroid": "Android",
+    "platformWindows": "Windows",
+    "sponsor": "Destek",
+    "sponsorHint": "D-Terminal açık kaynak (MIT), ücretsiz ve sürekli geliştiriliyor. GitHub Sponsors üzerinden destek olabilirsin — sponsorluk doğrudan yeni uygulama geliştirmeye dönüşür. Yapılacaklar listesinde 6 fikir daha var.",
+    "sponsorButton": "GitHub Sponsors",
+    "sponsorListTitle": "Mevcut Sponsorlar",
+    "sponsorListEmpty": "Henüz sponsor yok. İlk sponsor sen olabilirsin →",
+    "tier": {
+      "coffee": "Coffee",
+      "backer": "Backer",
+      "patron": "Patron",
+      "hero": "Hero"
+    }
   },
   "quake": {
     "hint": "F1 ile pencereyi gizle/göster"
