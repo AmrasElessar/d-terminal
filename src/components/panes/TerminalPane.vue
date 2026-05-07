@@ -26,7 +26,7 @@ import { createSmartLinkProvider } from '@/composables/useSmartLinks';
 import { useTriggersStore } from '@/stores/triggers';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { parseAgentEvent } from '@/types/agent';
-import { feedAgentDetector, clearAgentDetectorState } from '@/composables/useAgentDetector';
+import { feedAgentDetector, feedAgentDetectorChunk, clearAgentDetectorState } from '@/composables/useAgentDetector';
 import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
 import { formatError } from '@/utils/error';
@@ -160,15 +160,19 @@ const ANSI_RE = new RegExp(`${_ESC}\\[[0-9;?]*[a-zA-Z]|${_ESC}\\][^${_BEL}]*${_B
 let pendingLine = '';
 function feedTriggers(text: string) {
   if (!text) return;
-  pendingLine += text.replace(ANSI_RE, '');
+  const stripped = text.replace(ANSI_RE, '');
+  pendingLine += stripped;
+  // Chunk-bazlı paralel agent detector — TUI cursor positioning ile redraw
+  // edildiğinde \n boundary olmayabilir, line-bazlı parser kaçırır. Bu hook
+  // her chunk'ta çalışır, dedup state.activeByName ile garantide.
+  feedAgentDetectorChunk(stripped, props.leaf.id);
   if (!pendingLine.includes('\n')) return;
   const parts = pendingLine.split('\n');
   pendingLine = parts.pop() ?? '';
   for (const line of parts) {
     if (line.length === 0) continue;
     triggers.matchLine(line, props.leaf.id, props.leaf.type);
-    // Heuristic agent detector — Claude Code/Codex pattern'lerini AgentEvent'e
-    // çevirir. Conservative pattern'ler kullanır, false positive nadir.
+    // Generic patterns için (chunk detector'da yakalanmayan format'lar):
     feedAgentDetector(line, props.leaf.id);
   }
 }

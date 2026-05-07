@@ -78,48 +78,23 @@ const AGENT_END_PATTERNS: RegExp[] = [
 
 const TOKEN_PATTERN = /\(?(\d+(?:[.,]\d+)?)\s*([Kk]?)\s*(?:tokens?|tok)\b/;
 
-/** Claude Code paralel batch özet satırı:
+/** Claude Code paralel batch satırı:
  *    `   ├ <id>: <description> · <N> tool uses · <X>k tokens`
- *  Ya da son satır için `└` marker.
- *  Group 1: agent id (örn. opus-perf-cleanup)
- *  Group 2: description
- *  Group 3: token sayısı
- *  Group 4: opsiyonel K/k suffix */
-const PARALLEL_AGENT_ROW = /^\s*[├└]\s+([\w.-]+):\s+(.+?)\s+·\s+\d+\s+tool uses?\s+·\s+([\d.]+)\s*([Kk])?\s+tokens?/;
+ *  Hem RUNNING hem FINISHED durumda aynı format. TUI cursor positioning ile
+ *  redraw edildiği için stream'de \n boundary olmayabilir → anchor YOK,
+ *  global flag (g) ile chunk içinde tüm match'ler bulunur. */
+const PARALLEL_AGENT_ROW = /[├└]\s+([\w.-]+):\s+(.+?)\s+·\s+\d+\s+tool uses?\s+·\s+([\d.]+)\s*([Kk])?\s+tokens?/g;
 
 /** Tek satırı işle, detected event'leri döndür.
- *  Yan etki: state.activeByName güncellenir. */
+ *  Yan etki: state.activeByName güncellenir.
+ *  Paralel batch satırları artık chunk-bazlı (feedAgentDetectorChunk)
+ *  — bu fonksiyon hâlâ generic patterns için çağrılır. */
 export function detectAgentEventsFromLine(
   line: string,
   state: DetectorState,
 ): AgentEvent[] {
   const events: AgentEvent[] = [];
   if (!line) return events;
-
-  // — Paralel batch row (öncelikli, en güvenilir pattern) —
-  // Tek bir satırda agent için start+tokens+end üç olayı birden sentezle.
-  // Bu Claude Code'un post-hoc summary block formatıdır; agent zaten bitmiş
-  // olur ama sidebar/auto-split en azından kaydı tutar.
-  const par = PARALLEL_AGENT_ROW.exec(line);
-  if (par) {
-    const id = par[1]!.trim();
-    const name = `${id}: ${par[2]!.trim()}`;
-    const num = parseFloat(par[3]!.replace(',', '.'));
-    const kSuffix = par[4]?.toLowerCase() === 'k';
-    const total = Math.round(kSuffix ? num * 1000 : num);
-    if (!state.activeByName.has(id)) {
-      state.activeByName.set(id, id);
-      events.push({ k: 'start', id, name });
-      if (total > 0) events.push({ k: 'tokens', id, out: total });
-      // Başaltı satırı (`⎿ Done`) ayrı bir match olarak gelse de bu satırı
-      // işlerken end'i de hemen işaretle — özet bloğunda agent zaten bitmiş.
-      events.push({ k: 'end', id, status: 'ok' });
-      // active'den temizle ki sonraki ⎿ Done end pattern'i yanlış agent'ı
-      // bitirmesin.
-      state.activeByName.delete(id);
-    }
-    return events;
-  }
 
   // — Generic start (varsayımsal pattern'ler) —
   for (const re of AGENT_START_PATTERNS) {
@@ -148,9 +123,9 @@ export function detectAgentEventsFromLine(
     break;
   }
 
-  // — Token info (sadece active agent varsa, parallel row dışında) —
+  // — Token info (sadece active agent varsa) —
   const tokMatch = TOKEN_PATTERN.exec(line);
-  if (tokMatch && state.activeByName.size > 0 && !par) {
+  if (tokMatch && state.activeByName.size > 0) {
     const num = parseFloat(tokMatch[1]!.replace(',', '.'));
     const kSuffix = tokMatch[2]?.toLowerCase() === 'k';
     const total = Math.round(kSuffix ? num * 1000 : num);
@@ -163,11 +138,57 @@ export function detectAgentEventsFromLine(
   return events;
 }
 
+/** Chunk-bazlı paralel batch detector — tüm metni tarayıp agent satırlarını
+ *  bulur. TUI redraw'da \n olmayabilir; bu yüzden line-bazlı yerine global
+ *  regex ile tüm chunk'ı ararız. State.activeByName her id için dedup yapar.
+ *  TerminalPane chunk geldikçe bunu çağırır. */
+export function detectParallelAgentRows(
+  text: string,
+  state: DetectorState,
+): AgentEvent[] {
+  const events: AgentEvent[] = [];
+  if (!text) return events;
+  // Global regex — yeni `matchAll` ile tüm match'leri yakala
+  PARALLEL_AGENT_ROW.lastIndex = 0;
+  for (const par of text.matchAll(PARALLEL_AGENT_ROW)) {
+    const id = par[1]!.trim();
+    const desc = par[2]!.trim();
+    const name = `${id}: ${desc}`;
+    const num = parseFloat(par[3]!.replace(',', '.'));
+    const kSuffix = par[4]?.toLowerCase() === 'k';
+    const total = Math.round(kSuffix ? num * 1000 : num);
+    // Yeni agent: start + tokens dispatch et
+    if (!state.activeByName.has(id)) {
+      state.activeByName.set(id, id);
+      events.push({ k: 'start', id, name });
+      if (total > 0) events.push({ k: 'tokens', id, out: total });
+    } else if (total > 0) {
+      // Aynı agent — token sayısı arttıysa update (Claude Code redraw'da
+      // yeni token sayısı gelir).
+      events.push({ k: 'tokens', id, out: total });
+    }
+  }
+  return events;
+}
+
 /** Public hook: TerminalPane'in line stream'inden çağrılır.
  *  agentWatch store'una event dispatch eder. */
 export function feedAgentDetector(line: string, paneId: string) {
   const state = getState(paneId);
   const events = detectAgentEventsFromLine(line, state);
+  if (events.length === 0) return;
+  const watcher = useAgentWatchStore();
+  for (const ev of events) {
+    watcher.dispatch(paneId, ev);
+  }
+}
+
+/** Chunk-bazlı public hook — TUI redraw senaryolarında \n boundary olmadan
+ *  da paralel agent satırlarını yakalar. ANSI strip'ten sonraki HAM chunk
+ *  ile çağrılır (line-buffered olmamış). */
+export function feedAgentDetectorChunk(text: string, paneId: string) {
+  const state = getState(paneId);
+  const events = detectParallelAgentRows(text, state);
   if (events.length === 0) return;
   const watcher = useAgentWatchStore();
   for (const ev of events) {
