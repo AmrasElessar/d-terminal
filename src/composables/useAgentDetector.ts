@@ -42,27 +42,50 @@ export function clearAgentDetectorState(paneId: string) {
 
 // ── Pattern'ler ─────────────────────────────────────────────────────────────
 //
-// Claude Code visible output (gözleme dayalı, sürüm-spesifik olabilir):
-//   ● Agent(Refactor types in foo.ts)
-//     ⎿  ...
-//   ⏺ Task(Search docs)
+// Claude Code visible output (gözlenmiş, sürüm-spesifik olabilir):
+//
+// 1) Çalışırken tek agent çağrısı (varsayım, doğrulanmamış):
+//      ● Agent(Refactor types in foo.ts)
+//      ⏺ Task(Search docs)
+//
+// 2) Paralel batch — agent'lar bittikten sonra TEK BLOK olarak çıkar:
+//      3 agents finished (ctrl+o to expand)
+//         ├ opus-perf-cleanup: Interval/listener cleanup fix · 39 tool uses · 42.5k tokens
+//         │ ⎿  Done
+//         ├ opus-perf-firestore: N+1 Firestore Promise.all fix · 16 tool uses · 73.1k tokens
+//         │ ⎿  Done
+//         └ opus-code-quality: Silent catches + dead buttons fix · 13 tool uses · 41.7k tokens
+//           ⎿  Done
+//
+//    Her ├ veya └ satırı bir agent'ı temsil eder. Detector bu bloğu görünce
+//    her agent için retroactive start+tokens+end event'leri sentezler — yani
+//    sidebar/auto-split run BİTTİKTEN sonra populate olur (canlı değil ama
+//    en azından kayıt tutulur).
 //
 // Pattern'ler runtime'da inşa — no-control-regex literal regex'i hedefler.
+
 const AGENT_START_PATTERNS: RegExp[] = [
   // ● veya ⏺ marker + Agent/Task( name )
   /[●⏺]\s+(?:Agent|Task)\s*\(\s*(.+?)\s*\)/,
-  // Claude Code subagent dispatching: "Running N agents in parallel:" sonrası
-  // genelde sıralı agent başlıkları gelir. Bu pattern paralel dispatch'in
-  // birinci satırını tespit eder.
+  // Claude Code subagent dispatching: "Running N agents in parallel:"
   /Running\s+(\d+)\s+agents?\s+in\s+parallel/i,
 ];
 
 const AGENT_END_PATTERNS: RegExp[] = [
-  // Claude Code completion: ⎿  Done (3.2k tokens, 4.1s)
+  // Claude Code completion: ⎿  Done
   /⎿\s+(?:Done|Complete|Finished)/i,
 ];
 
 const TOKEN_PATTERN = /\(?(\d+(?:[.,]\d+)?)\s*([Kk]?)\s*(?:tokens?|tok)\b/;
+
+/** Claude Code paralel batch özet satırı:
+ *    `   ├ <id>: <description> · <N> tool uses · <X>k tokens`
+ *  Ya da son satır için `└` marker.
+ *  Group 1: agent id (örn. opus-perf-cleanup)
+ *  Group 2: description
+ *  Group 3: token sayısı
+ *  Group 4: opsiyonel K/k suffix */
+const PARALLEL_AGENT_ROW = /^\s*[├└]\s+([\w.-]+):\s+(.+?)\s+·\s+\d+\s+tool uses?\s+·\s+([\d.]+)\s*([Kk])?\s+tokens?/;
 
 /** Tek satırı işle, detected event'leri döndür.
  *  Yan etki: state.activeByName güncellenir. */
@@ -73,7 +96,32 @@ export function detectAgentEventsFromLine(
   const events: AgentEvent[] = [];
   if (!line) return events;
 
-  // Start
+  // — Paralel batch row (öncelikli, en güvenilir pattern) —
+  // Tek bir satırda agent için start+tokens+end üç olayı birden sentezle.
+  // Bu Claude Code'un post-hoc summary block formatıdır; agent zaten bitmiş
+  // olur ama sidebar/auto-split en azından kaydı tutar.
+  const par = PARALLEL_AGENT_ROW.exec(line);
+  if (par) {
+    const id = par[1]!.trim();
+    const name = `${id}: ${par[2]!.trim()}`;
+    const num = parseFloat(par[3]!.replace(',', '.'));
+    const kSuffix = par[4]?.toLowerCase() === 'k';
+    const total = Math.round(kSuffix ? num * 1000 : num);
+    if (!state.activeByName.has(id)) {
+      state.activeByName.set(id, id);
+      events.push({ k: 'start', id, name });
+      if (total > 0) events.push({ k: 'tokens', id, out: total });
+      // Başaltı satırı (`⎿ Done`) ayrı bir match olarak gelse de bu satırı
+      // işlerken end'i de hemen işaretle — özet bloğunda agent zaten bitmiş.
+      events.push({ k: 'end', id, status: 'ok' });
+      // active'den temizle ki sonraki ⎿ Done end pattern'i yanlış agent'ı
+      // bitirmesin.
+      state.activeByName.delete(id);
+    }
+    return events;
+  }
+
+  // — Generic start (varsayımsal pattern'ler) —
   for (const re of AGENT_START_PATTERNS) {
     const m = re.exec(line);
     if (!m) continue;
@@ -81,7 +129,7 @@ export function detectAgentEventsFromLine(
     const name = m[1] && !/^\d+$/.test(m[1])
       ? m[1].trim()
       : `Parallel batch (${m[1]})`;
-    if (state.activeByName.has(name)) break; // zaten aktif
+    if (state.activeByName.has(name)) break;
     state.counter += 1;
     const id = `heur-${state.counter}-${Date.now().toString(36)}`;
     state.activeByName.set(name, id);
@@ -89,11 +137,9 @@ export function detectAgentEventsFromLine(
     break;
   }
 
-  // End
+  // — Generic end —
   for (const re of AGENT_END_PATTERNS) {
     if (!re.test(line)) continue;
-    // En son aktif olan agent'ı bitir (LIFO yaklaşımı — Claude Code'da
-    // agent'lar genellikle sırayla biter; doğru olmayan eşleşme nadir).
     const last = [...state.activeByName.entries()].pop();
     if (!last) break;
     const [name, id] = last;
@@ -102,15 +148,14 @@ export function detectAgentEventsFromLine(
     break;
   }
 
-  // Token info — son aktif agent'ın token'ı olarak işle
+  // — Token info (sadece active agent varsa, parallel row dışında) —
   const tokMatch = TOKEN_PATTERN.exec(line);
-  if (tokMatch && state.activeByName.size > 0) {
+  if (tokMatch && state.activeByName.size > 0 && !par) {
     const num = parseFloat(tokMatch[1]!.replace(',', '.'));
     const kSuffix = tokMatch[2]?.toLowerCase() === 'k';
     const total = Math.round(kSuffix ? num * 1000 : num);
     const last = [...state.activeByName.values()].pop();
     if (last) {
-      // Heuristic: tüm token sayısı output sayılır (input bilinmez)
       events.push({ k: 'tokens', id: last, out: total });
     }
   }
