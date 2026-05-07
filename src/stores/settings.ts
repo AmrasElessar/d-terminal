@@ -52,6 +52,12 @@ export interface SettingsState {
    *  otomatik olarak yan pane aç (agentView). Mac terminal benzeri çoklu-agent
    *  görünümü; default off — opt-in çünkü bazı kullanıcılar split istemez. */
   autoSplitOnAgent: boolean;
+  /** Otomatik güncelleme davranışı.
+   *  - notify: yeni sürüm var → toast bildir, kullanıcı manuel başlatır.
+   *  - download-wait: arka planda indir → bittiğinde "kapatınca yüklensin?" sor.
+   *  - auto: indir + quit'te otomatik kur (sormadan).
+   *  - off: hiç check etme. */
+  updateMode: 'off' | 'notify' | 'download-wait' | 'auto';
 }
 
 const DEFAULTS: SettingsState = {
@@ -75,6 +81,7 @@ const DEFAULTS: SettingsState = {
   aiCustomEndpoint: '',
   dfetchPollIntervalMs: 1500,
   autoSplitOnAgent: false,
+  updateMode: 'notify',
 };
 
 const KEY_PREFIX = 'ui.';

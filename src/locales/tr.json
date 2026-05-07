@@ -229,7 +229,16 @@
       "dfetchPollInterval": "Welcome canlı stat yenileme (ms)",
       "dfetchPollIntervalHint": "Karşılama paneli CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500.",
       "autoSplitOnAgent": "Agent başlayınca paneli otomatik böl",
-      "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında panel sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı."
+      "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında panel sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı.",
+      "updateSection": "Otomatik Güncelleme",
+      "updateMode": "Güncelleme davranışı",
+      "updateModeHint": "Yeni sürüm yayınlandığında D-Terminal nasıl davransın? Açılışta + 24 saatte bir kontrol edilir. ARM ve x64 için doğru paket otomatik seçilir.",
+      "updateModeOff": "Kapalı (hiç kontrol etme)",
+      "updateModeNotify": "Sadece bildir — kullanıcı manuel başlatır",
+      "updateModeDownloadWait": "Sessizce indir — kapatınca kurulum sor",
+      "updateModeAuto": "Otomatik indir + kur (sormadan)",
+      "updateCheckNow": "Şimdi kontrol et",
+      "updateChecking": "Kontrol ediliyor…"
     },
     "appearance": {
       "theme": "Tema",
@@ -584,6 +593,19 @@
   },
   "toast": {
     "dismiss": "Kapat"
+  },
+  "update": {
+    "available": "Yeni sürüm hazır: v{version}",
+    "upToDate": "D-Terminal güncel",
+    "checkFailed": "Güncelleme kontrolü başarısız",
+    "downloading": "İndiriliyor: v{version}…",
+    "downloadingBackground": "Sessizce indiriliyor: v{version}",
+    "readyInstall": "v{version} indirildi — yüklemek için yeniden başlat",
+    "installNow": "İndir & Yükle",
+    "installAndRestart": "Yükle ve yeniden başlat",
+    "later": "Sonra",
+    "installed": "Güncelleme yüklendi, yeniden başlatılıyor…",
+    "failed": "Güncelleme başarısız"
   },
   "common": {
     "ok": "Tamam",

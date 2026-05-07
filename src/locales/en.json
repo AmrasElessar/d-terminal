@@ -229,7 +229,16 @@
       "dfetchPollInterval": "Welcome live stats refresh (ms)",
       "dfetchPollIntervalHint": "Welcome pane updates CPU%, RAM, network throughput, battery on this interval. 0 = disabled (static). Min 500ms. Default 1500.",
       "autoSplitOnAgent": "Auto-split pane when agent starts",
-      "autoSplitOnAgentHint": "When an AI agent (OSC 9999 start event or detected from Claude Code output) begins, automatically split the pane to the right with a read-only Agent view. Mac terminal-style multi-agent layout. Default off."
+      "autoSplitOnAgentHint": "When an AI agent (OSC 9999 start event or detected from Claude Code output) begins, automatically split the pane to the right with a read-only Agent view. Mac terminal-style multi-agent layout. Default off.",
+      "updateSection": "Auto Update",
+      "updateMode": "Update behavior",
+      "updateModeHint": "What should D-Terminal do when a new version is published? Checked at startup and every 24h. ARM and x64 builds are picked automatically.",
+      "updateModeOff": "Off (do not check)",
+      "updateModeNotify": "Notify only — user starts manually",
+      "updateModeDownloadWait": "Download silently — ask to install on quit",
+      "updateModeAuto": "Auto download + install (no prompt)",
+      "updateCheckNow": "Check now",
+      "updateChecking": "Checking…"
     },
     "appearance": {
       "theme": "Theme",
@@ -584,6 +593,19 @@
   },
   "toast": {
     "dismiss": "Dismiss"
+  },
+  "update": {
+    "available": "Update available: v{version}",
+    "upToDate": "D-Terminal is up to date",
+    "checkFailed": "Update check failed",
+    "downloading": "Downloading v{version}…",
+    "downloadingBackground": "Downloading silently: v{version}",
+    "readyInstall": "v{version} downloaded — restart to install",
+    "installNow": "Download & Install",
+    "installAndRestart": "Install & Restart",
+    "later": "Later",
+    "installed": "Update installed, restarting…",
+    "failed": "Update failed"
   },
   "common": {
     "ok": "OK",

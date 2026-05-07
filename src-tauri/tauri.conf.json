@@ -61,12 +61,13 @@
   },
   "plugins": {
     "updater": {
-      "active": false,
       "endpoints": [
-        "https://github.com/engin-demirel/d-terminal/releases/latest/download/update.json"
+        "https://github.com/AmrasElessar/d-terminal/releases/latest/download/latest.json"
       ],
-      "dialog": false,
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVEMzg0OTM4MDFBQjkwMDMKUldRRGtLc0JPRWs0WGY5YjNlRTYwdVZwbjd0ZTc1TmJWR1F3cGRiS3d2aVhENG51TmNWTmpEeTAK",
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

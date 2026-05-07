@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { useToastsStore } from '@/stores/toasts';
+import { useToastsStore, type Toast, type ToastAction } from '@/stores/toasts';
 
 const toasts = useToastsStore();
 const { t } = useI18n();
+
+async function runAction(toast: Toast, action: ToastAction) {
+  const result = await action.handler();
+  if (result !== false) toasts.dismiss(toast.id);
+}
 </script>
 
 <template>
@@ -17,6 +22,18 @@ const { t } = useI18n();
         role="status"
       >
         <span class="toast__msg">{{ toast.message }}</span>
+        <div v-if="toast.actions?.length" class="toast__actions">
+          <button
+            v-for="action in toast.actions"
+            :key="action.label"
+            type="button"
+            class="toast__action"
+            :class="{ 'toast__action--primary': action.primary }"
+            @click="runAction(toast, action)"
+          >
+            {{ action.label }}
+          </button>
+        </div>
         <button
           type="button"
           class="toast__dismiss"
@@ -78,4 +95,31 @@ const { t } = useI18n();
   opacity: 0.5;
 }
 .toast__dismiss:hover { opacity: 1; }
+.toast__actions {
+  display: flex;
+  gap: 6px;
+}
+.toast__action {
+  background: transparent;
+  color: var(--color-fg);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 20%, transparent);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.toast__action:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+.toast__action--primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent);
+}
+.toast__action--primary:hover {
+  background: var(--color-accent2);
+  border-color: var(--color-accent2);
+}
 </style>

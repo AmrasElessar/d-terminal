@@ -94,6 +94,27 @@ function copyGsudoCommand() {
   });
 }
 
+const UPDATE_MODE_KEYS: Record<'off' | 'notify' | 'download-wait' | 'auto', string> = {
+  off: 'settings.general.updateModeOff',
+  notify: 'settings.general.updateModeNotify',
+  'download-wait': 'settings.general.updateModeDownloadWait',
+  auto: 'settings.general.updateModeAuto',
+};
+function updateModeLabel(mode: 'off' | 'notify' | 'download-wait' | 'auto'): string {
+  return t(UPDATE_MODE_KEYS[mode]);
+}
+
+const updateChecking = ref(false);
+async function checkUpdateNow() {
+  updateChecking.value = true;
+  try {
+    const { checkForUpdate } = await import('@/composables/useUpdater');
+    await checkForUpdate(false);
+  } finally {
+    updateChecking.value = false;
+  }
+}
+
 async function exportConfig() {
   try {
     const path = await api.configExport();
@@ -476,6 +497,34 @@ void props.open;
         </label>
         <small class="note">{{ t('settings.general.autoSplitOnAgentHint') }}</small>
         <p class="note">{{ t('settings.general.telemetryHint') }}</p>
+
+        <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.updateSection') }}</h3>
+        <small class="note">{{ t('settings.general.updateModeHint') }}</small>
+        <div class="update-modes">
+          <label
+            v-for="mode in (['off', 'notify', 'download-wait', 'auto'] as const)"
+            :key="mode"
+            class="field row update-mode"
+          >
+            <input
+              v-model="settings.state.updateMode"
+              type="radio"
+              :value="mode"
+            />
+            <span>{{ updateModeLabel(mode) }}</span>
+          </label>
+        </div>
+        <div class="config-actions">
+          <button
+            type="button"
+            class="config-btn"
+            :disabled="updateChecking"
+            @click="checkUpdateNow"
+          >
+            ↻ {{ updateChecking ? t('settings.general.updateChecking') : t('settings.general.updateCheckNow') }}
+          </button>
+        </div>
 
         <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.adminSection') }}</h3>
@@ -1076,6 +1125,8 @@ void props.open;
   font-family: var(--font-family);
 }
 .config-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.update-modes { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.update-mode { font-size: 12px; }
 .small-note { font-size: 11px; opacity: 0.55; margin: 8px 0 4px; }
 .config-btn {
   background: transparent;

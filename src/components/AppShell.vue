@@ -239,6 +239,11 @@ onMounted(async () => {
     log.warn('window vibrancy apply failed', { error: String(e) });
   });
   log.info('shell ready', { panes: panes.paneCount, theme: themeStore.activeName });
+
+  // Updater check (lazy import — yalnız ihtiyaç olunca yüklenir, startup'a yük binmez)
+  void import('@/composables/useUpdater').then(({ autoCheckOnStartup }) => {
+    autoCheckOnStartup().catch((e) => log.warn('updater autocheck failed', { error: String(e) }));
+  });
 });
 
 watch(() => settings.state.themeName, (n) => {
