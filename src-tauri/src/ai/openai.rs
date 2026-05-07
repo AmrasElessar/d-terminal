@@ -16,6 +16,63 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
+use std::net::IpAddr;
+
+/// Custom/override endpoint validasyonu — SSRF koruması.
+/// Kabul edilenler: http(s) şeması + (localhost | loopback IP | public host).
+/// Reddedilenler: file://, ftp://, vb. + private/link-local/multicast IP.
+pub(crate) fn validate_endpoint(url: &str) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalidUrl:{e}"))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        other => return Err(format!("invalidScheme:{other}")),
+    }
+    let host = parsed.host_str().ok_or_else(|| "noHost".to_string())?;
+    if host.eq_ignore_ascii_case("localhost") {
+        return Ok(());
+    }
+    // url crate IPv6'yı `[...]` parantez içinde döndürür; IpAddr parse için sıyır.
+    let host_for_ip = host
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(ip) = host_for_ip.parse::<IpAddr>() {
+        match ip {
+            IpAddr::V4(v4) => {
+                if v4.is_loopback() {
+                    return Ok(());
+                }
+                if v4.is_private()
+                    || v4.is_link_local()
+                    || v4.is_broadcast()
+                    || v4.is_documentation()
+                    || v4.is_unspecified()
+                    || v4.is_multicast()
+                {
+                    return Err(format!("privateIp:{v4}"));
+                }
+            }
+            IpAddr::V6(v6) => {
+                if v6.is_loopback() {
+                    return Ok(());
+                }
+                if v6.is_unspecified() || v6.is_multicast() {
+                    return Err(format!("privateIp:{v6}"));
+                }
+                let segs = v6.segments();
+                // fc00::/7 unique-local
+                if segs[0] & 0xfe00 == 0xfc00 {
+                    return Err(format!("privateIp:{v6}"));
+                }
+                // fe80::/10 link-local
+                if segs[0] & 0xffc0 == 0xfe80 {
+                    return Err(format!("privateIp:{v6}"));
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 const OPENAI_FALLBACK: &[(&str, &str, u32)] = &[
     ("gpt-5", "GPT-5", 200_000),
@@ -62,7 +119,10 @@ pub struct OpenAi {
 }
 
 impl OpenAi {
-    pub fn openai() -> Self {
+    /// Resmi OpenAI cloud provider'ı (api.openai.com). Constructor adı
+    /// type ile aynı olamaz (clippy: same_name_as_type) — `cloud()` semantik
+    /// olarak da net (yerel runtime'lardan ayrı).
+    pub fn cloud() -> Self {
         Self {
             id: "openai",
             default_base_url: "https://api.openai.com/v1",
@@ -117,6 +177,10 @@ impl OpenAi {
         if let Some(ep) = options.endpoint.as_deref() {
             let trimmed = ep.trim();
             if !trimmed.is_empty() {
+                // SSRF koruması: yalnızca http/https + (localhost | loopback IP | açık host).
+                // Custom provider için zorunlu, yerel runtime'lar default URL'e
+                // sahip olduğu için bu yol genelde override içindir.
+                validate_endpoint(trimmed)?;
                 return Ok(trimmed);
             }
         }
@@ -217,7 +281,14 @@ impl ChatProvider for OpenAi {
             return Err("noKey".to_string());
         }
         let base = self.resolve_base_url(&options)?;
-        let endpoint = format!("{}/chat/completions", base.trim_end_matches('/'));
+        let trimmed = base.trim_end_matches('/');
+        // Kullanıcı tam path verdiyse (örn. https://api.example.com/v1/chat/completions),
+        // çiftleşmemek için olduğu gibi kullan.
+        let endpoint = if trimmed.ends_with("/chat/completions") {
+            trimmed.to_string()
+        } else {
+            format!("{trimmed}/chat/completions")
+        };
 
         let body = json!({
             "model": options.model,
@@ -226,7 +297,12 @@ impl ChatProvider for OpenAi {
             "temperature": options.temperature,
             "max_tokens": options.max_tokens,
         });
-        let client = reqwest::Client::new();
+        // Connect timeout: yerel/uzak runtime kapalıysa UI freeze olmasın.
+        // Total timeout YOK — streaming uzun sürebilir.
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let mut req = client.post(&endpoint).json(&body);
         if let Some(k) = key {
             req = req.header("Authorization", format!("Bearer {k}"));
@@ -238,7 +314,10 @@ impl ChatProvider for OpenAi {
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            return Err(format!("apiFailed:{status}:{}", &txt[..txt.len().min(200)]));
+            // Body sadece Rust log'a — frontend'e status code yeter
+            // (api key prefix/quota detay sızıntısını engeller).
+            tracing::warn!(provider = self.id, status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();
         while let Some(ev) = stream.next().await {
@@ -263,5 +342,59 @@ impl ChatProvider for OpenAi {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_endpoint;
+
+    #[test]
+    fn allows_localhost_http() {
+        assert!(validate_endpoint("http://localhost:11434").is_ok());
+        assert!(validate_endpoint("http://localhost:1234/v1").is_ok());
+        assert!(validate_endpoint("https://localhost").is_ok());
+    }
+
+    #[test]
+    fn allows_loopback_ips() {
+        assert!(validate_endpoint("http://127.0.0.1:8080").is_ok());
+        assert!(validate_endpoint("http://127.1.2.3").is_ok());
+        assert!(validate_endpoint("http://[::1]:1337").is_ok());
+    }
+
+    #[test]
+    fn allows_public_https() {
+        assert!(validate_endpoint("https://api.openai.com/v1").is_ok());
+        assert!(validate_endpoint("https://openrouter.ai/api/v1").is_ok());
+    }
+
+    #[test]
+    fn rejects_non_http_schemes() {
+        assert!(validate_endpoint("file:///etc/passwd").is_err());
+        assert!(validate_endpoint("ftp://example.com").is_err());
+        assert!(validate_endpoint("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_private_ipv4() {
+        assert!(validate_endpoint("http://192.168.1.1").is_err());
+        assert!(validate_endpoint("http://10.0.0.1").is_err());
+        assert!(validate_endpoint("http://172.16.0.1").is_err());
+        assert!(validate_endpoint("http://169.254.169.254/latest/meta-data").is_err()); // AWS IMDS
+    }
+
+    #[test]
+    fn rejects_private_ipv6() {
+        // fc00::/7 unique-local
+        assert!(validate_endpoint("http://[fc00::1]").is_err());
+        // fe80::/10 link-local
+        assert!(validate_endpoint("http://[fe80::1]").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_url() {
+        assert!(validate_endpoint("not a url").is_err());
+        assert!(validate_endpoint("").is_err());
     }
 }

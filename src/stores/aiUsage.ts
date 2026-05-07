@@ -5,7 +5,7 @@
 // JSON, aylık kayıt kayda değer hacim oluşturmaz).
 
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import type { ProviderId } from '@/types/ai';
 import { type UsageEstimate, sumUsage } from '@/types/aiPricing';
 
@@ -45,24 +45,37 @@ export const useAIUsageStore = defineStore('aiUsage', () => {
   /** Kullanıcı aylık eşik koyabilir; aşılırsa ana ekranda uyarı gösterilir. */
   const monthlyLimitUsd = ref<number | null>(null);
 
-  // Persist — debounced değil, kayıt zaten ucuz (JSON.stringify + localStorage.setItem).
-  watch(
-    records,
-    (next) => {
+  // Persist — manuel + 500ms debounce. 50K rekord deep watch çok pahalı,
+  // ekleme/silme her zaman bizim mutator'ımızdan geçiyor; ortak persist'i
+  // o noktada planlıyoruz.
+  let persistTimer: number | undefined;
+  /** QuotaExceeded uyarısını her persist denemesinde tekrar çıkarma — bir kez
+   *  uyar, sonraki başarılı persist'te tekrar uyarmaya hazırla. */
+  let quotaWarned = false;
+  function persist() {
+    if (persistTimer !== undefined) window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+      persistTimer = undefined;
       try {
-        // Limit aşılırsa baştan kırp (FIFO)
-        const trimmed = next.length > MAX_RECORDS ? next.slice(-MAX_RECORDS) : next;
-        if (trimmed.length !== next.length) records.value = trimmed;
+        const cur = records.value;
+        const trimmed = cur.length > MAX_RECORDS ? cur.slice(-MAX_RECORDS) : cur;
+        if (trimmed.length !== cur.length) records.value = trimmed;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-      } catch {
-        // QuotaExceeded vb. — UI sessiz, kullanıcının verisi fail olunca da çalışmaya devam etsin
+        quotaWarned = false;
+      } catch (e) {
+        // QuotaExceeded → kullanıcı son kayıtların kaybolabileceğini bilsin.
+        // Tekrar tekrar uyarma (debounced persist sürekli düşmesin).
+        if (!quotaWarned) {
+          quotaWarned = true;
+          console.warn('[aiUsage] localStorage persist failed (quota?):', e);
+        }
       }
-    },
-    { deep: true },
-  );
+    }, 500);
+  }
 
   function record(input: Omit<UsageRecord, 'at'>) {
     records.value.push({ ...input, at: new Date().toISOString() });
+    persist();
   }
 
   function recordEstimate(
@@ -86,6 +99,7 @@ export const useAIUsageStore = defineStore('aiUsage', () => {
 
   function clear() {
     records.value = [];
+    persist();
   }
 
   function exportJson(): string {

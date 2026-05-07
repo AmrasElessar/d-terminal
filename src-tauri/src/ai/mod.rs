@@ -72,7 +72,7 @@ pub trait ChatProvider: Send + Sync {
 pub fn provider_for(id: &str) -> Option<Box<dyn ChatProvider>> {
     match id {
         "anthropic" => Some(Box::new(anthropic::Anthropic)),
-        "openai" => Some(Box::new(openai::OpenAi::openai())),
+        "openai" => Some(Box::new(openai::OpenAi::cloud())),
         "gemini" => Some(Box::new(gemini::Gemini)),
         "ollama" => Some(Box::new(ollama::Ollama)),
         // OpenAI-uyumlu yerel runtime'lar — kullanıcının kendi makinesinde

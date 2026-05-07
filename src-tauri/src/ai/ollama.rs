@@ -34,7 +34,10 @@ impl ChatProvider for Ollama {
     }
 
     async fn models(&self, _key: Option<&str>) -> Vec<AiModel> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let url = format!("{DEFAULT_BASE}/api/tags");
         let resp = match client.get(&url).send().await {
             Ok(r) if r.status().is_success() => r,
@@ -63,13 +66,25 @@ impl ChatProvider for Ollama {
         options: ChatOptions,
         mut on_chunk: ChunkSink,
     ) -> Result<(), String> {
+        // Ollama options: temperature + num_predict (max_tokens karşılığı).
+        let mut ollama_opts = serde_json::Map::new();
+        if let Some(t) = options.temperature {
+            ollama_opts.insert("temperature".to_string(), json!(t));
+        }
+        if let Some(mt) = options.max_tokens {
+            ollama_opts.insert("num_predict".to_string(), json!(mt));
+        }
         let body = json!({
             "model": options.model,
             "messages": messages.iter().map(|m| json!({"role": m.role, "content": m.content})).collect::<Vec<_>>(),
             "stream": true,
-            "options": options.temperature.map(|t| json!({ "temperature": t })),
+            "options": if ollama_opts.is_empty() { serde_json::Value::Null } else { serde_json::Value::Object(ollama_opts) },
         });
-        let client = reqwest::Client::new();
+        // Connect timeout: yerel Ollama kapalıysa UI freeze olmasın.
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let url = format!("{DEFAULT_BASE}/api/chat");
         let resp = client
             .post(&url)
@@ -80,7 +95,8 @@ impl ChatProvider for Ollama {
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            return Err(format!("apiFailed:{status}:{}", &txt[..txt.len().min(200)]));
+            tracing::warn!(provider = "ollama", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            return Err(format!("apiFailed:{status}"));
         }
         // NDJSON: bytes stream, satır bazlı buffer
         let mut stream = resp.bytes_stream();

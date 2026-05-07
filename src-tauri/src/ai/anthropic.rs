@@ -84,7 +84,12 @@ impl ChatProvider for Anthropic {
             body["system"] = json!(s);
         }
 
-        let client = reqwest::Client::new();
+        // Connect timeout: API erişilemezse UI freeze olmasın.
+        // Total timeout YOK — streaming chat uzun sürebilir.
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let resp = client
             .post(ENDPOINT)
             .header("x-api-key", key)
@@ -98,7 +103,8 @@ impl ChatProvider for Anthropic {
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            return Err(format!("apiFailed:{status}:{}", &txt[..txt.len().min(200)]));
+            tracing::warn!(provider = "anthropic", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            return Err(format!("apiFailed:{status}"));
         }
 
         let mut stream = resp.bytes_stream().eventsource();

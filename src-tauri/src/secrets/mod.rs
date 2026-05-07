@@ -17,7 +17,9 @@ use zeroize::Zeroizing;
 
 pub trait SecretStore: Send + Sync {
     /// Düz değeri şifreleyip ilgili scope/name altında saklar.
-    fn store(&self, scope: &str, name: &str, value: &[u8]) -> AppResult<()>;
+    /// Plaintext `Zeroizing<Vec<u8>>` ile sarmalanır → fonksiyon dönerken bellek
+    /// otomatik sıfırlanır (process memory dump'larında plaintext kalmaz).
+    fn store(&self, scope: &str, name: &str, value: Zeroizing<Vec<u8>>) -> AppResult<()>;
     /// Şifreli blob'u çözüp düz değeri döndürür. Zeroizing ile bellek temizlenir.
     fn retrieve(&self, scope: &str, name: &str) -> AppResult<Zeroizing<Vec<u8>>>;
     fn delete(&self, scope: &str, name: &str) -> AppResult<()>;
@@ -39,7 +41,7 @@ struct NoopStore;
 
 #[cfg(not(target_os = "windows"))]
 impl SecretStore for NoopStore {
-    fn store(&self, _: &str, _: &str, _: &[u8]) -> AppResult<()> {
+    fn store(&self, _: &str, _: &str, _: Zeroizing<Vec<u8>>) -> AppResult<()> {
         Err(AppError::NotImplemented(
             "secret store: Windows-only in v1.0; macOS/Linux Keychain port pending",
         ))

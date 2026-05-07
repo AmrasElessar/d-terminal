@@ -680,6 +680,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   paneResizeObserver?.disconnect();
   paneResizeObserver = null;
+  // Pane çok hızlı open+close edilirse RAF dispose'dan sonra ateşlenip
+  // dispose edilmiş term/fit üzerinde fit.fit() çağırırdı. Önce iptal et.
+  if (resizeRafId) {
+    cancelAnimationFrame(resizeRafId);
+    resizeRafId = 0;
+  }
   if (resizeIpcTimer) {
     clearTimeout(resizeIpcTimer);
     resizeIpcTimer = 0;
@@ -897,7 +903,7 @@ ab|
   background: rgba(10, 14, 26, 0.95);
   border: 1px solid var(--color-accent);
   border-radius: 4px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 14px var(--color-overlay-medium);
   font-family: var(--font-family);
   font-size: 11px;
   color: var(--color-fg);
@@ -905,7 +911,7 @@ ab|
   backdrop-filter: blur(8px);
 }
 .search-bar__input {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border: 1px solid var(--color-line);
   color: var(--color-fg);
   padding: 3px 8px;
@@ -1012,7 +1018,7 @@ ab|
 }
 .suggest-chip__key {
   color: var(--color-accent);
-  background: rgba(0, 180, 216, 0.15);
+  background: var(--color-accent-soft-15);
   padding: 0 4px;
   border-radius: 2px;
   font-size: 9px;

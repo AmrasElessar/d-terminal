@@ -9,16 +9,25 @@ use crate::state::AppState;
 use crate::storage::secrets::SecretRow;
 use std::sync::Arc;
 use tauri::State;
+use zeroize::{Zeroize, Zeroizing};
 
 #[tauri::command]
 pub fn secrets_store(
     state: State<'_, AppState>,
     scope: String,
     name: String,
-    value: String,
+    mut value: String,
 ) -> AppResult<()> {
     let store = build_store(&state);
-    store.store(&scope, &name, value.as_bytes())
+    // String'i Vec<u8>'e taşı → Zeroizing kapsayıcısına al ki store sonrası
+    // bellekten silinsin. Tauri'nin parse ettiği orijinal String'in tampon'u
+    // `into_bytes()` ile devralındığı için ek bir kopya kalmaz; yine de
+    // dropped String hükmündeki value değişkenini fonksiyondan çıkmadan
+    // zeroize çağrısı ile garantiye alıyoruz.
+    let plaintext = Zeroizing::new(std::mem::take(&mut value).into_bytes());
+    let res = store.store(&scope, &name, plaintext);
+    value.zeroize();
+    res
 }
 
 #[tauri::command]

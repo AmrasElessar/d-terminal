@@ -68,8 +68,12 @@ impl HistoryRepo {
         );
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         if let Some(text) = &q.text {
-            sql.push_str(" AND command LIKE ?");
-            params.push(Box::new(format!("%{}%", text)));
+            // SQLite LIKE escape: kullanıcı `%` veya `_` yazınca wildcard
+            // pattern matching'i devre dışı bırak. ESCAPE '\\' ile özel
+            // karakterler literal arar.
+            let escaped = text.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            sql.push_str(" AND command LIKE ? ESCAPE '\\'");
+            params.push(Box::new(format!("%{}%", escaped)));
         }
         if let Some(pane) = &q.pane_id {
             sql.push_str(" AND pane_id = ?");

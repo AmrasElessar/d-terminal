@@ -222,7 +222,8 @@ fn spawn_reader_thread(
     tx: Sender<PtyEvent>,
     weak: std::sync::Weak<SidecarManager>,
 ) {
-    thread::Builder::new()
+    let tx_for_err = tx.clone();
+    let result = thread::Builder::new()
         .name("dterm-sidecar-reader".into())
         .spawn(move || {
             let mut reader = BufReader::new(stdout);
@@ -249,8 +250,13 @@ fn spawn_reader_thread(
                     }
                 }
             }
-        })
-        .expect("spawn reader thread");
+        });
+    if let Err(e) = result {
+        tracing::error!(error = %e, "failed to spawn sidecar reader thread");
+        let _ = tx_for_err.send(PtyEvent::SidecarDown {
+            reason: format!("reader thread spawn failed: {e}"),
+        });
+    }
 }
 
 fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame) {
@@ -307,7 +313,7 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame
 }
 
 fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
-    thread::Builder::new()
+    let result = thread::Builder::new()
         .name("dterm-sidecar-stderr".into())
         .spawn(move || {
             let mut reader = BufReader::new(stderr);
@@ -324,12 +330,17 @@ fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
                     Err(_) => break,
                 }
             }
-        })
-        .expect("spawn stderr thread");
+        });
+    // Stderr thread başlatılamazsa tek sonuç sidecar log mesajlarını
+    // göremeyiz — kritik değil, app çalışmaya devam eder.
+    if let Err(e) = result {
+        tracing::warn!(error = %e, "failed to spawn sidecar stderr thread (logs will be lost)");
+    }
 }
 
 fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<SidecarManager>) {
-    thread::Builder::new()
+    let weak_for_err = weak.clone();
+    let result = thread::Builder::new()
         .name("dterm-sidecar-heartbeat".into())
         .spawn(move || loop {
             thread::sleep(Duration::from_secs(5));
@@ -353,6 +364,13 @@ fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<S
                 break;
             }
             let _ = guard.flush();
-        })
-        .expect("spawn heartbeat thread");
+        });
+    if let Err(e) = result {
+        tracing::error!(error = %e, "failed to spawn sidecar heartbeat thread");
+        if let Some(mgr) = weak_for_err.upgrade() {
+            let _ = mgr.events_tx.send(PtyEvent::SidecarDown {
+                reason: format!("heartbeat thread spawn failed: {e}"),
+            });
+        }
+    }
 }

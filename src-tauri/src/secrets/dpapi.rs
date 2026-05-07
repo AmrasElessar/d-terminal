@@ -63,8 +63,9 @@ impl DpapiStore {
 }
 
 impl SecretStore for DpapiStore {
-    fn store(&self, scope: &str, name: &str, value: &[u8]) -> AppResult<()> {
-        let cipher = Self::protect(value)?;
+    fn store(&self, scope: &str, name: &str, value: Zeroizing<Vec<u8>>) -> AppResult<()> {
+        // value `Zeroizing<Vec<u8>>` — fonksiyon sonunda otomatik sıfırlanır.
+        let cipher = Self::protect(&value)?;
         self.repo.upsert(scope, name, &cipher)?;
         Ok(())
     }

@@ -62,7 +62,10 @@ impl ChatProvider for Gemini {
 
     async fn models(&self, key: Option<&str>) -> Vec<AiModel> {
         let Some(key) = key else { return fallback() };
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let resp = match client
             .get(MODELS_URL)
             .header("Authorization", format!("Bearer {key}"))
@@ -111,7 +114,12 @@ impl ChatProvider for Gemini {
             "temperature": options.temperature,
             "max_tokens": options.max_tokens,
         });
-        let client = reqwest::Client::new();
+        // Connect timeout: API erişilemezse UI freeze olmasın.
+        // Total timeout YOK — streaming chat uzun sürebilir.
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         let resp = client
             .post(ENDPOINT)
             .header("Authorization", format!("Bearer {key}"))
@@ -122,7 +130,8 @@ impl ChatProvider for Gemini {
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            return Err(format!("apiFailed:{status}:{}", &txt[..txt.len().min(200)]));
+            tracing::warn!(provider = "gemini", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();
         while let Some(ev) = stream.next().await {

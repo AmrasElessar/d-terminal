@@ -374,7 +374,7 @@ void props.leaf; // ileride leaf.state restore burada
           class="ai-pane__bsToggle"
           :class="{ 'ai-pane__bsToggle--on': brainstormMode }"
           :disabled="!canBrainstorm"
-          :title="canBrainstorm ? t('ai.brainstorm.toggle') : t('ai.brainstorm.needTwo')"
+          :title="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')"
           @click="toggleBrainstormMode"
         >
           🌪️ {{ t('ai.brainstorm.short') }}
