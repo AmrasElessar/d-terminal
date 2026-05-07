@@ -88,13 +88,17 @@ function openPalette()    { modals.open('commandPalette'); }
 // Native title bar yok, min/max/close butonlarını biz çizip API'yi çağırıyoruz.
 const windowMaximized = ref(false);
 async function syncMaximized() {
-  try { windowMaximized.value = await getCurrentWindow().isMaximized(); } catch { /* */ }
+  try { windowMaximized.value = await getCurrentWindow().isMaximized(); } catch (e) { console.warn('isMaximized failed', e); }
 }
-async function winMinimize() { try { await getCurrentWindow().minimize(); } catch { /* */ } }
+async function winMinimize() {
+  try { await getCurrentWindow().minimize(); } catch (e) { console.warn('minimize failed', e); }
+}
 async function winToggleMax() {
-  try { await getCurrentWindow().toggleMaximize(); await syncMaximized(); } catch { /* */ }
+  try { await getCurrentWindow().toggleMaximize(); await syncMaximized(); } catch (e) { console.warn('toggleMaximize failed', e); }
 }
-async function winClose() { try { await getCurrentWindow().close(); } catch { /* */ } }
+async function winClose() {
+  try { await getCurrentWindow().close(); } catch (e) { console.warn('close failed', e); }
+}
 function openSessionSave() { modals.openSession('save'); }
 function openSessionLoad() { modals.openSession('load'); }
 
@@ -457,14 +461,13 @@ watch(
   user-select: none;
   font-size: 10px;
   height: 30px;
-  /* Frameless window: bu header drag region (data-tauri-drag-region attr).
-     İçerideki butonlar `pointer-events: auto` korur, drag onları etkilemez. */
-  -webkit-app-region: drag;
+  /* Drag region Tauri 2 `data-tauri-drag-region` attribute ile yönetilir
+     (template'te). -webkit-app-region (Electron-style) WebView2'de tutarsız
+     davranıp click event'lerini yutuyordu, kaldırdık. */
 }
-.shell__header button,
-.shell__header input,
-.shell__header .shell__winctrl {
-  -webkit-app-region: no-drag;
+/* Window control SVG'leri butona event'i devretsin — target hep button olsun */
+.shell__header svg {
+  pointer-events: none;
 }
 .shell__brand {
   font-weight: 700;
