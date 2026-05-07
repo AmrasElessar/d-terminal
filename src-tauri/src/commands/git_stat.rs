@@ -139,5 +139,4 @@ mod tests {
         assert_eq!(s.added, 0);
         assert!(s.is_repo);
     }
-
 }
