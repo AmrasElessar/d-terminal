@@ -50,6 +50,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
     const pane = getPane(paneId);
     switch (ev.k) {
       case 'start': {
+        const isNew = !pane.byId.has(ev.id);
         const info: AgentInfo = {
           id: ev.id,
           name: ev.name || ev.id,
@@ -66,6 +67,12 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         pane.byId.set(ev.id, info);
         const idx = pane.order.indexOf(ev.id);
         if (idx < 0) pane.order.unshift(ev.id);
+        // Otomatik split — settings.autoSplitOnAgent ON ve bu yeni bir agent'sa
+        // (re-run değil) kaynak pane'in yanında bir agentView pane'i aç.
+        // Lazy import ile circular dep riskini engelle (panes ↔ agentWatch).
+        if (isNew) {
+          void autoSplitIfEnabled(paneId, ev.id, info.name);
+        }
         // Pane'de hiç agent görünmemişse sidebar'ı otomatik aç — kullanıcı
         // ilk agent gelmeden bunu görmeyebilir, agent gelince haberdar et.
         if (!pane.visible) pane.visible = true;
@@ -250,4 +257,21 @@ function mapEndStatus(s: 'ok' | 'error' | 'aborted'): AgentStatus {
 /** Tüm bilinen model id'leri — sidebar dropdown için. */
 export function knownModelIds(): string[] {
   return Object.keys(MODEL_PRICING);
+}
+
+/** Settings ON ise kaynak pane'in yanında agent için yeni bir agentView pane
+ *  açar. Pinia store-içi lazy import ile circular dep'ten kaçınır. */
+async function autoSplitIfEnabled(sourcePaneId: string, agentId: string, agentName: string) {
+  try {
+    const [{ useSettingsStore }, { usePanesStore }] = await Promise.all([
+      import('@/stores/settings'),
+      import('@/stores/panes'),
+    ]);
+    const settings = useSettingsStore();
+    if (!settings.state.autoSplitOnAgent) return;
+    const panes = usePanesStore();
+    panes.splitForAgent(sourcePaneId, agentId, agentName);
+  } catch {
+    /* sessiz — split başarısız olsa da sidebar yine çalışır */
+  }
 }

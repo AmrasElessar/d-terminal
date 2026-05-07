@@ -252,6 +252,39 @@ export const usePanesStore = defineStore('panes', () => {
     tab.tree.focusedId = leaf.id;
   }
 
+  /** Agent başlangıcında otomatik split — kaynak pane'in yanında bir
+   *  agentView leaf'i açar. Direction: yatay (sağ tarafa kayar).
+   *  Bu pane PTY almaz, agentWatch store'unda ilgili agent'ın output'unu
+   *  canlı render eder. Aynı agentId için zaten pane varsa noop. */
+  function splitForAgent(sourcePaneId: string, agentId: string, agentName: string): string | null {
+    // Aynı agent için zaten açık pane varsa tekrar açma
+    for (const tab of tabs.value) {
+      const exists = listLeaves(tab.tree.root).find(
+        (l) => l.type === 'agentView' && l.agentId === agentId,
+      );
+      if (exists) return exists.id;
+    }
+    // Kaynak pane'in olduğu tab'ı bul
+    const tab = tabs.value.find((tb) => !!findLeaf(tb.tree.root, sourcePaneId));
+    if (!tab) return null;
+    const leaf: LeafNode = {
+      ...newLeaf('agentView', agentName),
+      agentSourcePaneId: sourcePaneId,
+      agentId,
+      status: 'running',
+    };
+    tab.tree.root = replaceNode(tab.tree.root, sourcePaneId, (focused) => ({
+      kind: 'split',
+      id: uuid(),
+      direction: 'horizontal',
+      ratio: 0.6,
+      first: focused,
+      second: leaf,
+    }));
+    // Odak kaynak pane'de kalsın — agent panel sadece izleme için
+    return leaf.id;
+  }
+
   async function closePane(id: string) {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
@@ -520,6 +553,7 @@ export const usePanesStore = defineStore('panes', () => {
     focusPrev,
     openPane,
     splitFocused,
+    splitForAgent,
     closePane,
     setLeafState,
     setSplitRatio,

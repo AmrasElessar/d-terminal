@@ -63,7 +63,8 @@
       "wsl": "WSL",
       "aiChat": "AI Chat",
       "logStream": "Log Stream",
-      "welcome": "Welcome"
+      "welcome": "Welcome",
+      "agentView": "Agent"
     },
     "status": {
       "idle": "Idle",
@@ -226,7 +227,9 @@
       "aiPrefixHash": "Open AI command generator on # at empty prompt (Warp parity)",
       "aiPrefixHashHint": "When enabled: typing # at the start of an empty prompt opens the AI suggester instead of writing # to the terminal. Disable to use # normally.",
       "dfetchPollInterval": "Welcome live stats refresh (ms)",
-      "dfetchPollIntervalHint": "Welcome pane updates CPU%, RAM, network throughput, battery on this interval. 0 = disabled (static). Min 500ms. Default 1500."
+      "dfetchPollIntervalHint": "Welcome pane updates CPU%, RAM, network throughput, battery on this interval. 0 = disabled (static). Min 500ms. Default 1500.",
+      "autoSplitOnAgent": "Auto-split pane when agent starts",
+      "autoSplitOnAgentHint": "When an AI agent (OSC 9999 start event or detected from Claude Code output) begins, automatically split the pane to the right with a read-only Agent view. Mac terminal-style multi-agent layout. Default off."
     },
     "appearance": {
       "theme": "Theme",

@@ -22,6 +22,7 @@ const SHELL_OF: Record<PaneType, string> = {
   aiChat: 'PowerShell',
   logStream: 'PowerShell',
   welcome: 'PowerShell',
+  agentView: 'PowerShell',
 };
 
 function systemPrompt(paneType: PaneType): string {

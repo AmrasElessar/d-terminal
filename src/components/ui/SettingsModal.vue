@@ -470,6 +470,11 @@ void props.open;
           />
           <small>{{ t('settings.general.dfetchPollIntervalHint') }}</small>
         </label>
+        <label class="field row">
+          <input v-model="settings.state.autoSplitOnAgent" type="checkbox" />
+          <span>{{ t('settings.general.autoSplitOnAgent') }}</span>
+        </label>
+        <small class="note">{{ t('settings.general.autoSplitOnAgentHint') }}</small>
         <p class="note">{{ t('settings.general.telemetryHint') }}</p>
 
         <hr class="divider" />

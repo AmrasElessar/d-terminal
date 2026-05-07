@@ -130,12 +130,37 @@ if (isDTerminal) emit({ k: 'start', id, name });
 - **Eşzamanlı agent'lar**: birden fazla `start` farklı `id`'lerle paralel agent'ları temsil eder, sidebar hepsini ayrı satır olarak gösterir
 - **Subagent hiyerarşisi**: `parent` alanı sidebar'da görsel olarak girinti gösterir (gelecek), şu an metinde "subagent of X" notu
 
+## Heuristic Detector (yardımcı katman)
+
+OSC 9999 yaymayan AI tool'lar için D-Terminal output'taki pattern'lerini parse edip sentetik `AgentEvent` üretir. Conservative pattern'ler:
+
+| Pattern | Eşleştirir | Üretir |
+|---|---|---|
+| `[●⏺] (?:Agent\|Task)\(name\)` | Claude Code agent çağrıları | `start` event |
+| `Running N agents in parallel` | Claude Code paralel dispatch | `start` (batch) |
+| `⎿ (?:Done\|Complete\|Finished)` | Tool/agent completion satırı | `end` event |
+| `(\d+) tokens?` | Token sayacı | `tokens` event (output) |
+
+Detector daima açık (kapatılamaz) ama OSC 9999 ile gelen event'leri override etmez — formal protokol önceliklidir.
+
+Kullanıcı false-positive yaşıyorsa Settings → Triggers ile özel pattern eklenebilir veya detector kodu (`src/composables/useAgentDetector.ts`) düzenlenebilir.
+
+## Auto-split
+
+`Settings → Genel → Agent başlayınca pane'i otomatik böl` toggle'ı açıkken (default kapalı), her yeni `start` event'i için kaynak pane'in sağına `agentView` tipinde salt-okunur bir pane açılır. Bu pane:
+
+- PTY taşımaz, agent'ın output'unu reaktif olarak agentWatch store'undan render eder
+- Agent end olduğunda status `exited` olur, kapatılana kadar geçmiş incelenebilir
+- Aynı agent için ikinci kez split tetiklenmez (idempotent)
+
+Mac terminal benzeri çoklu-agent görünüm — 4 paralel agent → 4 ayrı pane.
+
 ## Future work
 
-- **`dterm-watch` wrapper** — `claude-code`, `codex`, `aider` gibi araçları sarar, output'tan heuristic OSC üretir (opt-in olmasa bile çalışır)
+- **`dterm-watch` wrapper** — `claude-code`, `codex`, `aider` gibi araçları sarar, output'tan structured OSC üretir (heuristic'ten daha güvenilir)
 - **MCP bridge** — D-Terminal'in MCP server'ı, Claude Code MCP client → standart notification protocol
-- **Post-hoc split** — agent run bittikten sonra "Split agents into panes" sağ tık aksiyonu, her agent'ın output'unu ayrı read-only pane'de gösterir
-- **Multi-agent realtime split-view** — eşzamanlı agent'lar sidebar yerine otomatik N-yönlü pane split (kullanıcı tercih ederse)
+- **Post-hoc split** — agent run bittikten sonra "Split agents into panes" sağ tık aksiyonu (auto-split off iken faydalı)
+- **Per-agent output stream** — şu an heuristic detector tüm progress'i atlıyor, sadece start/end/tokens. Stream-aware parsing eklenince agentView pane gerçek canlı output gösterir.
 
 Tetik sinyalleri (yapılma kararı için):
 - 50+ kullanıcı bu feature'ı düzenli kullanıyor

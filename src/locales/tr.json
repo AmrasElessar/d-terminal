@@ -63,7 +63,8 @@
       "wsl": "WSL",
       "aiChat": "AI Sohbet",
       "logStream": "Log Akışı",
-      "welcome": "Karşılama"
+      "welcome": "Karşılama",
+      "agentView": "Agent"
     },
     "status": {
       "idle": "Boşta",
@@ -226,7 +227,9 @@
       "aiPrefixHash": "Boş prompt'ta # ile AI komut üretici aç (Warp paritesi)",
       "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır.",
       "dfetchPollInterval": "Welcome canlı stat yenileme (ms)",
-      "dfetchPollIntervalHint": "Welcome pane CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500."
+      "dfetchPollIntervalHint": "Welcome pane CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500.",
+      "autoSplitOnAgent": "Agent başlayınca pane'i otomatik böl",
+      "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında pane sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı."
     },
     "appearance": {
       "theme": "Tema",

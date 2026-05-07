@@ -26,6 +26,7 @@ import { createSmartLinkProvider } from '@/composables/useSmartLinks';
 import { useTriggersStore } from '@/stores/triggers';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { parseAgentEvent } from '@/types/agent';
+import { feedAgentDetector, clearAgentDetectorState } from '@/composables/useAgentDetector';
 import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
 import { formatError } from '@/utils/error';
@@ -166,6 +167,9 @@ function feedTriggers(text: string) {
   for (const line of parts) {
     if (line.length === 0) continue;
     triggers.matchLine(line, props.leaf.id, props.leaf.type);
+    // Heuristic agent detector — Claude Code/Codex pattern'lerini AgentEvent'e
+    // çevirir. Conservative pattern'ler kullanır, false positive nadir.
+    feedAgentDetector(line, props.leaf.id);
   }
 }
 
@@ -760,6 +764,7 @@ onBeforeUnmount(() => {
   }
   if (unlistenStdout) unlistenStdout();
   unregisterBlockTracker(props.leaf.id);
+  clearAgentDetectorState(props.leaf.id);
 
   // PTY hâlâ canlıysa (split kapatma sonrası tree restructure) buffer'ı
   // cache'le ki remount'ta replay edilsin. PTY ölmüşse cache'lemenin anlamı yok.

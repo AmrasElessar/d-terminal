@@ -12,6 +12,7 @@ import TerminalPane from '@/components/panes/TerminalPane.vue';
 import AIChatPane from '@/components/panes/AIChatPane.vue';
 import WelcomePane from '@/components/panes/WelcomePane.vue';
 import LogStreamPane from '@/components/panes/LogStreamPane.vue';
+import AgentViewPane from '@/components/panes/AgentViewPane.vue';
 import ErrorPane from '@/components/panes/ErrorPane.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
@@ -201,6 +202,7 @@ function onContextMenu(e: MouseEvent) {
       <AIChatPane v-else-if="leaf.type === 'aiChat'" :leaf="leaf" />
       <LogStreamPane v-else-if="leaf.type === 'logStream'" :leaf="leaf" />
       <WelcomePane v-else-if="leaf.type === 'welcome'" />
+      <AgentViewPane v-else-if="leaf.type === 'agentView'" :leaf="leaf" />
     </div>
     <div
       v-if="dropSide"

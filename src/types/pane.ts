@@ -4,7 +4,7 @@
 // SplitNode: yatay/dikey ayırıcı, iki çocuk
 // LeafNode: gerçek bir pane (terminal, AI chat, welcome…)
 
-export type PaneType = 'powershell' | 'cmd' | 'wsl' | 'aiChat' | 'logStream' | 'welcome';
+export type PaneType = 'powershell' | 'cmd' | 'wsl' | 'aiChat' | 'logStream' | 'welcome' | 'agentView';
 
 export type PaneStatus = 'idle' | 'spawning' | 'running' | 'suspended' | 'exited' | 'error';
 
@@ -31,6 +31,10 @@ export interface LeafNode {
   /** Pane-bazlı font size offset'i (Ctrl+= / Ctrl+- / Ctrl+0 ile). Effective
    *  font size = settings.fontSize + (fontSizeOffset ?? 0), clamp [8, 32]. */
   fontSizeOffset?: number;
+  /** Bu pane bir Agent View ise hangi parent terminal'i + agent'ı izliyor.
+   *  agentView dışındaki pane tiplerinde set edilmez. */
+  agentSourcePaneId?: string;
+  agentId?: string;
 }
 
 /** Pane font-size sınırları — global ayar üstüne offset eklenirken bu aralığa clamp. */

@@ -48,6 +48,10 @@ export interface SettingsState {
   /** Welcome pane canlı stat polling aralığı (ms). CPU%, RAM, ağ throughput
    *  bu sıklıkta yenilenir. 0 = polling kapalı (statik snapshot). 500-10000 ideal. */
   dfetchPollIntervalMs: number;
+  /** AI agent (OSC 9999 start event veya heuristic detector) tetiklendiğinde
+   *  otomatik olarak yan pane aç (agentView). Mac terminal benzeri çoklu-agent
+   *  görünümü; default off — opt-in çünkü bazı kullanıcılar split istemez. */
+  autoSplitOnAgent: boolean;
 }
 
 const DEFAULTS: SettingsState = {
@@ -70,6 +74,7 @@ const DEFAULTS: SettingsState = {
   prefixCombo: 'Ctrl+B',
   aiCustomEndpoint: '',
   dfetchPollIntervalMs: 1500,
+  autoSplitOnAgent: false,
 };
 
 const KEY_PREFIX = 'ui.';
