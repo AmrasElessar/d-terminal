@@ -18,6 +18,7 @@ import StatusBar from '@/components/ui/StatusBar.vue';
 import ContextMenu from '@/components/ui/ContextMenu.vue';
 import TabBar from '@/components/ui/TabBar.vue';
 import ToastContainer from '@/components/ui/ToastContainer.vue';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // Modallar lazy load — v-if ile mount/destroy + dynamic import ile prod
 // build'de ayrı chunk'a düşer. İlk açılışta sadece shell + layout yüklenir,
@@ -82,6 +83,18 @@ function openSettings()   { modals.open('settings'); }
 function openHistory()    { modals.open('history'); }
 function openSnippets()   { modals.open('snippets'); }
 function openPalette()    { modals.open('commandPalette'); }
+
+// Custom window controls — Tauri 2 frameless mode (decorations:false).
+// Native title bar yok, min/max/close butonlarını biz çizip API'yi çağırıyoruz.
+const windowMaximized = ref(false);
+async function syncMaximized() {
+  try { windowMaximized.value = await getCurrentWindow().isMaximized(); } catch { /* */ }
+}
+async function winMinimize() { try { await getCurrentWindow().minimize(); } catch { /* */ } }
+async function winToggleMax() {
+  try { await getCurrentWindow().toggleMaximize(); await syncMaximized(); } catch { /* */ }
+}
+async function winClose() { try { await getCurrentWindow().close(); } catch { /* */ } }
 function openSessionSave() { modals.openSession('save'); }
 function openSessionLoad() { modals.openSession('load'); }
 
@@ -152,6 +165,12 @@ function applyPrefixMode() {
 }
 
 onMounted(async () => {
+  // Window state — frameless modda min/max butonları için
+  void syncMaximized();
+  try {
+    await getCurrentWindow().onResized(() => syncMaximized());
+  } catch { /* dev mode'da bazı listener'lar erken hata verebilir */ }
+
   await settings.load();
   locale.value = settings.state.language;
   await themeStore.load();
@@ -252,8 +271,10 @@ watch(
 
 <template>
   <main class="shell">
-    <header class="shell__header">
-      <div class="shell__brand">{{ t('app.title') }}</div>
+    <!-- Frameless window: native title bar yok, bu header drag region.
+         Çocuk butonlar `data-tauri-drag-region` taşımaz, normal click alır. -->
+    <header class="shell__header" data-tauri-drag-region>
+      <div class="shell__brand" data-tauri-drag-region>{{ t('app.title') }}</div>
       <span
         v-if="isElevated"
         class="shell__admin-badge"
@@ -263,17 +284,102 @@ watch(
 🛡 ADMIN
 </span>
       <nav class="shell__menu">
-        <button type="button" @click="openNewPane">{{ t('pane.new') }}</button>
-        <button type="button" @click="splitH">{{ t('pane.splitHorizontal') }}</button>
-        <button type="button" @click="splitV">{{ t('pane.splitVertical') }}</button>
+        <button
+          type="button"
+          class="shell__menu-icon"
+          :title="t('pane.new')"
+          :aria-label="t('pane.new')"
+          @click="openNewPane"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="2" width="12" height="12" rx="1.5" />
+            <path d="M8 5v6M5 8h6" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="shell__menu-icon"
+          :title="t('pane.splitHorizontal')"
+          :aria-label="t('pane.splitHorizontal')"
+          @click="splitH"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="2" width="12" height="12" rx="1.5" />
+            <path d="M2 8h12" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="shell__menu-icon"
+          :title="t('pane.splitVertical')"
+          :aria-label="t('pane.splitVertical')"
+          @click="splitV"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="2" width="12" height="12" rx="1.5" />
+            <path d="M8 2v12" />
+          </svg>
+        </button>
+        <span class="shell__menu-sep" />
         <button type="button" @click="openAi">{{ t('pane.type.aiChat') }}</button>
         <button type="button" @click="openHistory">{{ t('history.title') }}</button>
         <button type="button" @click="openSnippets">{{ t('snippet.title') }}</button>
-        <span class="spacer" />
-        <button type="button" @click="openPalette">⌘ {{ t('commandPalette.placeholder') }}</button>
+        <span class="spacer" data-tauri-drag-region />
+        <button id="cmd-palette-trigger" type="button" @click="openPalette">⌘ {{ t('commandPalette.placeholder') }}</button>
         <button type="button" :title="t('about.title')" @click="modals.open('about')">ℹ</button>
-        <button type="button" @click="openSettings">{{ t('settings.title') }}</button>
+        <button
+          type="button"
+          class="shell__menu-icon"
+          :title="t('settings.title')"
+          :aria-label="t('settings.title')"
+          @click="openSettings"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Lucide settings (cog-6-tooth) — gerçek dişli profili, ışın değil -->
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
       </nav>
+      <!-- Custom window controls: native title bar yerine. Win11 estetiği:
+           min/max gri hover, close kırmızı hover. -->
+      <div class="shell__winctrl">
+        <button
+          type="button"
+          class="winctrl winctrl--min"
+          :title="t('window.minimize')"
+          :aria-label="t('window.minimize')"
+          @click="winMinimize"
+        >
+          <svg viewBox="0 0 10 10" width="10" height="10"><path d="M0 5h10" stroke="currentColor" stroke-width="1" /></svg>
+        </button>
+        <button
+          type="button"
+          class="winctrl winctrl--max"
+          :title="t(windowMaximized ? 'window.restore' : 'window.maximize')"
+          :aria-label="t(windowMaximized ? 'window.restore' : 'window.maximize')"
+          @click="winToggleMax"
+        >
+          <svg v-if="!windowMaximized" viewBox="0 0 10 10" width="10" height="10">
+            <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" fill="none" stroke-width="1" />
+          </svg>
+          <svg v-else viewBox="0 0 10 10" width="10" height="10">
+            <rect x="0.5" y="2.5" width="7" height="7" stroke="currentColor" fill="none" stroke-width="1" />
+            <path d="M2.5 2.5V0.5h7v7H7.5" stroke="currentColor" fill="none" stroke-width="1" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="winctrl winctrl--close"
+          :title="t('window.close')"
+          :aria-label="t('window.close')"
+          @click="winClose"
+        >
+          <svg viewBox="0 0 10 10" width="10" height="10">
+            <path d="M0 0L10 10M10 0L0 10" stroke="currentColor" stroke-width="1" />
+          </svg>
+        </button>
+      </div>
     </header>
     <TabBar />
     <PaneLayout />
@@ -344,13 +450,21 @@ watch(
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 2px 8px;
+  padding: 0 0 0 10px;
   background: var(--color-overlay-light);
   border-bottom: 1px solid var(--color-line);
   flex-shrink: 0;
   user-select: none;
   font-size: 10px;
-  height: 22px;
+  height: 30px;
+  /* Frameless window: bu header drag region (data-tauri-drag-region attr).
+     İçerideki butonlar `pointer-events: auto` korur, drag onları etkilemez. */
+  -webkit-app-region: drag;
+}
+.shell__header button,
+.shell__header input,
+.shell__header .shell__winctrl {
+  -webkit-app-region: no-drag;
 }
 .shell__brand {
   font-weight: 700;
@@ -400,4 +514,57 @@ watch(
   background: var(--color-accent-soft);
 }
 .shell__menu .spacer { flex: 1; }
+/* Icon-only button — yeni panel / yatay böl / dikey böl için.
+   SVG 14x14, görsel olarak 22x22 hit-area, hover tema accent'i. */
+.shell__menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0 !important;
+  color: var(--color-dim);
+}
+.shell__menu-icon:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.shell__menu-icon svg { display: block; }
+.shell__menu-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--color-line);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Window controls — Win11 native title bar yerine, frameless mode'da. */
+.shell__winctrl {
+  display: flex;
+  height: 100%;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.winctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-fg);
+  cursor: pointer;
+  opacity: 0.85;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.winctrl:hover {
+  background: color-mix(in srgb, var(--color-fg) 12%, transparent);
+  opacity: 1;
+}
+.winctrl--close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+.winctrl svg { display: block; }
 </style>

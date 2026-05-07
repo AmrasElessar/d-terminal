@@ -410,7 +410,7 @@ void props.leaf; // ileride leaf.state restore burada
         <textarea
           v-model="input"
           :placeholder="t('ai.placeholder')"
-          rows="3"
+          rows="2"
           :disabled="streaming"
           @keydown="onKeyDown"
         />
@@ -583,21 +583,26 @@ void props.leaf; // ileride leaf.state restore burada
 .ai-pane__bsToggle:disabled { opacity: 0.4; cursor: not-allowed; }
 .ai-pane__input {
   border-top: 1px solid color-mix(in srgb, var(--color-fg) 5%, transparent);
-  padding: 8px 12px;
+  padding: 6px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  /* Pane'i ASLA üst yarıdan büyük tutma — uzun mesaj yazılırken bile mesaj
+     listesi kabul edilebilir kalsın. */
+  flex-shrink: 0;
+  max-height: 50%;
 }
 .ai-pane__input textarea {
   background: var(--color-bg);
   color: var(--color-fg);
   border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
   border-radius: 6px;
-  padding: 8px;
+  padding: 6px 8px;
   font-family: var(--font-family);
   font-size: 13px;
   resize: vertical;
-  min-height: 60px;
+  min-height: 42px;
+  max-height: 200px;
 }
 .ai-pane__input textarea:focus {
   outline: none;

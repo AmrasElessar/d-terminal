@@ -488,6 +488,12 @@
   "git": {
     "diffHint": "Uncommitted changes vs HEAD ({files} file(s))"
   },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
   "block": {
     "title": "Command Blocks",
     "empty": "No commands executed yet (waiting for OSC 133 markers)",

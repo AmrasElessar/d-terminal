@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { APP_VERSION } from '@/version';
 
 const { t } = useI18n();
 const emit = defineEmits<{ done: [] }>();
@@ -47,7 +48,7 @@ onMounted(play);
     <pre class="splash__logo">██████╗       ████████╗
 ██╔══██╗      ╚══██╔══╝
 ██║  ██║██████╗  ██║      D-TERMINAL
-██║  ██║╚═════╝  ██║      agent-aware shell · v0.1.0
+██║  ██║╚═════╝  ██║      agent-aware shell · v{{ APP_VERSION }}
 ██████╔╝         ██║
 ╚═════╝          ╚═╝</pre>
 

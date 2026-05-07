@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
 import type { SystemInfo } from '@/types/events';
 import { useDialogA11y } from '@/composables/useDialogA11y';
+import { APP_VERSION } from '@/version';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -14,7 +15,10 @@ const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
 const logPaths = ref<{ directory: string; current_file: string } | null>(null);
 
-const version = computed(() => info.value?.d_terminal_version ?? '0.1.0-alpha');
+// Backend Cargo.toml sürümü canonical kabul edilir; backend'den gelmiyorsa
+// frontend package.json'daki APP_VERSION fallback (yeni sürüm bumped ama
+// dfetch henüz çağrılmadı senaryosu).
+const version = computed(() => info.value?.d_terminal_version ?? APP_VERSION);
 
 const credits = [
   { label: 'Tauri', url: 'https://tauri.app',           note: 'Desktop shell (Rust + WebView2)' },
