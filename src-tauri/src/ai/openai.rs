@@ -249,7 +249,9 @@ impl ChatProvider for OpenAi {
             .into_iter()
             .filter(|m| {
                 if self.is_official {
-                    m.id.starts_with("gpt") || m.id.starts_with("o3") || m.id.starts_with("o1")
+                    m.id.starts_with("gpt")
+                        || m.id.starts_with("o3")
+                        || m.id.starts_with("o1")
                         || m.id.starts_with("chatgpt")
                 } else {
                     // Yerel runtime'larda tüm modelleri göster
@@ -307,10 +309,7 @@ impl ChatProvider for OpenAi {
         if let Some(k) = key {
             req = req.header("Authorization", format!("Bearer {k}"));
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| format!("network: {e}"))?;
+        let resp = req.send().await.map_err(|e| format!("network: {e}"))?;
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
@@ -381,7 +380,8 @@ mod tests {
         assert!(validate_endpoint("http://192.168.1.1").is_err());
         assert!(validate_endpoint("http://10.0.0.1").is_err());
         assert!(validate_endpoint("http://172.16.0.1").is_err());
-        assert!(validate_endpoint("http://169.254.169.254/latest/meta-data").is_err()); // AWS IMDS
+        assert!(validate_endpoint("http://169.254.169.254/latest/meta-data").is_err());
+        // AWS IMDS
     }
 
     #[test]

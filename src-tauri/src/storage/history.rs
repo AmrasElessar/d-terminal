@@ -71,7 +71,10 @@ impl HistoryRepo {
             // SQLite LIKE escape: kullanıcı `%` veya `_` yazınca wildcard
             // pattern matching'i devre dışı bırak. ESCAPE '\\' ile özel
             // karakterler literal arar.
-            let escaped = text.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            let escaped = text
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
             sql.push_str(" AND command LIKE ? ESCAPE '\\'");
             params.push(Box::new(format!("%{}%", escaped)));
         }

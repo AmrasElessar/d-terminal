@@ -201,7 +201,10 @@ fn detect_shell() -> String {
             shells.push("Windows PowerShell");
         }
         // cmd.exe her Windows'ta var — sadece varlık kontrolü için ComSpec
-        if std::env::var("ComSpec").or_else(|_| std::env::var("COMSPEC")).is_ok() {
+        if std::env::var("ComSpec")
+            .or_else(|_| std::env::var("COMSPEC"))
+            .is_ok()
+        {
             shells.push("cmd");
         }
         if !shells.is_empty() {
@@ -404,7 +407,10 @@ fn collect_gpus() -> Vec<GpuInfo> {
 fn detect_battery() -> Option<BatteryInfo> {
     // GPU ile aynı sebep: Tauri STA thread'inde MTA'ya geçemeyiz, fresh
     // thread'de yürüt.
-    std::thread::spawn(detect_battery_inner).join().ok().flatten()
+    std::thread::spawn(detect_battery_inner)
+        .join()
+        .ok()
+        .flatten()
 }
 
 #[cfg(target_os = "windows")]
@@ -414,7 +420,8 @@ fn detect_battery_inner() -> Option<BatteryInfo> {
 
     let com = COMLibrary::new().ok()?;
     let con = WMIConnection::new(com).ok()?;
-    let query = "SELECT EstimatedChargeRemaining, BatteryStatus, EstimatedRunTime FROM Win32_Battery";
+    let query =
+        "SELECT EstimatedChargeRemaining, BatteryStatus, EstimatedRunTime FROM Win32_Battery";
     let rows: Vec<HashMap<String, Variant>> = con.raw_query(query).ok()?;
     let row = rows.into_iter().next()?;
 
@@ -498,7 +505,8 @@ fn detect_hybrid_cpu() -> Option<HybridCores> {
         let mut offset: usize = 0;
         let buf_end = size as usize;
         while offset + std::mem::size_of::<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>() <= buf_end {
-            let info = &*(buf.as_ptr().add(offset) as *const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX);
+            let info =
+                &*(buf.as_ptr().add(offset) as *const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX);
             let rec_size = info.Size as usize;
             if rec_size == 0 || offset + rec_size > buf_end {
                 break;
