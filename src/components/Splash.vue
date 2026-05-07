@@ -93,7 +93,7 @@ onMounted(play);
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 30% 50%, rgba(0, 180, 216, 0.07) 0%, transparent 50%);
+  background: radial-gradient(circle at 30% 50%, var(--color-accent-soft) 0%, transparent 50%);
   pointer-events: none;
 }
 .splash__logo {
@@ -101,7 +101,7 @@ onMounted(play);
   color: var(--color-accent);
   font-size: 11px;
   line-height: 1.1;
-  text-shadow: 0 0 14px rgba(0, 180, 216, 0.5);
+  text-shadow: 0 0 14px var(--color-accent-glow-strong);
 }
 .splash__lines {
   display: flex;

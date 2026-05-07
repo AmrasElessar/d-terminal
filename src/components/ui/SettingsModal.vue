@@ -40,9 +40,12 @@ import { onMounted } from 'vue';
 import { availableLocales, localeMeta } from '@/locales';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import AICostPanel from '@/components/ui/AICostPanel.vue';
+import { useDialogA11y } from '@/composables/useDialogA11y';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+const dialogEl = ref<HTMLElement | null>(null);
+useDialogA11y(dialogEl, () => props.open, { onEscape: () => emit('close') });
 
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
@@ -410,7 +413,16 @@ void props.open;
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open @click.self="emit('close')">
+  <dialog
+    v-if="open"
+    ref="dialogEl"
+    class="dialog"
+    open
+    role="dialog"
+    aria-modal="true"
+    :aria-label="t('settings.title')"
+    @click.self="emit('close')"
+  >
     <article class="dialog__panel">
       <header class="dialog__header">
         <h2>{{ t('settings.title') }}</h2>
@@ -447,6 +459,17 @@ void props.open;
           <span>{{ t('settings.general.aiPrefixHash') }}</span>
         </label>
         <small class="note">{{ t('settings.general.aiPrefixHashHint') }}</small>
+        <label class="field">
+          <span>{{ t('settings.general.dfetchPollInterval') }}</span>
+          <input
+            v-model.number="settings.state.dfetchPollIntervalMs"
+            type="number"
+            min="0"
+            max="60000"
+            step="500"
+          />
+          <small>{{ t('settings.general.dfetchPollIntervalHint') }}</small>
+        </label>
         <p class="note">{{ t('settings.general.telemetryHint') }}</p>
 
         <hr class="divider" />
@@ -959,7 +982,7 @@ void props.open;
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1020,7 +1043,7 @@ void props.open;
 .font-preview {
   margin-top: 6px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border-left: 2px solid var(--color-accent);
   color: var(--color-fg);
   font-size: 12px;
@@ -1070,7 +1093,7 @@ void props.open;
   color: var(--color-accent);
 }
 .config-btn--accent {
-  border-color: rgba(0, 180, 216, 0.4);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
   color: var(--color-accent);
 }
 .provider-group { margin-top: 12px; }
@@ -1105,7 +1128,7 @@ void props.open;
   opacity: 0.8;
 }
 .badge.ok {
-  background: rgba(0, 200, 0, 0.12);
+  background: color-mix(in srgb, var(--color-green) 14%, transparent);
   color: var(--color-green);
   font-family: var(--font-family);
 }
@@ -1127,9 +1150,9 @@ void props.open;
    Primary: accent kenarlık + dolgu yarı saydam, hover'da koyulaşır.
    Ghost  : nötr kenarlık, hover'da accent rengine geçer. */
 .primary {
-  background: rgba(0, 180, 216, 0.12);
+  background: var(--color-accent-soft-12);
   color: var(--color-accent);
-  border: 1px solid rgba(0, 180, 216, 0.45);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
   font-family: var(--font-family);
   font-size: 11px;
   padding: 4px 12px;
@@ -1140,7 +1163,7 @@ void props.open;
   transition: all 0.12s ease;
 }
 .primary:hover {
-  background: rgba(0, 180, 216, 0.22);
+  background: var(--color-accent-soft-22);
   border-color: var(--color-accent);
 }
 .primary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1163,10 +1186,10 @@ void props.open;
 }
 .ghost.danger {
   color: var(--color-red);
-  border-color: rgba(255, 95, 87, 0.3);
+  border-color: var(--color-red-soft-30);
 }
 .ghost.danger:hover {
-  background: rgba(255, 95, 87, 0.1);
+  background: color-mix(in srgb, var(--color-red) 10%, transparent);
   border-color: var(--color-red);
   color: var(--color-red);
 }
@@ -1196,7 +1219,7 @@ void props.open;
   font-family: var(--font-family);
   font-size: 10px;
   color: var(--color-accent);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
   padding: 1px 4px;
   border-radius: 2px;
   white-space: nowrap;
@@ -1246,7 +1269,7 @@ void props.open;
   outline: none;
 }
 .theme-card:hover { transform: translateY(-1px); }
-.theme-card.active { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+.theme-card.active { box-shadow: 0 4px 16px var(--color-overlay-faint); }
 .theme-card__head {
   display: flex;
   justify-content: space-between;
@@ -1283,7 +1306,7 @@ void props.open;
 
 /* --- Shortcuts --- */
 .prompt-input {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
   color: var(--color-fg);
   border: 1px solid var(--color-line);
   border-radius: 4px;
@@ -1318,13 +1341,13 @@ void props.open;
 .combo {
   font-family: var(--font-family);
   font-size: 11px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   color: var(--color-accent);
   padding: 3px 8px;
   border-radius: 3px;
   border: 1px solid var(--color-line);
 }
-.combo.overridden { border-color: var(--color-accent); box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.2); }
+.combo.overridden { border-color: var(--color-accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 20%, transparent); }
 
 /* Capture overlay */
 .capture-backdrop {

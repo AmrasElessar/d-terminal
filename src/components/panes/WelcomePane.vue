@@ -2,11 +2,22 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
-import type { SystemInfo, DiskInfo, NetIface } from '@/types/events';
+import type { SystemInfo, DiskInfo, NetIface, LiveStats, BatteryInfo } from '@/types/events';
 import { keybindings } from '@/keybindings/registry';
+import { useToastsStore } from '@/stores/toasts';
+import { useSettingsStore } from '@/stores/settings';
 
 const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
+/** Canlı stats — 1.5sn poll. CPU%, RAM (güncel), network throughput, battery. */
+const live = ref<LiveStats | null>(null);
+let livePollTimer: number | undefined;
+const toasts = useToastsStore();
+const settings = useSettingsStore();
+const welcomeRef = ref<HTMLElement | null>(null);
+/** Snapshot için kart alanı — buton/hint dışarıda, simetrik padding'li bg
+ *  ile kendi başına paylaşılabilir görüntü oluşur. */
+const captureRef = ref<HTMLElement | null>(null);
 const newPaneCombo = computed(() => keybindings.getCombo('pane.new') ?? 'Ctrl+Shift+T');
 
 // Typewriter (logo + hint) state
@@ -15,6 +26,10 @@ const typedHint = ref('');
 const showCursor = ref(true);
 const showColors = ref(false);
 const visibleRowCount = ref(0); // info satırları line-by-line reveal
+/** Reveal animasyonu bitti mi — bittikten sonra dinamik olarak satır eklendiğinde
+ *  (network expand toggle gibi) animasyon yeniden çalmaz, yeni satırlar
+ *  doğrudan gösterilir. Aksi halde slice(0, OLD_count) yeni satırları kırpardı. */
+const fullyRevealed = ref(false);
 
 let cursorTimer: number | undefined;
 let typeTimers: number[] = [];
@@ -62,6 +77,13 @@ function maskIPv6(ip: string): string {
   return `${head}::•:•:•:•`;
 }
 
+/** MAC: AA:BB:CC:DD:EE:FF → AA:BB:••:••:••:FF (üreticı OUI ön ek + son oktet). */
+function maskMac(mac: string): string {
+  const parts = mac.split(':');
+  if (parts.length !== 6) return '•'.repeat(mac.length);
+  return `${parts[0]}:${parts[1]}:••:••:••:${parts[5]}`;
+}
+
 interface Row {
   id: string;
   key: string;
@@ -69,7 +91,26 @@ interface Row {
   sensitive?: boolean;
   /** Maskeli halinin string'i — sensitive ise kullanılır. */
   masked?: string;
+  /** Network "Others (N)" toggle row'u — özel davranış: tıklayınca expand. */
+  isNetExpander?: boolean;
+  /** Network expander'ın gösterdiği gizli iface sayısı. */
+  netHiddenCount?: number;
+  /** Renkli yüzde rozeti (Memory/Swap/Disk/Battery/CPU). 0-100. */
+  pct?: number;
 }
+
+/** % değerine göre renk sınıfı — yeşil/sarı/kırmızı geçiş.
+ *  Battery için ters mantık (low = kırmızı) — `invert: true` ile çağrılır. */
+function pctClass(pct: number, invert = false): string {
+  const v = invert ? 100 - pct : pct;
+  if (v < 60) return 'pct--good';
+  if (v < 85) return 'pct--warn';
+  return 'pct--bad';
+}
+
+/** "Other interfaces" katlanmış mı (network bölümü için). */
+const netExpanded = ref(false);
+function toggleNetExpand() { netExpanded.value = !netExpanded.value; }
 
 function fmtBytes(n: number): string {
   if (!n) return '0 B';
@@ -83,9 +124,16 @@ function fmtBytes(n: number): string {
   return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
 }
 
-function fmtPct(used: number, total: number): string {
-  if (!total) return '';
-  return `(${Math.round((used / total) * 100)}%)`;
+function pctOf(used: number, total: number): number | undefined {
+  if (!total) return undefined;
+  return Math.round((used / total) * 100);
+}
+
+/** Live stats'tan throughput formatı: 12 KB/s. 1024'e bölünmez bazlarda
+ *  kullanıcı için anlamlı kalsın diye `fmtBytes` ile aynı kademe. */
+function fmtBps(n: number): string {
+  if (!n || n < 1) return '0 B/s';
+  return `${fmtBytes(n)}/s`;
 }
 
 function fmtUptime(secs: number): string {
@@ -106,16 +154,20 @@ function fmtBoot(unix: number): string {
 }
 
 function fmtDisk(d: DiskInfo): string {
-  const usage = fmtPct(d.used, d.total);
-  return `${d.mount_point} ${fmtBytes(d.used)} / ${fmtBytes(d.total)} ${usage} [${d.fs_type}]`;
+  // % rozeti ayrı bir span'da render edilir (renkli) — burada metin sadece
+  // boyutlar + dosya sistemi.
+  return `${d.mount_point} ${fmtBytes(d.used)} / ${fmtBytes(d.total)} [${d.fs_type}]`;
 }
 
 function fmtIface(n: NetIface): string {
-  return `${n.name}: ${n.ip}`;
+  const macPart = n.mac ? ` · ${n.mac}` : '';
+  return `${n.name}: ${n.ip}${macPart}`;
 }
 
 function maskedIface(n: NetIface): string {
-  return `${n.name}: ${n.family === 'v4' ? maskIPv4(n.ip) : maskIPv6(n.ip)}`;
+  const ipMasked = n.family === 'v4' ? maskIPv4(n.ip) : maskIPv6(n.ip);
+  const macPart = n.mac ? ` · ${maskMac(n.mac)}` : '';
+  return `${n.name}: ${ipMasked}${macPart}`;
 }
 
 function buildRows(i: SystemInfo): Row[] {
@@ -142,40 +194,131 @@ function buildRows(i: SystemInfo): Row[] {
       value: `${i.screen.width}x${i.screen.height} @ ${i.screen.scale.toFixed(2)}x`,
     });
   }
-  rows.push({ id: 'cpu', key: 'CPU', value: `${i.cpu} ×${i.cores}` });
+  // CPU: brand + topology + canlı yüzde.
+  // Topology: hybrid (Intel 12th+) ise "8P+4E (12C/20T)", normal ise "8C/16T".
+  const cpuPct = live.value ? Math.round(live.value.cpu_percent) : undefined;
+  let topology: string;
+  if (i.cpu_hybrid) {
+    topology = `${i.cpu_hybrid.p_cores}P+${i.cpu_hybrid.e_cores}E (${i.cores}C/${i.logical_cores}T)`;
+  } else if (i.cores > 0 && i.logical_cores > i.cores) {
+    topology = `${i.cores}C/${i.logical_cores}T`;
+  } else if (i.cores > 0) {
+    topology = `${i.cores}C`;
+  } else {
+    topology = `${i.logical_cores}T`;
+  }
+  rows.push({
+    id: 'cpu',
+    key: 'CPU',
+    value: `${i.cpu} · ${topology}`,
+    pct: cpuPct,
+  });
   for (let g = 0; g < i.gpus.length; g++) {
     const gpu = i.gpus[g]!;
     const vram = gpu.vram ? `, ${fmtBytes(gpu.vram)}` : '';
     rows.push({ id: `gpu-${g}`, key: 'GPU', value: `${gpu.name}${vram}` });
   }
+  // RAM: live varsa onun kullanılan değerini al (dfetch_get'ten zaman geçti).
+  const ramUsed = live.value?.ram_used ?? i.ram_used;
+  const ramTotal = live.value?.ram_total ?? i.ram_total;
   rows.push({
     id: 'mem',
     key: 'Memory',
-    value: `${fmtBytes(i.ram_used)} / ${fmtBytes(i.ram_total)} ${fmtPct(i.ram_used, i.ram_total)}`,
+    value: `${fmtBytes(ramUsed)} / ${fmtBytes(ramTotal)}`,
+    pct: pctOf(ramUsed, ramTotal),
   });
   if (i.swap_total > 0) {
     rows.push({
       id: 'swap',
       key: 'Swap',
-      value: `${fmtBytes(i.swap_used)} / ${fmtBytes(i.swap_total)} ${fmtPct(i.swap_used, i.swap_total)}`,
+      value: `${fmtBytes(i.swap_used)} / ${fmtBytes(i.swap_total)}`,
+      pct: pctOf(i.swap_used, i.swap_total),
     });
   }
   for (let d = 0; d < Math.min(4, i.disks.length); d++) {
-    rows.push({ id: `disk-${d}`, key: 'Disk', value: fmtDisk(i.disks[d]!) });
-  }
-  for (let n = 0; n < i.local_ips.length; n++) {
-    const iface = i.local_ips[n]!;
+    const disk = i.disks[d]!;
     rows.push({
-      id: `net-${n}`,
-      key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
-      value: fmtIface(iface),
-      sensitive: true,
-      masked: maskedIface(iface),
+      id: `disk-${d}`,
+      key: 'Disk',
+      value: fmtDisk(disk),
+      pct: pctOf(disk.used, disk.total),
     });
   }
-  if (i.battery) {
-    const ico = i.battery.full ? '⚡' : i.battery.charging ? '↑' : '↓';
-    rows.push({ id: 'bat', key: 'Battery', value: `${i.battery.percent}% ${ico}` });
+  // Network: primary interface(ler) her zaman görünür, diğerleri toggle.
+  // Primary = sistemin internete çıkışta kullandığı (default route source).
+  // Eğer hiçbiri primary değilse ilk v4'ü primary kabul et (çoğu kullanım için).
+  if (i.local_ips.length > 0) {
+    let primaries = i.local_ips.filter((n) => n.is_primary);
+    if (primaries.length === 0) {
+      const firstV4 = i.local_ips.find((n) => n.family === 'v4');
+      if (firstV4) primaries = [firstV4];
+    }
+    const others = i.local_ips.filter((n) => !primaries.includes(n));
+
+    for (const iface of primaries) {
+      const idx = i.local_ips.indexOf(iface);
+      rows.push({
+        id: `net-${idx}`,
+        key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
+        value: fmtIface(iface),
+        sensitive: true,
+        masked: maskedIface(iface),
+      });
+    }
+    // Live throughput — primary interface adıyla eşleşen sysinfo kaydını ara.
+    // Trafik yokken bile satır kalsın (gizleme), `—` ile göster.
+    if (live.value && primaries.length > 0) {
+      const primaryNames = new Set(primaries.map((p) => p.name));
+      const tput = live.value.net.find((n) => primaryNames.has(n.name));
+      const rxText = tput && tput.rx_bps > 0 ? fmtBps(tput.rx_bps) : '—';
+      const txText = tput && tput.tx_bps > 0 ? fmtBps(tput.tx_bps) : '—';
+      rows.push({
+        id: 'net-throughput',
+        key: 'Net I/O',
+        value: `↓ ${rxText}  ↑ ${txText}`,
+      });
+    }
+    if (others.length > 0) {
+      // Aç/kapa row — tıklayınca diğerlerini reveal eder. Detay row'lar
+      // ardından gelir, expanded false ise atılır.
+      rows.push({
+        id: 'net-expander',
+        key: 'Net',
+        value: '',
+        isNetExpander: true,
+        netHiddenCount: others.length,
+      });
+      if (netExpanded.value) {
+        for (const iface of others) {
+          const idx = i.local_ips.indexOf(iface);
+          rows.push({
+            id: `net-${idx}`,
+            key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
+            value: fmtIface(iface),
+            sensitive: true,
+            masked: maskedIface(iface),
+          });
+        }
+      }
+    }
+  }
+  // Battery: live'dan al (taze yüzde + kalan süre), yoksa info'dan.
+  const battery: BatteryInfo | null = live.value?.battery ?? i.battery;
+  if (battery) {
+    const ico = battery.full ? '⚡' : battery.charging ? '↑' : '↓';
+    let val = `${battery.percent}% ${ico}`;
+    if (!battery.charging && !battery.full && battery.time_remaining_min) {
+      const h = Math.floor(battery.time_remaining_min / 60);
+      const m = battery.time_remaining_min % 60;
+      val += h > 0 ? `  ~${h}h ${m}m` : `  ~${m}m`;
+    }
+    rows.push({
+      id: 'bat',
+      key: 'Battery',
+      value: val,
+      // Pil için renk ters: %20 = kırmızı, %80 = yeşil. Şarj olurken renk yok.
+      pct: battery.charging || battery.full ? undefined : battery.percent,
+    });
   }
   rows.push({ id: 'locale', key: 'Locale', value: i.locale });
   rows.push({ id: 'tz', key: 'Timezone', value: i.timezone });
@@ -184,7 +327,9 @@ function buildRows(i: SystemInfo): Row[] {
 }
 
 const allRows = computed<Row[]>(() => (info.value ? buildRows(info.value) : []));
-const visibleRows = computed<Row[]>(() => allRows.value.slice(0, visibleRowCount.value));
+const visibleRows = computed<Row[]>(() =>
+  fullyRevealed.value ? allRows.value : allRows.value.slice(0, visibleRowCount.value),
+);
 
 function typeInto(target: { value: string }, text: string, charDelay: number, startDelay: number): Promise<void> {
   return new Promise((resolve) => {
@@ -210,8 +355,10 @@ function typeInto(target: { value: string }, text: string, charDelay: number, st
 function revealRowsAnimated(): Promise<void> {
   return new Promise((resolve) => {
     visibleRowCount.value = 0;
+    fullyRevealed.value = false;
     const total = allRows.value.length;
     if (total === 0) {
+      fullyRevealed.value = true;
       resolve();
       return;
     }
@@ -220,6 +367,7 @@ function revealRowsAnimated(): Promise<void> {
       n += 1;
       visibleRowCount.value = n;
       if (n >= total) {
+        fullyRevealed.value = true;
         resolve();
         return;
       }
@@ -238,6 +386,124 @@ function clearTimers() {
 
 async function refresh() {
   info.value = await api.dfetchGet();
+}
+
+async function pollLive() {
+  try {
+    live.value = await api.dfetchLive();
+  } catch {
+    /* sessiz — bir tick atlayabiliriz */
+  }
+}
+
+function startLivePolling() {
+  if (livePollTimer !== undefined) return;
+  const interval = settings.state.dfetchPollIntervalMs;
+  // 0 = polling kapalı (kullanıcı statik snapshot ister, batarya tasarrufu vb).
+  if (interval <= 0) return;
+  // Çok düşük değerler (<300ms) hem CPU yer hem WMI battery latency'sini iter.
+  // 500ms altına izin verme.
+  const safeInterval = Math.max(500, interval);
+  // İlk tick hemen — sysinfo Networks ilk refresh'te delta üretmez (baseline),
+  // ikinci tick'ten itibaren throughput dolar.
+  void pollLive();
+  livePollTimer = window.setInterval(pollLive, safeInterval);
+}
+function stopLivePolling() {
+  if (livePollTimer !== undefined) {
+    window.clearInterval(livePollTimer);
+    livePollTimer = undefined;
+  }
+}
+// Settings'ten poll aralığı değişirse interval'ı yeniden başlat (canlı reaktif).
+watch(
+  () => settings.state.dfetchPollIntervalMs,
+  () => {
+    stopLivePolling();
+    startLivePolling();
+  },
+);
+
+/** Welcome panel'in PNG snapshot'ını oluşturup kullanıcının seçtiği yere yazdır.
+ *  Sadece `.welcome__capture` alanı (logo + info + renk blokları) yakalanır;
+ *  snapshot butonu ve "open first pane" hint'i dışarıda kalır.
+ *  Tauri save dialog → path → custom Rust komutu ile dosyaya bytes yaz. */
+async function takeSnapshot() {
+  const target = captureRef.value;
+  if (!target) return;
+
+  // 1. PNG'yi yakala — kart stillerini canlı DOM'a EKLEMEden, html-to-image'in
+  //    iç clone'una `style` opsiyonu ile geçir. Kullanıcı orijinal DOM'da
+  //    hiçbir görsel değişiklik görmez; çıkan PNG yine kart formunda.
+  //    BAYRAK ANİMASYONU: çekim anlık donmalı, yamuk logo'lu PNG çıkmasın.
+  //    `--freeze-logo` class'ı animation+transform'u sıfırlar; clone'a da
+  //    miras kaldığından PNG dik logo ile çıkar.
+  let dataUrl: string;
+  target.classList.add('welcome__capture--freeze-logo');
+  // Stil resetinin layer compositor'a yansıması için bir frame bekle.
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
+  try {
+    const { toPng } = await import('html-to-image');
+    const cs = getComputedStyle(target);
+    const bg = cs.getPropertyValue('--color-bg').trim() || '#0A0E1A';
+    const fg = cs.getPropertyValue('--color-fg').trim() || '#E2E8F0';
+    dataUrl = await toPng(target, {
+      pixelRatio: 2,
+      backgroundColor: bg,
+      cacheBust: true,
+      style: {
+        padding: '18px 20px',
+        background: bg,
+        border: `1px solid color-mix(in srgb, ${fg} 8%, transparent)`,
+        borderRadius: '8px',
+        gap: '12px',
+        // Render kartını içerik genişliğine sıkıştır (PNG fazla beyaz alan içermesin)
+        width: 'max-content',
+        maxWidth: 'max-content',
+      },
+    });
+  } catch (e) {
+    target.classList.remove('welcome__capture--freeze-logo');
+    toasts.error(t('welcome.snapshotFailed', { error: String(e) }));
+    return;
+  }
+  // Animasyon hemen geri açılsın — yakalama bitti.
+  target.classList.remove('welcome__capture--freeze-logo');
+
+  // 2. Çerçeveyi dolanan ışık — yalnızca canlı DOM'da, PNG'de yok.
+  //    Animasyon bitince save dialog açılır.
+  target.classList.add('welcome__capture--flash');
+  await new Promise<void>((resolve) => {
+    const onEnd = () => {
+      target.removeEventListener('animationend', onEnd);
+      target.classList.remove('welcome__capture--flash');
+      resolve();
+    };
+    target.addEventListener('animationend', onEnd, { once: true });
+    window.setTimeout(onEnd, 1500); // fail-safe
+  });
+
+  // 2. Yer seç + dosyaya yaz. Bu noktada DOM zaten orijinal halinde.
+  try {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const targetPath = await save({
+      title: t('welcome.snapshotHint'),
+      defaultPath: `dfetch-${ts}.png`,
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    });
+    if (!targetPath) return; // kullanıcı iptal
+
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+    const bin = atob(base64);
+    const bytes = new Array<number>(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+    await api.dfetchSaveSnapshot(targetPath, bytes);
+    toasts.success(t('welcome.snapshotSavedAt', { path: targetPath }), 4000);
+  } catch (e) {
+    toasts.error(t('welcome.snapshotFailed', { error: String(e) }));
+  }
 }
 
 async function play() {
@@ -259,6 +525,13 @@ onMounted(async () => {
   }, 500);
   await refresh();
   await play();
+  // Reveal animasyonu bittikten sonra canlı stats'ı başlat — dfetch_get'in
+  // ağır olan kısımlarına ek olarak hafif refresh, panel açıkken sürekli akar.
+  startLivePolling();
+  // Welcome pane mount edildiğinde snapshot + network toggle kısayolları
+  // aktif. Çoklu welcome açıksa son mount overwrite eder (rare case).
+  keybindings.register('dfetch.snapshot', () => takeSnapshot());
+  keybindings.register('dfetch.toggleNetExpand', () => toggleNetExpand());
 });
 
 watch(info, (next) => {
@@ -268,6 +541,9 @@ watch(info, (next) => {
 onBeforeUnmount(() => {
   if (cursorTimer) window.clearInterval(cursorTimer);
   clearTimers();
+  stopLivePolling();
+  keybindings.unregister('dfetch.snapshot');
+  keybindings.unregister('dfetch.toggleNetExpand');
 });
 
 const cursor = computed(() => (showCursor.value ? '▋' : ' '));
@@ -311,8 +587,17 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 </script>
 
 <template>
-  <div class="welcome">
-    <div class="welcome__grid">
+  <div ref="welcomeRef" class="welcome">
+    <button
+      type="button"
+      class="welcome__snap"
+      :title="t('welcome.snapshotHint')"
+      :aria-label="t('welcome.snapshotHint')"
+      @click="takeSnapshot"
+    >📸</button>
+    <!-- Snapshot kartı — sadece bu alan yakalanır (buton ve hint dışarıda). -->
+    <div ref="captureRef" class="welcome__capture">
+      <div class="welcome__grid">
       <!-- Sol kolon: D-T brand logosu üstte, Windows OS logosu altta.
            Bu layout 3-kolon yatay yerine 2-kolon dikey istif — info kolonuna
            ~22 char ekstra yer kazandırır, dar pencerelerde wrap'siz çalışır. -->
@@ -320,39 +605,72 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
         <pre class="welcome__logo">{{ typedLogo }}<span v-if="isTypingLogo" class="cursor">{{ cursor }}</span></pre>
 
         <!-- Windows OS logo — fastfetch/neofetch klasik wavy versiyon.
-             Microsoft brand colors (4 quadrant). Stilize representation
-             (fair use / descriptive), birebir Microsoft asset değil. -->
-        <pre v-if="info && showColors" class="os-logo" aria-hidden="true"><template v-for="(line, i) in WIN_LOGO_LINES" :key="i"><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span>{{ '\n' }}</template></pre>
+             Microsoft brand colors (4 quadrant). Her satır kendi animation
+             gecikmesi ile yatayda sinus dalgası yapar (bayrak efekti). -->
+        <div v-if="info && showColors" class="os-logo" aria-hidden="true">
+          <div
+            v-for="(line, i) in WIN_LOGO_LINES"
+            :key="i"
+            class="os-logo__line"
+            :style="{ animationDelay: `${i * 110}ms` }"
+          ><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span></div>
+        </div>
       </div>
 
       <div v-if="info" class="welcome__info">
-        <div v-for="row in visibleRows" :key="row.id" class="row">
-          <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
-          <span class="row__value">{{ row.sensitive && !isRevealed(row.id) ? row.masked : row.value }}</span>
+        <template v-for="row in visibleRows" :key="row.id">
           <button
-            v-if="row.sensitive"
+            v-if="row.isNetExpander"
             type="button"
-            class="row__eye"
-            :class="{ active: isRevealed(row.id) }"
-            :title="t('welcome.maskHint')"
-            :aria-label="isRevealed(row.id) ? t('welcome.maskHide') : t('welcome.maskShow')"
-            @click="toggleReveal(row.id)"
+            class="row row--expander"
+            :class="{ open: netExpanded }"
+            :title="t('welcome.netExpandHint')"
+            @click="toggleNetExpand"
           >
-            {{ isRevealed(row.id) ? '🙈' : '👁' }}
+            <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
+            <span class="row__value row__value--expander">
+              <span class="chev">{{ netExpanded ? '▾' : '▸' }}</span>
+              {{ netExpanded
+                ? t('welcome.netHideOthers')
+                : t('welcome.netShowOthers', { count: row.netHiddenCount }) }}
+            </span>
           </button>
-        </div>
+          <div v-else class="row">
+            <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
+            <span class="row__value">
+              {{ row.sensitive && !isRevealed(row.id) ? row.masked : row.value }}
+              <span
+                v-if="row.pct !== undefined"
+                class="pct"
+                :class="pctClass(row.pct, row.id === 'bat')"
+              >({{ row.pct }}%)</span>
+            </span>
+            <button
+              v-if="row.sensitive"
+              type="button"
+              class="row__eye"
+              :class="{ active: isRevealed(row.id) }"
+              :title="t('welcome.maskHint')"
+              :aria-label="isRevealed(row.id) ? t('welcome.maskHide') : t('welcome.maskShow')"
+              @click="toggleReveal(row.id)"
+            >
+              {{ isRevealed(row.id) ? '🙈' : '👁' }}
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
-    <!-- Neofetch-tarzı 16 ANSI color block satırı -->
-    <div v-if="showColors" class="welcome__colors">
-      <div class="color-row">
-        <span v-for="c in COLOR_ROW_TOP" :key="`t${c}`" class="color-block" :class="`ansi-${c}`" />
+      <!-- Neofetch-tarzı 16 ANSI color block satırı (capture kartı içinde) -->
+      <div v-if="showColors" class="welcome__colors">
+        <div class="color-row">
+          <span v-for="c in COLOR_ROW_TOP" :key="`t${c}`" class="color-block" :class="`ansi-${c}`" />
+        </div>
+        <div class="color-row">
+          <span v-for="c in COLOR_ROW_BOTTOM" :key="`b${c}`" class="color-block" :class="`ansi-${c}`" />
+        </div>
       </div>
-      <div class="color-row">
-        <span v-for="c in COLOR_ROW_BOTTOM" :key="`b${c}`" class="color-block" :class="`ansi-${c}`" />
-      </div>
-    </div>
+    </div><!-- /welcome__capture -->
 
     <p class="welcome__hint">
       <span class="prompt">{{ typedHint }}</span><span v-if="isTypingHint" class="cursor">{{ cursor }}</span>
@@ -373,7 +691,101 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   overflow-y: auto;
   font-family: var(--font-family);
   background: transparent;
+  position: relative;
 }
+/* Snapshot kartı — normalde görünmez, html-to-image yakalama anında
+   `--snapping` modifier sınıfı eklenir, kart stilleri o zaman aktif olur. */
+.welcome__capture {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.welcome__capture--snapping {
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--color-bg);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
+  border-radius: 8px;
+  /* Self-fit width: kart paylaşılırken içerik kadar genişlikte. */
+  max-width: max-content;
+}
+/* Kamera flaşı — çerçeveyi dolaşan ışık (border-trace). Yakalama bittikten
+   sonra tetiklenir, PNG'ye dahil değildir. Tema accent rengi conic-gradient
+   ile döner, mask-composite trick'i sayesinde yalnızca kenar şeridinde
+   görünür → sanki ışık çerçevenin etrafında geziyormuş gibi.
+   Edge 111+ (Tauri WebView2) @property + mask-composite destekler. */
+@property --dt-light-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.welcome__capture--flash {
+  border-radius: 8px;
+  width: max-content;
+  max-width: 100%;
+}
+.welcome__capture--flash::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--dt-light-angle),
+    transparent 0deg,
+    transparent 280deg,
+    color-mix(in srgb, var(--color-accent) 40%, transparent) 310deg,
+    color-mix(in srgb, var(--color-accent) 100%, white)      350deg,
+    color-mix(in srgb, var(--color-accent) 40%, transparent) 30deg,
+    transparent 60deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-accent) 70%, transparent));
+  animation: dtBorderLight 1200ms linear forwards;
+}
+@keyframes dtBorderLight {
+  0%   { --dt-light-angle:   0deg; }
+  100% { --dt-light-angle: 360deg; }
+}
+/* Sağ üstte snapshot butonu — fetch panelinin görüntüsünü PNG olarak indir. */
+.welcome__snap {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+  color: var(--color-fg);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  z-index: 5;
+}
+.welcome__snap:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  border-color: var(--color-accent);
+}
+/* Renkli yüzde rozeti — yeşil/sarı/kırmızı kademe.
+   Battery için ters çağrılır (low % = kırmızı). */
+.pct {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.pct--good { color: color-mix(in srgb, var(--color-green)   85%, var(--color-fg)); }
+.pct--warn { color: color-mix(in srgb, var(--color-yellow)  90%, var(--color-fg)); }
+.pct--bad  { color: color-mix(in srgb, var(--color-red)     90%, var(--color-fg)); }
 .welcome__grid {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -389,16 +801,46 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 }
 
 /* Windows OS logo — fastfetch klasik wavy, Microsoft brand renkleri.
-   Tek <pre> içinde span'larla 4 quadrant renklendirilir. */
+   Her satır kendi gecikmesi ile yatayda sinus dalgası yapar — bayrak
+   gibi yumuşak akış. translateX-only animasyon GPU compositor'da kalır,
+   reflow tetiklemez. */
 .os-logo {
   margin: 0;
   font-family: var(--font-family);
   font-size: 9px;
   line-height: 1;
   letter-spacing: 0;
-  white-space: pre;
   animation: os-fade 0.6s ease-out;
-  text-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 0 6px var(--color-overlay-faint);
+  /* Animasyon transform değişikliği yapıyor; subpixel render katmanı oluştur */
+  will-change: contents;
+}
+.os-logo__line {
+  display: block;
+  white-space: pre;
+  animation: os-logo-wave 3.2s ease-in-out infinite;
+  /* Sol kenara sabitle, sağ kenar daha çok hareket etsin (bayrak direği
+     solda, kumaş kuyruğu sağda flap). */
+  transform-origin: left center;
+}
+/* Bayrak rüzgar dalgası — çapraz tepe yukarı→aşağı geziyor.
+   translateX (yatay esme) + skewX (kumaş tilt) + translateY (mikro ripple).
+   Hepsi compositor-friendly transform. */
+@keyframes os-logo-wave {
+  0%   { transform: translate( 3px, -0.5px) skewX(-2deg); }
+  25%  { transform: translate( 0px,  0.5px) skewX( 0deg); }
+  50%  { transform: translate(-3px,  0.5px) skewX( 2deg); }
+  75%  { transform: translate( 0px, -0.5px) skewX( 0deg); }
+  100% { transform: translate( 3px, -0.5px) skewX(-2deg); }
+}
+/* Erişilebilirlik: kullanıcı azaltılmış hareket istediyse sallanma kapanır. */
+@media (prefers-reduced-motion: reduce) {
+  .os-logo__line { animation: none; }
+}
+/* Snapshot anında bayrak donsun — yamuk logo'lu PNG paylaşılmasın. */
+.welcome__capture--freeze-logo .os-logo__line {
+  animation: none !important;
+  transform: none !important;
 }
 .win-red    { color: #F25022; }
 .win-green  { color: #7FBA00; }
@@ -414,7 +856,7 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   font-size: 11px;
   line-height: 1.1;
   font-family: var(--font-family);
-  text-shadow: 0 0 12px rgba(0, 180, 216, 0.4);
+  text-shadow: 0 0 12px var(--color-accent-glow);
   white-space: pre;
   min-height: 6em;
 }
@@ -442,6 +884,31 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 .row__value {
   color: var(--color-fg);
   font-variant-numeric: tabular-nums;
+}
+/* Network "Other interfaces (N)" expander — button olarak render edilir
+   ama görsel olarak satır gibi durur. Tema-uyumlu. */
+.row--expander {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  padding: 0 2px;
+  color: inherit;
+}
+.row--expander .row__value--expander {
+  color: color-mix(in srgb, var(--color-cyan) 75%, var(--color-fg));
+  font-style: italic;
+  opacity: 0.85;
+}
+.row--expander:hover .row__value--expander { opacity: 1; }
+.row--expander .chev {
+  display: inline-block;
+  width: 1em;
+  color: var(--color-accent);
+  font-style: normal;
 }
 .row__eye {
   background: transparent;

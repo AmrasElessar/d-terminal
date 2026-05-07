@@ -76,6 +76,7 @@ pub fn run() {
             app.manage(AppState::new(storage, sidecar));
             app.manage(logger::LogPaths::new(log_dir.clone()));
             app.manage(commands::logstream::LogStreams::new());
+            app.manage(commands::dfetch::DfetchLiveState::new());
 
             // Vibrancy stratejisi:
             //  - Mica (Win11 22H2+) modern, GPU-friendly, resize'da pürüzsüz.
@@ -162,6 +163,8 @@ pub fn run() {
             commands::ai::ai_chat_stream,
             // DFetch
             commands::dfetch::dfetch_get,
+            commands::dfetch::dfetch_live,
+            commands::dfetch::dfetch_save_snapshot,
             // Themes
             commands::themes::themes_list,
             commands::themes::themes_save_user,

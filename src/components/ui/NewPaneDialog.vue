@@ -106,7 +106,7 @@ function create() {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -168,7 +168,7 @@ h2 {
 }
 .card.active {
   border-color: var(--color-accent);
-  background: rgba(0, 180, 216, 0.1);
+  background: var(--color-accent-soft-12);
   color: var(--color-accent);
 }
 .card__icon { font-size: 14px; text-align: center; }

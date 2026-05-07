@@ -31,12 +31,37 @@ export interface BatteryInfo {
   percent: number;
   charging: boolean;
   full: boolean;
+  /** Pilden çalışırken kalan tahmini süre (dakika). AC'deyken yok. */
+  time_remaining_min?: number | null;
+}
+
+export interface NetThroughput {
+  name: string;
+  rx_bps: number;
+  tx_bps: number;
+}
+
+export interface LiveStats {
+  cpu_percent: number;
+  ram_used: number;
+  ram_total: number;
+  net: NetThroughput[];
+  battery: BatteryInfo | null;
 }
 
 export interface NetIface {
   name: string;
   ip: string;
   family: 'v4' | 'v6';
+  /** MAC adresi (XX:XX:XX:XX:XX:XX). Loopback/sanal interfacelerde yok. */
+  mac?: string | null;
+  /** Sistemin internete çıkışta kullandığı interface (default route source). */
+  is_primary: boolean;
+}
+
+export interface HybridCores {
+  p_cores: number;
+  e_cores: number;
 }
 
 export interface SystemInfo {
@@ -64,4 +89,8 @@ export interface SystemInfo {
   screen: ScreenInfo | null;
   battery: BatteryInfo | null;
   local_ips: NetIface[];
+  /** Mantıksal işlemci sayısı (SMT/HT dahil thread). */
+  logical_cores: number;
+  /** Hybrid CPU (Intel 12th+ vb.) tespit edilirse P+E ayrımı. */
+  cpu_hybrid?: HybridCores | null;
 }

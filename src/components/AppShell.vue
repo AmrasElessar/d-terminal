@@ -319,7 +319,7 @@ watch(
   font-size: 11px;
   z-index: 1500;
   pointer-events: none;
-  box-shadow: 0 0 12px rgba(0, 180, 216, 0.3);
+  box-shadow: 0 0 12px var(--color-accent-glow);
 }
 .prefix-overlay__label {
   font-weight: 700;
@@ -345,7 +345,7 @@ watch(
   align-items: center;
   gap: 12px;
   padding: 2px 8px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border-bottom: 1px solid var(--color-line);
   flex-shrink: 0;
   user-select: none;
@@ -369,8 +369,8 @@ watch(
   gap: 4px;
   margin-left: 8px;
   padding: 1px 6px;
-  background: rgba(255, 95, 87, 0.14);
-  border: 1px solid rgba(255, 95, 87, 0.55);
+  background: var(--color-red-soft-15);
+  border: 1px solid color-mix(in srgb, var(--color-red) 55%, transparent);
   border-radius: 2px;
   color: var(--color-red);
   font-size: 9px;
@@ -397,7 +397,7 @@ watch(
 }
 .shell__menu button:hover {
   color: var(--color-accent);
-  background: rgba(0, 180, 216, 0.08);
+  background: var(--color-accent-soft);
 }
 .shell__menu .spacer { flex: 1; }
 </style>

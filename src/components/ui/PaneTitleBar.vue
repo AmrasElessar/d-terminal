@@ -106,6 +106,14 @@ function colorForTag(tag: string | undefined): string {
   return TAG_PALETTE[h % TAG_PALETTE.length] ?? '';
 }
 const tagColor = computed(() => colorForTag(props.leaf.tag));
+
+/** Broadcast aktif + bu pane hedeflerden biri ise true (yayın altındayız uyarısı). */
+const broadcasting = computed(
+  () =>
+    panes.broadcastInput
+    && !!props.leaf.ptyId
+    && props.leaf.status === 'running',
+);
 </script>
 
 <template>
@@ -140,6 +148,13 @@ const tagColor = computed(() => colorForTag(props.leaf.tag));
       {{ title }}
     </div>
     <div class="title-bar__status">{{ statusLabel }}</div>
+
+    <span
+      v-if="broadcasting"
+      class="title-bar__bcast"
+      :title="t('statusBar.broadcastHint')"
+      :aria-label="t('statusBar.broadcastOn')"
+    >⌘</span>
 
     <input
       v-if="editingTag"
@@ -205,7 +220,7 @@ const tagColor = computed(() => colorForTag(props.leaf.tag));
   align-items: center;
   gap: 6px;
   padding: 1px 6px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border-bottom: 1px solid var(--color-line);
   font-size: 10px;
   user-select: none;
@@ -214,7 +229,7 @@ const tagColor = computed(() => colorForTag(props.leaf.tag));
   font-family: var(--font-family);
 }
 .title-bar.focused {
-  background: rgba(0, 180, 216, 0.1);
+  background: var(--color-accent-soft-12);
   border-bottom-color: var(--color-accent);
 }
 .title-bar__indicator {
@@ -285,6 +300,22 @@ const tagColor = computed(() => colorForTag(props.leaf.tag));
 .title-bar__status {
   color: var(--color-dim);
   font-size: 9px;
+}
+/* Broadcast hedef pane uyarısı — yayın aktif ve bu pane'e tuş gidiyor. */
+.title-bar__bcast {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-yellow);
+  text-shadow: 0 0 4px var(--color-yellow);
+  padding: 0 3px;
+  animation: bcastPulse 1.4s ease-in-out infinite;
+  cursor: help;
+}
+@keyframes bcastPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 .title-bar__tag {
   display: inline-flex;

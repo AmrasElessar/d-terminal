@@ -40,30 +40,113 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const menu = ref<HTMLElement | null>(null);
+/** Klavye ile vurgulanan satır indeksi (selected'tan farklı — focus ring). */
+const focusIdx = ref(-1);
 
 const current = computed(
   () => props.options.find((o) => o.value === props.modelValue),
 );
 
-function toggle() { open.value = !open.value; }
+function toggle() {
+  if (open.value) {
+    open.value = false;
+  } else {
+    openMenu();
+  }
+}
+function openMenu() {
+  open.value = true;
+  // Açılışta seçili satıra odaklan, yoksa ilk seçilebilir satıra.
+  const selIdx = props.options.findIndex((o) => o.value === props.modelValue);
+  focusIdx.value = selIdx >= 0 ? selIdx : firstEnabled(0, 1);
+}
 function pick(o: DarkSelectOption) {
   if (o.disabled) return;
   emit('update:modelValue', o.value);
   open.value = false;
+}
+function pickByIdx(idx: number) {
+  const o = props.options[idx];
+  if (o) pick(o);
+}
+function firstEnabled(start: number, dir: 1 | -1): number {
+  const n = props.options.length;
+  if (n === 0) return -1;
+  let i = start;
+  for (let step = 0; step < n; step += 1) {
+    if (i < 0) i = n - 1;
+    if (i >= n) i = 0;
+    if (!props.options[i]?.disabled) return i;
+    i += dir;
+  }
+  return -1;
+}
+function moveFocus(delta: 1 | -1) {
+  if (!open.value) return;
+  const n = props.options.length;
+  if (n === 0) return;
+  const start = focusIdx.value < 0 ? (delta > 0 ? 0 : n - 1) : focusIdx.value + delta;
+  focusIdx.value = firstEnabled(start, delta);
+  scrollFocusIntoView();
+}
+function scrollFocusIntoView() {
+  void Promise.resolve().then(() => {
+    const el = menu.value?.querySelector<HTMLElement>('.ds__opt--focus');
+    el?.scrollIntoView({ block: 'nearest' });
+  });
 }
 function onDocClick(e: MouseEvent) {
   if (!root.value) return;
   if (!root.value.contains(e.target as Node)) open.value = false;
 }
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false;
+  if (e.key === 'Escape' && open.value) {
+    e.stopPropagation();
+    open.value = false;
+  }
+}
+function onTriggerKey(e: KeyboardEvent) {
+  // Trigger üzerinde klavye nav: ArrowDown/Up/Enter/Space açar; açıkken navigasyon yapar.
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!open.value) {
+      openMenu();
+      moveFocus(e.key === 'ArrowDown' ? 1 : -1);
+    } else {
+      moveFocus(e.key === 'ArrowDown' ? 1 : -1);
+    }
+  } else if (e.key === 'Home') {
+    if (!open.value) openMenu();
+    e.preventDefault();
+    focusIdx.value = firstEnabled(0, 1);
+    scrollFocusIntoView();
+  } else if (e.key === 'End') {
+    if (!open.value) openMenu();
+    e.preventDefault();
+    focusIdx.value = firstEnabled(props.options.length - 1, -1);
+    scrollFocusIntoView();
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (!open.value) {
+      openMenu();
+    } else if (focusIdx.value >= 0) {
+      pickByIdx(focusIdx.value);
+    }
+  } else if (e.key === 'Tab') {
+    open.value = false;
+  }
 }
 
 // Açıldığında aktif satırı görünür alana getir.
 watch(open, async (isOpen) => {
-  if (!isOpen) return;
+  if (!isOpen) {
+    focusIdx.value = -1;
+    return;
+  }
   await Promise.resolve();
-  const el = menu.value?.querySelector<HTMLElement>('.ds__opt--active');
+  const el =
+    menu.value?.querySelector<HTMLElement>('.ds__opt--focus') ??
+    menu.value?.querySelector<HTMLElement>('.ds__opt--active');
   el?.scrollIntoView({ block: 'nearest' });
 });
 
@@ -88,7 +171,9 @@ onBeforeUnmount(() => {
       class="ds__trigger"
       :aria-label="ariaLabel || undefined"
       :aria-expanded="open"
+      aria-haspopup="listbox"
       @click="toggle"
+      @keydown="onTriggerKey"
     >
       <span class="ds__current">
         {{ current?.label ?? placeholder }}
@@ -97,11 +182,12 @@ onBeforeUnmount(() => {
     </button>
     <ul v-if="open" ref="menu" class="ds__menu" role="listbox">
       <li
-        v-for="opt in options"
+        v-for="(opt, idx) in options"
         :key="opt.value"
         class="ds__opt"
         :class="{
           'ds__opt--active':   opt.value === modelValue,
+          'ds__opt--focus':    idx === focusIdx,
           'ds__opt--dim':      opt.dim,
           'ds__opt--disabled': opt.disabled,
         }"
@@ -109,6 +195,7 @@ onBeforeUnmount(() => {
         :aria-disabled="opt.disabled"
         role="option"
         @click="pick(opt)"
+        @mouseenter="!opt.disabled && (focusIdx = idx)"
       >
         <span class="ds__label">{{ opt.label }}</span>
         <span
@@ -211,6 +298,12 @@ onBeforeUnmount(() => {
 .ds__opt--active {
   background: color-mix(in srgb, var(--color-accent) 22%, transparent);
   font-weight: 600;
+}
+.ds__opt--focus:not(.ds__opt--active) {
+  background: color-mix(in srgb, var(--color-fg) 12%, transparent);
+}
+.ds__opt--focus.ds__opt--active {
+  outline: 1px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
 }
 .ds__opt--dim .ds__label {
   color: color-mix(in srgb, var(--color-fg) 42%, transparent);

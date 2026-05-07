@@ -45,6 +45,9 @@ export interface SettingsState {
   /** Custom AI provider'ın OpenAI-uyumlu endpoint'i (örn. https://openrouter.ai/api/v1).
    *  Boş ise custom provider devre dışı sayılır. */
   aiCustomEndpoint: string;
+  /** Welcome pane canlı stat polling aralığı (ms). CPU%, RAM, ağ throughput
+   *  bu sıklıkta yenilenir. 0 = polling kapalı (statik snapshot). 500-10000 ideal. */
+  dfetchPollIntervalMs: number;
 }
 
 const DEFAULTS: SettingsState = {
@@ -66,6 +69,7 @@ const DEFAULTS: SettingsState = {
   prefixModeEnabled: false,
   prefixCombo: 'Ctrl+B',
   aiCustomEndpoint: '',
+  dfetchPollIntervalMs: 1500,
 };
 
 const KEY_PREFIX = 'ui.';

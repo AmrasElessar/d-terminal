@@ -3,9 +3,12 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
 import type { SystemInfo } from '@/types/events';
+import { useDialogA11y } from '@/composables/useDialogA11y';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+const dialogEl = ref<HTMLElement | null>(null);
+useDialogA11y(dialogEl, () => props.open, { onEscape: () => emit('close') });
 
 const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
@@ -52,7 +55,16 @@ void props.open;
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open @click.self="emit('close')">
+  <dialog
+    v-if="open"
+    ref="dialogEl"
+    class="dialog"
+    open
+    role="dialog"
+    aria-modal="true"
+    :aria-label="t('about.title')"
+    @click.self="emit('close')"
+  >
     <article class="panel">
       <header class="panel__header">
         <pre class="panel__logo">██████╗       ████████╗
@@ -117,7 +129,7 @@ void props.open;
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay-dark);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -127,7 +139,7 @@ void props.open;
 }
 .panel {
   background: var(--color-bg);
-  border: 1px solid rgba(0, 180, 216, 0.3);
+  border: 1px solid var(--color-accent-glow);
   border-radius: var(--ui-radius, 2px);
   width: min(640px, 92vw);
   max-height: 88vh;
@@ -148,7 +160,7 @@ void props.open;
   color: var(--color-accent);
   font-size: 8px;
   line-height: 1.1;
-  text-shadow: 0 0 12px rgba(0, 180, 216, 0.4);
+  text-shadow: 0 0 12px var(--color-accent-glow);
 }
 .panel__title h2 {
   margin: 0 0 2px 0;
@@ -204,7 +216,7 @@ void props.open;
 .mono {
   font-family: var(--font-family);
   font-size: 11px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
   padding: 4px 8px;
   border-radius: 2px;
   word-break: break-all;

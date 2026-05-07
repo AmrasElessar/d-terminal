@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePanesStore } from '@/stores/panes';
 import { useSettingsStore } from '@/stores/settings';
@@ -33,6 +33,10 @@ interface Action {
 }
 
 const search = ref('');
+// Debounce edilmiş kopya — büyük action listesinde fuzzy skor + sort her tuşta
+// koşmasın. 200ms bekle.
+const debouncedSearch = ref('');
+let searchTimer: number | undefined;
 const selectedIdx = ref(0);
 const inputEl = ref<HTMLInputElement>();
 
@@ -136,13 +140,21 @@ function fuzzyScore(text: string, q: string): number {
 }
 
 const filtered = computed(() => {
-  const q = search.value.trim();
+  const q = debouncedSearch.value.trim();
   return actions.value
     .map((a) => ({ a, score: fuzzyScore(a.label, q) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .map((x) => x.a)
     .slice(0, 50);
+});
+
+watch(search, (val) => {
+  if (searchTimer !== undefined) window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => {
+    searchTimer = undefined;
+    debouncedSearch.value = val;
+  }, 200);
 });
 
 watch(filtered, () => {
@@ -154,6 +166,11 @@ watch(
   async (open) => {
     if (open) {
       search.value = '';
+      debouncedSearch.value = '';
+      if (searchTimer !== undefined) {
+        window.clearTimeout(searchTimer);
+        searchTimer = undefined;
+      }
       selectedIdx.value = 0;
       await snippets.load();
       await nextTick();
@@ -161,6 +178,10 @@ watch(
     }
   },
 );
+
+onBeforeUnmount(() => {
+  if (searchTimer !== undefined) window.clearTimeout(searchTimer);
+});
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'ArrowDown') {
@@ -215,7 +236,7 @@ onMounted(() => snippets.load());
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -234,7 +255,7 @@ onMounted(() => snippets.load());
   display: flex;
   flex-direction: column;
   color: var(--color-fg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 60px var(--color-overlay-dark);
 }
 .palette input {
   background: transparent;
@@ -256,7 +277,7 @@ onMounted(() => snippets.load());
   cursor: pointer;
   font-size: 13px;
 }
-.results li.selected { background: rgba(0, 180, 216, 0.08); }
+.results li.selected { background: var(--color-accent-soft); }
 .cat {
   background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   color: var(--color-accent);

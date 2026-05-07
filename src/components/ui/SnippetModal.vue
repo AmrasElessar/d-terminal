@@ -208,7 +208,7 @@ void props.open;
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -280,6 +280,6 @@ void props.open;
 .primary { background: var(--color-accent); color: var(--color-bg); border: none; padding: 5px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; }
 .primary.small, .ghost.small, .danger.small { font-size: 11px; padding: 3px 8px; }
 .ghost { background: transparent; color: var(--color-fg); border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
-.danger { background: transparent; color: var(--color-red); border: 1px solid rgba(255, 95, 87, 0.3); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
+.danger { background: transparent; color: var(--color-red); border: 1px solid var(--color-red-soft-30); padding: 5px 12px; border-radius: 4px; cursor: pointer; }
 .danger:hover { background: var(--color-red); color: var(--color-bg); }
 </style>

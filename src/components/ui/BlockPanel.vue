@@ -187,7 +187,7 @@ function previewLines(output: string, max: number = 6): string[] {
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-line);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
 }
 .block-panel__header h3 {
   margin: 0;
@@ -239,12 +239,12 @@ function previewLines(output: string, max: number = 6): string[] {
   overflow: hidden;
 }
 .block--success { border-left-color: var(--color-green); }
-.block--error { border-left-color: var(--color-red); background: rgba(255, 95, 87, 0.05); }
+.block--error { border-left-color: var(--color-red); background: var(--color-red-soft-08); }
 .block--running { border-left-color: var(--color-accent); animation: pulse 1.5s ease-in-out infinite; }
 .block--aborted { border-left-color: var(--color-yellow); }
 @keyframes pulse {
-  0%, 100% { background: rgba(0, 180, 216, 0.04); }
-  50% { background: rgba(0, 180, 216, 0.12); }
+  0%, 100% { background: var(--color-accent-soft); }
+  50% { background: var(--color-accent-soft-12); }
 }
 .block__head {
   display: grid;
@@ -293,7 +293,7 @@ function previewLines(output: string, max: number = 6): string[] {
   font-size: 10px;
   line-height: 1.4;
   color: var(--color-fg);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
   padding: 4px 6px;
   white-space: pre-wrap;
   word-break: break-all;

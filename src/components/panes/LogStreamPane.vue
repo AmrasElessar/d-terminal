@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
 }
 .log-pane__path {
   flex: 1;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border: 1px solid var(--color-line);
   color: var(--color-fg);
   padding: 4px 8px;
@@ -174,7 +174,7 @@ onBeforeUnmount(() => {
 .log-pane__path:focus { outline: none; border-color: var(--color-accent); }
 .log-pane__filter-input {
   flex: 1;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-overlay-faint);
   border: 1px solid var(--color-line);
   color: var(--color-fg);
   padding: 3px 6px;

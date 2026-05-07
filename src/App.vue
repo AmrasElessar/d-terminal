@@ -29,6 +29,22 @@ const booted = ref(false);
   --color-white: #e2e8f0;
   --color-dim: #5a6478;
   --color-line: color-mix(in srgb, var(--color-fg) 5%, transparent);
+  /* Semantik renk overlay'leri — child component'lerde rgba(...) tekrar
+     etmesin diye merkezi tanım. Tema değişince otomatik adapte olur
+     (color-mix accent/red/black üzerinden çalışır). */
+  --color-accent-soft:    color-mix(in srgb, var(--color-accent) 8%,  transparent);
+  --color-accent-soft-12: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-accent-soft-15: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  --color-accent-soft-22: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  --color-accent-glow:    color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --color-accent-glow-strong: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  --color-red-soft-08:    color-mix(in srgb, var(--color-red)    8%,  transparent);
+  --color-red-soft-15:    color-mix(in srgb, var(--color-red)    15%, transparent);
+  --color-red-soft-30:    color-mix(in srgb, var(--color-red)    30%, transparent);
+  --color-overlay-faint:  rgba(0, 0, 0, 0.3);
+  --color-overlay-light:  rgba(0, 0, 0, 0.4);
+  --color-overlay-medium: rgba(0, 0, 0, 0.5);
+  --color-overlay-dark:   rgba(0, 0, 0, 0.6);
   --font-family: 'JetBrains Mono', 'Cascadia Code', 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
   --font-size: 11px;
   --line-height: 1.35;

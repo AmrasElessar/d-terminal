@@ -11,7 +11,7 @@ installGlobalErrorHandlers();
 const log = createLogger('main');
 log.info('frontend bootstrap');
 
-const i18n = createI18n({
+export const i18n = createI18n({
   legacy: false,
   locale: pickInitialLocale(),
   // Eksik çeviri anahtarları Türkçeye düşer — D-Terminal'in birincil dili

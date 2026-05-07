@@ -34,6 +34,8 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   { id: 'commandPalette.open', combo: 'Ctrl+Shift+P',  labelKey: 'commandPalette.placeholder' },
   { id: 'settings.open',       combo: 'Ctrl+Shift+,',  labelKey: 'settings.title' },
   { id: 'dfetch.run',          combo: 'Ctrl+Shift+D',  labelKey: 'dfetch.title' },
+  { id: 'dfetch.snapshot',     combo: 'Ctrl+Alt+S',    labelKey: 'welcome.snapshotHint' },
+  { id: 'dfetch.toggleNetExpand', combo: 'Ctrl+Alt+N', labelKey: 'welcome.netExpandHint' },
   { id: 'app.fullscreen',      combo: 'F11',           labelKey: 'app.title' },
   { id: 'app.devTools',        combo: 'Ctrl+Shift+I',  labelKey: 'app.title' },
   { id: 'app.about',           combo: 'Ctrl+Shift+/',  labelKey: 'about.title' },

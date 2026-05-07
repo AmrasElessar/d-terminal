@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { HistoryEntry, HistoryQuery, NewHistoryEntry } from '@/types/history';
 import type { NewSnippet, Snippet } from '@/types/snippet';
-import type { SystemInfo } from '@/types/events';
+import type { SystemInfo, LiveStats } from '@/types/events';
 
 export interface SpawnArgs {
   shell: string;
@@ -100,6 +100,9 @@ export const api = {
 
   // DFetch
   dfetchGet: () => invoke<SystemInfo>('dfetch_get'),
+  dfetchLive: () => invoke<LiveStats>('dfetch_live'),
+  dfetchSaveSnapshot: (path: string, bytes: number[]) =>
+    invoke<void>('dfetch_save_snapshot', { path, bytes }),
 
   // Themes
   themesList: () => invoke<ThemeFile[]>('themes_list'),

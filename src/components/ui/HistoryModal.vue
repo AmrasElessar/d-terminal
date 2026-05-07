@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
 import type { HistoryEntry } from '@/types/history';
 import { usePanesStore } from '@/stores/panes';
 import { useToastsStore } from '@/stores/toasts';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
+import { useDialogA11y } from '@/composables/useDialogA11y';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+const dialogEl = ref<HTMLElement | null>(null);
+useDialogA11y(dialogEl, () => props.open, {
+  onEscape: () => emit('close'),
+  initialFocus: 'input[type="text"]',
+});
 
 const { t } = useI18n();
 const panes = usePanesStore();
@@ -44,7 +50,18 @@ async function refresh() {
   void focusedPty;
 }
 
-watch(search, refresh);
+// Search debounce: her tuş vuruşunda SQLite sorgusu atmamak için 200ms bekle.
+let searchTimer: number | undefined;
+watch(search, () => {
+  if (searchTimer !== undefined) window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => {
+    searchTimer = undefined;
+    void refresh();
+  }, 200);
+});
+onBeforeUnmount(() => {
+  if (searchTimer !== undefined) window.clearTimeout(searchTimer);
+});
 watch(filter, refresh);
 watch(
   () => props.open,
@@ -102,7 +119,17 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open @click.self="emit('close')" @keydown="onKey">
+  <dialog
+    v-if="open"
+    ref="dialogEl"
+    class="dialog"
+    open
+    role="dialog"
+    aria-modal="true"
+    :aria-label="t('history.title')"
+    @click.self="emit('close')"
+    @keydown="onKey"
+  >
     <article class="panel">
       <header class="panel__header">
         <h2>{{ t('history.title') }}</h2>
@@ -167,7 +194,7 @@ function onKey(e: KeyboardEvent) {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay-dark);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -240,7 +267,7 @@ function onKey(e: KeyboardEvent) {
   border-top: 1px solid color-mix(in srgb, var(--color-fg) 3%, transparent);
   cursor: pointer;
 }
-.results li.selected { background: rgba(0, 180, 216, 0.08); }
+.results li.selected { background: var(--color-accent-soft); }
 .results li.fav .results__cmd::before { content: '★ '; color: var(--color-yellow); }
 .results__cmd {
   grid-area: cmd;

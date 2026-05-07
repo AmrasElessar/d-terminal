@@ -23,7 +23,14 @@
     "tip": "İpucu",
     "maskHint": "Hassas alan (KVKK/GDPR) — açma kullanıcı sorumluluğundadır. Pencere yenilenince yeniden maskelenir.",
     "maskShow": "Göster",
-    "maskHide": "Gizle"
+    "maskHide": "Gizle",
+    "netShowOthers": "{count} diğer arayüzü göster",
+    "netHideOthers": "Diğer arayüzleri gizle",
+    "netExpandHint": "Diğer ağ arayüzlerini aç/kapa (loopback, sanal, ikincil)",
+    "snapshotHint": "Fetch panelinin PNG ekran görüntüsünü kaydet (Ctrl+Alt+S)",
+    "snapshotSaved": "Snapshot kaydedildi",
+    "snapshotSavedAt": "Snapshot kaydedildi → {path}",
+    "snapshotFailed": "Snapshot başarısız: {error}"
   },
   "tab": {
     "new": "Yeni Sekme",
@@ -93,7 +100,7 @@
     },
     "brainstorm": {
       "short": "Beyin Fırtınası",
-      "toggle": "Birden fazla AI'a aynı soruyu paralel sor (max {0} model, 1 round)",
+      "toggle": "Birden fazla AI'a aynı soruyu paralel sor (max {max} model, 1 round)",
       "needTwo": "En az 2 farklı AI provider'ın API key'i girili olmalı.",
       "pickAIs": "Konsey üyeleri (max {max}):",
       "pickAtLeastOne": "En az bir AI seçmen gerek.",
@@ -217,7 +224,9 @@
       "configImportOk": "{count} ayar içe aktarıldı — yeniden başlatma gerekebilir",
       "configImportFail": "İçe aktarma başarısız",
       "aiPrefixHash": "Boş prompt'ta # ile AI komut üretici aç (Warp paritesi)",
-      "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır."
+      "aiPrefixHashHint": "Etkinse: terminal pane'de boş satırda # tuşuna basınca PTY'ye gönderilmez, AI komut üretici açılır. Devre dışı bırakırsan # normal yazılır.",
+      "dfetchPollInterval": "Welcome canlı stat yenileme (ms)",
+      "dfetchPollIntervalHint": "Welcome pane CPU%, RAM, ağ throughput, pil bilgisini bu sıklıkta günceller. 0 = kapalı (statik). Min 500ms. Default 1500."
     },
     "appearance": {
       "theme": "Tema",
@@ -375,7 +384,9 @@
     "sidecarDown": "PTY köprüsü kapalı",
     "broadcastOn": "yayın AÇIK",
     "broadcastOff": "yayın",
-    "broadcastHint": "Aktif tab'daki tüm terminal panellerine paralel klavye girişi (Ctrl+Shift+B)"
+    "broadcastHint": "Aktif tab'daki tüm terminal panellerine paralel klavye girişi (Ctrl+Shift+B)",
+    "broadcastEnabledToast": "Yayın AÇIK — tuşlar {count} panele aynı anda gidiyor",
+    "broadcastDisabledToast": "Yayın KAPALI"
   },
   "about": {
     "title": "D-Terminal Hakkında",

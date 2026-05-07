@@ -207,7 +207,7 @@ function onResultKey(e: KeyboardEvent) {
   border-radius: 6px;
   width: min(640px, 90vw);
   color: var(--color-fg);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 180, 216, 0.15);
+  box-shadow: 0 12px 48px var(--color-overlay-dark), 0 0 0 1px var(--color-accent-soft-15);
 }
 .panel__head {
   display: grid;
@@ -237,7 +237,7 @@ function onResultKey(e: KeyboardEvent) {
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field span { font-size: 11px; color: var(--color-dim); }
 .prompt-input {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   color: var(--color-fg);
   border: 1px solid var(--color-line);
   border-radius: 4px;
@@ -248,7 +248,7 @@ function onResultKey(e: KeyboardEvent) {
 }
 .prompt-input:focus { border-color: var(--color-accent); }
 .result {
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   color: var(--color-accent);
   border: 1px solid var(--color-accent);
   border-radius: 4px;
@@ -271,7 +271,7 @@ function onResultKey(e: KeyboardEvent) {
   font-size: 11px;
   color: var(--color-red);
   padding: 6px 8px;
-  background: rgba(255, 95, 87, 0.08);
+  background: var(--color-red-soft-08);
   border-left: 2px solid var(--color-red);
 }
 .actions {

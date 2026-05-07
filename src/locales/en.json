@@ -23,7 +23,14 @@
     "tip": "Tip",
     "maskHint": "Sensitive field (GDPR) — revealing it is your responsibility. Re-masked when the pane refreshes.",
     "maskShow": "Show",
-    "maskHide": "Hide"
+    "maskHide": "Hide",
+    "netShowOthers": "Show {count} other interface(s)",
+    "netHideOthers": "Hide other interfaces",
+    "netExpandHint": "Toggle other network interfaces (loopback, virtual, secondary)",
+    "snapshotHint": "Save fetch panel as PNG snapshot (Ctrl+Alt+S)",
+    "snapshotSaved": "Snapshot saved",
+    "snapshotSavedAt": "Snapshot saved → {path}",
+    "snapshotFailed": "Snapshot failed: {error}"
   },
   "tab": {
     "new": "New Tab",
@@ -93,7 +100,7 @@
     },
     "brainstorm": {
       "short": "Brainstorm",
-      "toggle": "Send the same question to multiple AIs in parallel (max {0} models, 1 round)",
+      "toggle": "Send the same question to multiple AIs in parallel (max {max} models, 1 round)",
       "needTwo": "At least 2 different AI providers must have API keys configured.",
       "pickAIs": "Council members (max {max}):",
       "pickAtLeastOne": "Pick at least one AI.",
@@ -217,7 +224,9 @@
       "configImportOk": "Imported {count} setting(s) — restart may be required",
       "configImportFail": "Import failed",
       "aiPrefixHash": "Open AI command generator on # at empty prompt (Warp parity)",
-      "aiPrefixHashHint": "When enabled: typing # at the start of an empty prompt opens the AI suggester instead of writing # to the terminal. Disable to use # normally."
+      "aiPrefixHashHint": "When enabled: typing # at the start of an empty prompt opens the AI suggester instead of writing # to the terminal. Disable to use # normally.",
+      "dfetchPollInterval": "Welcome live stats refresh (ms)",
+      "dfetchPollIntervalHint": "Welcome pane updates CPU%, RAM, network throughput, battery on this interval. 0 = disabled (static). Min 500ms. Default 1500."
     },
     "appearance": {
       "theme": "Theme",
@@ -375,7 +384,9 @@
     "sidecarDown": "PTY bridge down",
     "broadcastOn": "broadcast ON",
     "broadcastOff": "broadcast",
-    "broadcastHint": "Mirror keyboard input to all terminal panes in active tab (Ctrl+Shift+B)"
+    "broadcastHint": "Mirror keyboard input to all terminal panes in active tab (Ctrl+Shift+B)",
+    "broadcastEnabledToast": "Broadcast ON — keystrokes mirrored to {count} pane(s)",
+    "broadcastDisabledToast": "Broadcast OFF"
   },
   "about": {
     "title": "About D-Terminal",

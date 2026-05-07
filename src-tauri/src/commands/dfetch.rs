@@ -33,11 +33,15 @@ pub struct ScreenInfo {
     pub scale: f32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BatteryInfo {
     pub percent: u32,
     pub charging: bool,
     pub full: bool,
+    /// Pilden çalışırken kalan tahmini süre (dakika). AC'ye bağlıyken veya
+    /// sistemce hesaplanamadığında None.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_remaining_min: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,6 +49,13 @@ pub struct NetIface {
     pub name: String,
     pub ip: String,
     pub family: &'static str, // "v4" veya "v6"
+    /// MAC adresi — `XX:XX:XX:XX:XX:XX`. Bilinmiyorsa None (loopback, tap vb.).
+    /// Frontend bu değeri varsayılan maskeli gösterir.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mac: Option<String>,
+    /// Sistemin internete çıkış için seçtiği interface (default route source).
+    /// `local_ip_address::local_ip()` ile eşleştirme yapılır.
+    pub is_primary: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -74,6 +85,19 @@ pub struct SystemInfo {
     pub screen: Option<ScreenInfo>,
     pub battery: Option<BatteryInfo>,
     pub local_ips: Vec<NetIface>,
+    /// Mantıksal işlemci sayısı (SMT/HT dahil thread sayısı). Modern CPU'larda
+    /// `cores` (fiziksel) ile ayrı tutulur — ör. 8C/16T veya hybrid 12C/20T.
+    pub logical_cores: usize,
+    /// Hybrid CPU (Intel 12th+ veya benzeri) tespit edilirse (P-core, E-core).
+    /// Tüm core'lar aynı efficiency class'ta ise None.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_hybrid: Option<HybridCores>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HybridCores {
+    pub p_cores: u32,
+    pub e_cores: u32,
 }
 
 #[tauri::command]
@@ -90,6 +114,8 @@ pub fn dfetch_get() -> SystemInfo {
             .map(|c| c.brand().trim().to_string())
             .unwrap_or_else(|| "Unknown CPU".into()),
         cores: sys.physical_core_count().unwrap_or(0),
+        logical_cores: sys.cpus().len(),
+        cpu_hybrid: detect_hybrid_cpu(),
         ram_used: sys.used_memory(),
         ram_total: sys.total_memory(),
         swap_used: sys.used_swap(),
@@ -112,13 +138,16 @@ pub fn dfetch_get() -> SystemInfo {
     }
 }
 
-/// Yerel IP toplama — public IP'ye dokunulmaz (offline-first, KVKK/GDPR).
+/// Yerel IP + MAC toplama — public IP'ye dokunulmaz (offline-first, KVKK/GDPR).
 /// Loopback (127.x, ::1) ve link-local (169.254.x) hariç tutulur.
+/// `is_primary`, sistemin internete çıkışta kullandığı IP ile eşleşen
+/// interface için true olur.
 fn collect_local_ips() -> Vec<NetIface> {
     use std::net::IpAddr;
     let Ok(ifaces) = local_ip_address::list_afinet_netifas() else {
         return Vec::new();
     };
+    let primary_ip = local_ip_address::local_ip().ok();
     ifaces
         .into_iter()
         .filter_map(|(name, ip)| {
@@ -133,24 +162,51 @@ fn collect_local_ips() -> Vec<NetIface> {
             if !is_useful {
                 return None;
             }
+            // MAC: yalnızca isimle eşleşirse — sanal/loopback için None döner.
+            let mac = mac_address::mac_address_by_name(&name)
+                .ok()
+                .flatten()
+                .map(|m| m.to_string());
+            let is_primary = primary_ip.map(|p| p == ip).unwrap_or(false);
             Some(NetIface {
                 name,
                 ip: ip.to_string(),
                 family,
+                mac,
+                is_primary,
             })
         })
         .collect()
 }
 
 fn detect_shell() -> String {
-    // Windows: ComSpec → cmd.exe path. PowerShell sürümü subprocess gerek (atlıyoruz).
-    // Unix-vari: SHELL env.
+    // Unix: SHELL env (her zaman set'tir; bash/zsh/fish vb).
     if let Ok(shell) = std::env::var("SHELL") {
         return std::path::Path::new(&shell)
             .file_stem()
             .and_then(|s| s.to_str())
             .map(String::from)
             .unwrap_or(shell);
+    }
+    // Windows: kullanıcının "tek bir shell"i yok — sistemde mevcut tüm
+    // ana shell'leri listele. Sıra: PS7 → PS5 → cmd → wt (Windows Terminal
+    // kabuk değil, ama yaygın varlık). " · " ile ayrılmış görüntü.
+    #[cfg(target_os = "windows")]
+    {
+        let mut shells: Vec<&'static str> = Vec::new();
+        if has_in_path("pwsh.exe") {
+            shells.push("PowerShell 7+");
+        }
+        if has_in_path("powershell.exe") {
+            shells.push("Windows PowerShell");
+        }
+        // cmd.exe her Windows'ta var — sadece varlık kontrolü için ComSpec
+        if std::env::var("ComSpec").or_else(|_| std::env::var("COMSPEC")).is_ok() {
+            shells.push("cmd");
+        }
+        if !shells.is_empty() {
+            return shells.join(" · ");
+        }
     }
     if let Ok(comspec) = std::env::var("ComSpec").or_else(|_| std::env::var("COMSPEC")) {
         return std::path::Path::new(&comspec)
@@ -160,6 +216,16 @@ fn detect_shell() -> String {
             .unwrap_or(comspec);
     }
     "unknown".into()
+}
+
+#[cfg(target_os = "windows")]
+fn has_in_path(name: &str) -> bool {
+    let Ok(path) = std::env::var("PATH") else {
+        return false;
+    };
+    path.split(';')
+        .filter(|d| !d.is_empty())
+        .any(|d| std::path::Path::new(d).join(name).exists())
 }
 
 fn detect_desktop() -> String {
@@ -255,31 +321,63 @@ fn detect_screen() -> Option<ScreenInfo> {
 
 #[cfg(target_os = "windows")]
 fn collect_gpus() -> Vec<GpuInfo> {
+    // Tauri main thread'i STA modunda başlattığı için aynı thread'de COM
+    // moda zorla MTA'ya geçemeyiz (HRESULT 0x80010106 = RPC_E_CHANGED_MODE).
+    // Çözüm: yeni bir worker thread'de WMI sorgusu çalıştır, sonucu join ile al.
+    std::thread::spawn(collect_gpus_inner)
+        .join()
+        .unwrap_or_default()
+}
+
+#[cfg(target_os = "windows")]
+fn collect_gpus_inner() -> Vec<GpuInfo> {
     use std::collections::HashMap;
     use wmi::{COMLibrary, Variant, WMIConnection};
 
     let mut out = Vec::new();
-    let Ok(com) = COMLibrary::new() else {
-        return out;
+    let com = match COMLibrary::new() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("dfetch: GPU COM init failed: {e}");
+            return out;
+        }
     };
-    let Ok(con) = WMIConnection::new(com) else {
-        return out;
+    let con = match WMIConnection::new(com) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("dfetch: GPU WMI connect failed: {e}");
+            return out;
+        }
     };
     let query = "SELECT Name, AdapterRAM, DriverVersion FROM Win32_VideoController";
-    let Ok(rows): Result<Vec<HashMap<String, Variant>>, _> = con.raw_query(query) else {
-        return out;
+    let rows: Vec<HashMap<String, Variant>> = match con.raw_query(query) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("dfetch: GPU WMI query failed: {e}");
+            return out;
+        }
     };
-    for row in rows {
+    tracing::info!("dfetch: GPU WMI rows = {}", rows.len());
+    for (i, row) in rows.iter().enumerate() {
         let name = match row.get("Name") {
             Some(Variant::String(s)) => s.clone(),
-            _ => "Unknown GPU".into(),
+            other => {
+                tracing::warn!("dfetch: GPU[{i}] Name unexpected variant: {other:?}");
+                "Unknown GPU".into()
+            }
         };
+        // AdapterRAM: schema uint32 ama wmi crate çoğu zaman I4 olarak döner;
+        // bazı sürücüler hiç değer döndürmez (Variant::Empty/Null) — 0 kabul.
         let vram = match row.get("AdapterRAM") {
             Some(Variant::UI4(n)) => *n as u64,
-            Some(Variant::I4(n)) if *n > 0 => *n as u64,
-            // u32 wraparound: 4 GB+ kartlarda WMI eksi sayı verir, kabaca düzelt
-            Some(Variant::I4(n)) => (*n as u32) as u64,
-            _ => 0,
+            Some(Variant::I4(n)) if *n >= 0 => *n as u64,
+            Some(Variant::I4(n)) => (*n as u32) as u64, // 4 GB+ wraparound düzelt
+            Some(Variant::I8(n)) if *n >= 0 => *n as u64,
+            Some(Variant::UI8(n)) => *n,
+            other => {
+                tracing::debug!("dfetch: GPU[{i}] AdapterRAM unexpected variant: {other:?}");
+                0
+            }
         };
         let driver = match row.get("DriverVersion") {
             Some(Variant::String(s)) => Some(s.clone()),
@@ -293,6 +391,7 @@ fn collect_gpus() -> Vec<GpuInfo> {
             });
         }
     }
+    tracing::info!("dfetch: GPU collected = {}", out.len());
     out
 }
 
@@ -303,12 +402,19 @@ fn collect_gpus() -> Vec<GpuInfo> {
 
 #[cfg(target_os = "windows")]
 fn detect_battery() -> Option<BatteryInfo> {
+    // GPU ile aynı sebep: Tauri STA thread'inde MTA'ya geçemeyiz, fresh
+    // thread'de yürüt.
+    std::thread::spawn(detect_battery_inner).join().ok().flatten()
+}
+
+#[cfg(target_os = "windows")]
+fn detect_battery_inner() -> Option<BatteryInfo> {
     use std::collections::HashMap;
     use wmi::{COMLibrary, Variant, WMIConnection};
 
     let com = COMLibrary::new().ok()?;
     let con = WMIConnection::new(com).ok()?;
-    let query = "SELECT EstimatedChargeRemaining, BatteryStatus FROM Win32_Battery";
+    let query = "SELECT EstimatedChargeRemaining, BatteryStatus, EstimatedRunTime FROM Win32_Battery";
     let rows: Vec<HashMap<String, Variant>> = con.raw_query(query).ok()?;
     let row = rows.into_iter().next()?;
 
@@ -331,14 +437,226 @@ fn detect_battery() -> Option<BatteryInfo> {
     // 10=Undefined, 11=Partially Charged
     let charging = matches!(status, 6..=9);
     let full = status == 3;
+    // EstimatedRunTime: dakika cinsinden, AC'ye bağlıyken Windows sentinel
+    // 71582788 (~0xFFFFFFFE/60) veya u32::MAX döndürür → None'a çevir.
+    let time_remaining_min = match row.get("EstimatedRunTime") {
+        Some(Variant::UI4(n)) => Some(*n),
+        Some(Variant::I4(n)) if *n >= 0 => Some(*n as u32),
+        Some(Variant::UI2(n)) => Some(*n as u32),
+        _ => None,
+    }
+    .filter(|n| *n < 1_000_000 && !charging && !full); // sentinel + AC modu temizliği
     Some(BatteryInfo {
         percent,
         charging,
         full,
+        time_remaining_min,
     })
 }
 
 #[cfg(not(target_os = "windows"))]
 fn detect_battery() -> Option<BatteryInfo> {
     None
+}
+
+// ─── Hybrid CPU detection (Intel 12th+ P/E, future ARM big.LITTLE) ───────────
+//
+// Windows GetLogicalProcessorInformationEx ile her fiziksel core'un
+// EfficiencyClass değerini okuruz. Intel hybrid'de:
+//   - P-core: yüksek EfficiencyClass (genellikle 1)
+//   - E-core: düşük EfficiencyClass (genellikle 0)
+// Tüm core'lar aynı class'taysa hybrid değil → None.
+
+#[cfg(target_os = "windows")]
+fn detect_hybrid_cpu() -> Option<HybridCores> {
+    use std::collections::HashMap;
+    use windows::Win32::Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER};
+    use windows::Win32::System::SystemInformation::{
+        GetLogicalProcessorInformationEx, RelationProcessorCore,
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX,
+    };
+
+    unsafe {
+        // İlk çağrı: gereken buffer boyutunu öğren (ERROR_INSUFFICIENT_BUFFER beklenir).
+        let mut size: u32 = 0;
+        let _ = GetLogicalProcessorInformationEx(RelationProcessorCore, None, &mut size);
+        if GetLastError() != ERROR_INSUFFICIENT_BUFFER {
+            return None;
+        }
+        if size == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; size as usize];
+        let ptr = buf.as_mut_ptr() as *mut SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
+        if GetLogicalProcessorInformationEx(RelationProcessorCore, Some(ptr), &mut size).is_err() {
+            return None;
+        }
+
+        // Buffer değişken-uzunluklu kayıtlardan oluşur — her kaydın `Size` alanı
+        // sonraki ofset için yol gösterir.
+        let mut classes: HashMap<u8, u32> = HashMap::new();
+        let mut offset: usize = 0;
+        let buf_end = size as usize;
+        while offset + std::mem::size_of::<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>() <= buf_end {
+            let info = &*(buf.as_ptr().add(offset) as *const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX);
+            let rec_size = info.Size as usize;
+            if rec_size == 0 || offset + rec_size > buf_end {
+                break;
+            }
+            // Yalnızca RelationProcessorCore kayıtlarına bakıyoruz
+            let proc_info = info.Anonymous.Processor;
+            *classes.entry(proc_info.EfficiencyClass).or_insert(0) += 1;
+            offset += rec_size;
+        }
+
+        if classes.len() < 2 {
+            return None; // homojen — hybrid değil
+        }
+        // En yüksek EfficiencyClass = P-core, en düşük = E-core (Intel
+        // konvansiyonu). 3+ class olursa middle'ları P'ye katmak makul.
+        let max_class = *classes.keys().max()?;
+        let min_class = *classes.keys().min()?;
+        if max_class == min_class {
+            return None;
+        }
+        let p_cores: u32 = classes
+            .iter()
+            .filter(|(c, _)| **c == max_class)
+            .map(|(_, n)| *n)
+            .sum();
+        let e_cores: u32 = classes
+            .iter()
+            .filter(|(c, _)| **c == min_class)
+            .map(|(_, n)| *n)
+            .sum();
+        Some(HybridCores { p_cores, e_cores })
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn detect_hybrid_cpu() -> Option<HybridCores> {
+    None
+}
+
+// ─── Snapshot PNG yaz ────────────────────────────────────────────────────────
+//
+// Frontend html-to-image ile dataURL üretir, Tauri save dialog'tan path alır,
+// bu komut path + binary'i diske yazar. Plugin-fs eklemekten kaçınıldı.
+
+#[tauri::command]
+pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    use std::io::Write;
+    let p = std::path::PathBuf::from(&path);
+    // Parent dizinini oluştur — kullanıcı save dialog'tan klasör seçmiş olur
+    // ama emin olmak için
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    }
+    let mut f = std::fs::File::create(&p).map_err(|e| format!("create: {e}"))?;
+    f.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+    Ok(())
+}
+
+// ─── Live stats (CPU/RAM/Network throughput) ─────────────────────────────────
+//
+// `dfetch_get` ağır toplama (disk, GPU, WMI, vs.) — frontend açılışta bir kez
+// çağırır. `dfetch_live` hafif refresh: sadece CPU%, RAM, ağ delta'ları, pil.
+// State (sysinfo System + Networks instance + son refresh zamanı) Tauri
+// State olarak tutulur ki ardışık çağrılar arasında throughput hesaplanabilsin.
+
+use parking_lot::Mutex;
+use std::time::Instant;
+use sysinfo::Networks;
+
+pub struct DfetchLiveState {
+    sys: Mutex<System>,
+    nets: Mutex<Networks>,
+    last_refresh: Mutex<Option<Instant>>,
+}
+
+impl DfetchLiveState {
+    pub fn new() -> Self {
+        let mut sys = System::new();
+        sys.refresh_cpu();
+        sys.refresh_memory();
+        let nets = Networks::new_with_refreshed_list();
+        Self {
+            sys: Mutex::new(sys),
+            nets: Mutex::new(nets),
+            last_refresh: Mutex::new(None),
+        }
+    }
+}
+
+impl Default for DfetchLiveState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct NetThroughput {
+    pub name: String,
+    /// Bytes/sn alış (download).
+    pub rx_bps: u64,
+    /// Bytes/sn gönderim (upload).
+    pub tx_bps: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LiveStats {
+    /// 0-100 arası ortalama CPU kullanımı (tüm çekirdekler ortalaması).
+    pub cpu_percent: f32,
+    pub ram_used: u64,
+    pub ram_total: u64,
+    /// İlk çağrıda boş — sonraki refresh'lerde delta hesaplanır.
+    pub net: Vec<NetThroughput>,
+    pub battery: Option<BatteryInfo>,
+}
+
+#[tauri::command]
+pub fn dfetch_live(state: tauri::State<'_, DfetchLiveState>) -> LiveStats {
+    let mut sys = state.sys.lock();
+    sys.refresh_cpu();
+    sys.refresh_memory();
+
+    // Network: sysinfo `received()`/`transmitted()` son refresh'ten beri
+    // gelen byte sayısını verir → süreye böl, bps hesapla.
+    let mut nets = state.nets.lock();
+    nets.refresh();
+    let mut last = state.last_refresh.lock();
+    let now = Instant::now();
+    let elapsed_secs = last
+        .map(|t| now.duration_since(t).as_secs_f64().max(0.001))
+        .unwrap_or(1.0);
+    *last = Some(now);
+    drop(last);
+
+    let mut net = Vec::new();
+    for (name, data) in nets.iter() {
+        // Sıfır trafikli interface'leri DE listele — frontend primary
+        // arayüzü gösterirken trafik 0'a düşse bile satır ekranda kalsın.
+        // (Loopback'i sysinfo zaten ayrı tutar; yine de zarar vermez.)
+        let rx = data.received();
+        let tx = data.transmitted();
+        net.push(NetThroughput {
+            name: name.clone(),
+            rx_bps: ((rx as f64) / elapsed_secs) as u64,
+            tx_bps: ((tx as f64) / elapsed_secs) as u64,
+        });
+    }
+
+    let cpu_percent = sys.global_cpu_info().cpu_usage();
+    let ram_used = sys.used_memory();
+    let ram_total = sys.total_memory();
+    drop(sys);
+    drop(nets);
+
+    LiveStats {
+        cpu_percent,
+        ram_used,
+        ram_total,
+        net,
+        battery: detect_battery(),
+    }
 }

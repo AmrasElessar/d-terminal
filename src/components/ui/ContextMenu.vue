@@ -90,9 +90,9 @@ const style = computed(() => ({
   min-width: 200px;
   max-width: 320px;
   padding: 4px 0;
-  background: rgba(10, 14, 26, 0.96);
-  border: 1px solid rgba(0, 180, 216, 0.35);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  box-shadow: 0 12px 32px var(--color-overlay-dark), 0 0 0 1px var(--color-overlay-medium);
   font-family: var(--font-family);
   font-size: 11px;
   color: var(--color-fg);
@@ -121,11 +121,11 @@ const style = computed(() => ({
   line-height: 1.6;
 }
 .ctx-menu__item:hover {
-  background: rgba(0, 180, 216, 0.15);
+  background: var(--color-accent-soft-15);
   color: var(--color-accent);
 }
 .ctx-menu__item.is-danger:hover {
-  background: rgba(255, 95, 87, 0.15);
+  background: var(--color-red-soft-15);
   color: var(--color-red);
 }
 .ctx-menu__item.is-disabled {

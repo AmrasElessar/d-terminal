@@ -127,7 +127,7 @@ function cancelRename() {
   align-items: stretch;
   gap: 0;
   padding: 0 4px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-overlay-light);
   border-bottom: 1px solid var(--color-line);
   font-size: 10px;
   user-select: none;
@@ -162,7 +162,7 @@ function cancelRename() {
   color: var(--color-fg);
 }
 .tab.active {
-  background: rgba(0, 180, 216, 0.1);
+  background: var(--color-accent-soft-12);
   color: var(--color-accent);
   border-bottom: 1px solid var(--color-accent);
 }
@@ -192,7 +192,7 @@ function cancelRename() {
   font-size: 10px;
 }
 .tab.editing {
-  background: rgba(0, 180, 216, 0.15);
+  background: var(--color-accent-soft-15);
 }
 .tab__rename {
   background: var(--color-bg);
@@ -242,7 +242,7 @@ function cancelRename() {
   border-left: 1px solid var(--color-line);
 }
 .tab-bar__new:hover {
-  background: rgba(0, 180, 216, 0.08);
+  background: var(--color-accent-soft);
   color: var(--color-accent);
 }
 </style>

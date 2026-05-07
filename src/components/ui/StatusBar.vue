@@ -22,9 +22,15 @@ const sidecarLabel = computed(() =>
 
 <template>
   <footer class="status-bar">
-    <span class="status-bar__item">{{ t('statusBar.panes', { count: panes.paneCount }) }}</span>
-    <span class="status-bar__item">{{ aiLabel }}</span>
-    <span class="status-bar__item">{{ themeStore.activeName }}</span>
+    <span class="status-bar__item status-bar__item--panes">
+      {{ t('statusBar.panes', { count: panes.paneCount }) }}
+    </span>
+    <span class="status-bar__item status-bar__item--ai" :class="{ off: !ai.activeProvider }">
+      {{ aiLabel }}
+    </span>
+    <span class="status-bar__item status-bar__item--theme">
+      {{ themeStore.activeName }}
+    </span>
     <button
       type="button"
       class="status-bar__item status-bar__broadcast"
@@ -37,7 +43,7 @@ const sidecarLabel = computed(() =>
     <span class="status-bar__sep" />
     <span
       class="status-bar__item status-bar__sidecar"
-      :class="{ down: !panes.sidecarAlive }"
+      :class="{ down: !panes.sidecarAlive, up: panes.sidecarAlive }"
     >
       {{ sidecarLabel }}
     </span>
@@ -50,7 +56,7 @@ const sidecarLabel = computed(() =>
   align-items: center;
   gap: 14px;
   padding: 1px 8px;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   border-top: 1px solid var(--color-line);
   font-size: 10px;
   color: var(--color-dim);
@@ -59,17 +65,51 @@ const sidecarLabel = computed(() =>
   height: 18px;
   font-family: var(--font-family);
 }
-.status-bar__item::before { content: '['; opacity: 0.4; margin-right: 2px; }
-.status-bar__item::after  { content: ']'; opacity: 0.4; margin-left: 2px; }
+/* Bracket'ler ([ ... ]) tüm itemlerde aynı dim renkte — içerik tema rengini
+   alırken parantez göz önünde bağırmasın. */
+.status-bar__item::before {
+  content: '[';
+  color: var(--color-dim);
+  opacity: 0.5;
+  margin-right: 2px;
+}
+.status-bar__item::after {
+  content: ']';
+  color: var(--color-dim);
+  opacity: 0.5;
+  margin-left: 2px;
+}
 .status-bar__item {
   color: var(--color-dim);
+}
+/* Her bilgi için temaya özel renk — ANSI palet'inden, color-mix ile
+   metni biraz yumuşatıyoruz (saturated tonlar 10pt'de yorucu olur). */
+.status-bar__item--panes {
+  color: color-mix(in srgb, var(--color-cyan) 80%, var(--color-fg));
+}
+.status-bar__item--ai {
+  color: color-mix(in srgb, var(--color-magenta) 75%, var(--color-fg));
+}
+.status-bar__item--ai.off {
+  color: var(--color-dim);
+}
+.status-bar__item--theme {
+  color: color-mix(in srgb, var(--color-yellow) 75%, var(--color-fg));
 }
 .status-bar__sep {
   flex: 1;
 }
+.status-bar__sidecar.up {
+  color: color-mix(in srgb, var(--color-green) 80%, var(--color-fg));
+}
 .status-bar__sidecar.down {
   color: var(--color-red);
   opacity: 1;
+  animation: statusBarPulse 1.6s ease-in-out infinite;
+}
+@keyframes statusBarPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 .status-bar__broadcast {
   background: transparent;

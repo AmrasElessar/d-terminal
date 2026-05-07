@@ -10,9 +10,12 @@ import {
   serializeWorkspace,
   deserializeWorkspace,
 } from '@/stores/session';
+import { useDialogA11y } from '@/composables/useDialogA11y';
 
 const props = defineProps<{ open: boolean; mode: 'save' | 'load' }>();
 const emit = defineEmits<{ close: [] }>();
+const dialogEl = ref<HTMLElement | null>(null);
+useDialogA11y(dialogEl, () => props.open, { onEscape: () => emit('close') });
 
 const { t } = useI18n();
 const panes = usePanesStore();
@@ -71,7 +74,16 @@ onMounted(refresh);
 </script>
 
 <template>
-  <dialog v-if="open" class="dialog" open @click.self="emit('close')">
+  <dialog
+    v-if="open"
+    ref="dialogEl"
+    class="dialog"
+    open
+    role="dialog"
+    aria-modal="true"
+    :aria-label="mode === 'save' ? t('session.save') : t('session.load')"
+    @click.self="emit('close')"
+  >
     <article class="panel">
       <header class="panel__header">
         <h2>{{ mode === 'save' ? t('session.save') : t('session.load') }}</h2>
@@ -128,7 +140,7 @@ onMounted(refresh);
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -204,7 +216,7 @@ li {
 .danger {
   background: transparent;
   color: var(--color-red);
-  border: 1px solid rgba(255, 95, 87, 0.3);
+  border: 1px solid var(--color-red-soft-30);
   padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;

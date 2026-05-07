@@ -407,6 +407,28 @@ export const usePanesStore = defineStore('panes', () => {
 
   function toggleBroadcast() {
     broadcastInput.value = !broadcastInput.value;
+    // Sessiz toggle yerine kullanıcıya görsel geribildirim — durumun
+    // farkına varmadan komut göndermek istemiyoruz.
+    void notifyBroadcastToggle(broadcastInput.value);
+  }
+
+  async function notifyBroadcastToggle(on: boolean) {
+    try {
+      const [{ useToastsStore }, { i18n }] = await Promise.all([
+        import('@/stores/toasts'),
+        import('@/main'),
+      ]);
+      const toasts = useToastsStore();
+      const t = i18n.global.t.bind(i18n.global);
+      if (on) {
+        const targets = allLeaves.value.filter((l) => l.ptyId && l.status === 'running').length;
+        toasts.warning(t('statusBar.broadcastEnabledToast', { count: targets }), 2500);
+      } else {
+        toasts.info(t('statusBar.broadcastDisabledToast'), 1800);
+      }
+    } catch {
+      /* yutuldu — toast göstermek mümkün değilse de toggle çalışmalı */
+    }
   }
 
   // --- maximize / zoom ---

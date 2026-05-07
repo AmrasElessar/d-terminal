@@ -50,7 +50,7 @@ const maximized = computed(() => panes.maximizedLeaf);
   position: absolute;
   bottom: 6px;
   right: 8px;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay-dark);
   border: 1px solid var(--color-accent);
   color: var(--color-accent);
   padding: 2px 8px;
