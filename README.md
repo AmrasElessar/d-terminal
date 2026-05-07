@@ -41,7 +41,7 @@ D-Terminal, Windows kullanıcılarına modern, hızlı ve AI-yerli bir terminal 
 
 D-Terminal, Windows üzerinde günlük çalışma akışını terminal merkezli yürüten kullanıcılar için, dağıtık araçlara duyulan ihtiyacı tek bir uygulamada toplamayı hedefler. PowerShell, CMD ve WSL oturumlarını; AI sohbetlerini; sistem ve log akışlarını ortak bir kabuğun altında birleştirir.
 
-Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzerine native AI entegrasyonu, output triggers, blok tabanlı komut tarihi, profil sistemi ve eklenti çerçevesi ekleyerek terminali bir geliştirme platformuna dönüştürür.
+Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzerine native AI entegrasyonu, output triggers, blok tabanlı komut tarihi ve profil sistemi ekleyerek terminali bir geliştirme platformuna dönüştürür.
 
 ## Öne Çıkan Özellikler
 
@@ -105,7 +105,6 @@ Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzer
 ### 🔒 Güvenlik
 - Windows DPAPI ile credential storage (master parola yok)
 - AI key Rust tarafında, frontend'e sızmaz
-- Plugin sandbox iskeleti: Web Worker + capability-based permissions (v1.1+)
 - CSP enforced (script-src 'self'), wasm-unsafe-eval limited
 
 ### 💾 Kalıcılık
@@ -138,7 +137,7 @@ Mimari kararlar ve detaylı tasarım için [docs/architecture-v1.1.md](./docs/ar
 |---|---|---|
 | **v1.0** | 3-4 ay | Çoğu özellik mevcut; release polish + test + docs |
 | **v1.0.5** | +2 ay | vue-i18n 11 migration (CSP `unsafe-eval` kaldır), Log Stream pane, snippet senkron |
-| **v1.1** | +3 ay | Plugin API marketplace, gelişmiş SSH (config.ssh okuyucu), free-form grid, Lua/JS programmatic config |
+| **v1.1** | +3 ay | Gelişmiş SSH (config.ssh okuyucu), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon, terminal AI assist (Warp Drive benzeri ekip paylaşımı), Kitty graphics protokolü |
 
 ## Kurulum
@@ -185,14 +184,14 @@ Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen
 
 ## Katkı
 
-Bu proje **kişisel bir Windows terminal projesidir** ve topluluk katkı kapsamı bilinçli olarak dar tutulmuştur. Çekirdek mimari, plugin altyapısı ve özellik geliştirme tek elden ilerliyor — ama topluluğun değer katabileceği üç şerit açık:
+Bu proje **kişisel bir Windows terminal projesidir** ve topluluk katkı kapsamı bilinçli olarak dar tutulmuştur. Çekirdek mimari ve özellik geliştirme tek elden ilerliyor — ama topluluğun değer katabileceği iki şerit açık:
 
 | ✅ Kabul edilen | ❌ Şu an kabul edilmeyen |
 |---|---|
 | 🐛 Bug raporu | 🤖 AI provider adapter PR'ı |
-| 💡 Feature **fikri** (Issue) | 🧩 Plugin PR'ı (v2.0+ hedefli) |
-| 🌍 Dil paketi (`src/locales/<kod>.json`) | 🏗️ Mimari / refactor PR'ı |
-| 🎨 Tema (`themes/D-<isim>.json`) | ✨ Özellik kodu PR'ı |
+| 💡 Feature **fikri** (Issue) | 🏗️ Mimari / refactor PR'ı |
+| 🌍 Dil paketi (`src/locales/<kod>.json`) | ✨ Özellik kodu PR'ı |
+| 🎨 Tema (`themes/D-<isim>.json`) | |
 
 `src/locales/` altında **30+ stub dil dosyası** çevirmen bekliyor (Almanca, İspanyolca, Fransızca, Japonca, Çince, Arapça, Rusça, …).
 

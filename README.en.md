@@ -41,7 +41,7 @@ D-Terminal is a fully open-source application that gives Windows users a modern,
 
 D-Terminal targets Windows users who run their daily workflow from a terminal. It collapses the need for fragmented tools into a single application: PowerShell, CMD, and WSL sessions; AI conversations; system metrics and log streams — all under one shell.
 
-Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top of it with native AI integration, output triggers, block-based command history, a profile system, and a plugin framework — turning the terminal into a development platform.
+Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top of it with native AI integration, output triggers, block-based command history, and a profile system — turning the terminal into a development platform.
 
 ## Highlights
 
@@ -105,7 +105,6 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 ### 🔒 Security
 - Credential storage via Windows DPAPI (no master password)
 - AI keys live on the Rust side and never leak to the frontend
-- Plugin sandbox skeleton: Web Worker + capability-based permissions (v1.1+)
 - CSP enforced (script-src 'self'), wasm-unsafe-eval limited
 
 ### 💾 Persistence
@@ -138,7 +137,7 @@ For architectural decisions and detailed design, see [docs/architecture-v1.1.md]
 |---|---|---|
 | **v1.0** | 3–4 months | Most features in place; release polish + tests + docs |
 | **v1.0.5** | +2 months | vue-i18n 11 migration (drop CSP `unsafe-eval`), Log Stream pane, snippet sync |
-| **v1.1** | +3 months | Plugin API marketplace, advanced SSH (config.ssh reader), free-form grid, Lua/JS programmatic config |
+| **v1.1** | +3 months | Advanced SSH (config.ssh reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orchestration, terminal AI assist (Warp Drive-style team sharing), Kitty graphics protocol |
 
 ## Installation
@@ -185,14 +184,14 @@ Code signing is missing (SignPath FOSS application in progress) — Windows Smar
 
 ## Contributing
 
-This is a **personal Windows terminal project** and the community contribution scope is intentionally narrow. Core architecture, plugin runtime, and feature work are owned by the maintainer — but three lanes are open where the community can add real value:
+This is a **personal Windows terminal project** and the community contribution scope is intentionally narrow. Core architecture and feature work are owned by the maintainer — but two lanes are open where the community can add real value:
 
 | ✅ Accepted | ❌ Not currently accepted |
 |---|---|
 | 🐛 Bug reports | 🤖 AI provider adapter PRs |
-| 💡 Feature **ideas** (Issues) | 🧩 Plugin PRs (targeting v2.0+) |
-| 🌍 Language packs (`src/locales/<code>.json`) | 🏗️ Architecture / refactor PRs |
-| 🎨 Themes (`themes/D-<name>.json`) | ✨ Feature code PRs |
+| 💡 Feature **ideas** (Issues) | 🏗️ Architecture / refactor PRs |
+| 🌍 Language packs (`src/locales/<code>.json`) | ✨ Feature code PRs |
+| 🎨 Themes (`themes/D-<name>.json`) | |
 
 There are **30+ stub language files** under `src/locales/` waiting for translators (German, Spanish, French, Japanese, Chinese, Arabic, Russian, …).
 

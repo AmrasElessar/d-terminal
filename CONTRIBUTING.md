@@ -16,7 +16,6 @@ D-Terminal'e ilgilendiğin için teşekkürler! Bu proje **kişisel bir Windows 
 | Tür | Sebep |
 |---|---|
 | 🤖 AI provider adapter | Çekirdek alana çok yakın, ben yöneteceğim |
-| 🧩 Plugin | Plugin altyapısı v2.0+ hedefli, henüz hazır değil — PR kabul edilmiyor |
 | 🏗️ Mimari değişiklik | ADR ve mimari karar tek elden ilerliyor |
 | ✨ Yeni özellik (kod) | Issue açıp önerin yeter — değerlendirip kendim implementlerim |
 | ♻️ Refactor / temizlik | Çekirdek bakımım benim sorumluluğumda |
