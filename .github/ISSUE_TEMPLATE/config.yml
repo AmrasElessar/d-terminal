@@ -6,3 +6,6 @@ contact_links:
   - name: 📚 Katkı Rehberi / Contribution Guide
     url: https://github.com/AmrasElessar/d-terminal/blob/main/CONTRIBUTING.md
     about: Kod / dil / tema PR'ı atmadan önce kapsamı okuyun. / Read the scope before opening any PR.
+  - name: 💖 D-Terminal'e Destek Ol / Sponsor D-Terminal
+    url: https://github.com/sponsors/AmrasElessar
+    about: D-Terminal MIT lisanslı ve ücretsiz. Sponsorluk doğrudan yeni uygulama geliştirmeye dönüşür. / D-Terminal is MIT-licensed and free. Sponsorships translate directly into new app development.

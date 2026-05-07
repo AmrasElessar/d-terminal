@@ -27,3 +27,6 @@
 ## Notlar / Notes
 
 <!-- Çevirmen/sanatçı notu, ekran görüntüsü, vs. / Translator/artist notes, screenshots, etc. -->
+
+---
+<sub>D-Terminal MIT lisanslı, ücretsiz ve açık kaynak. / MIT-licensed, free and open source. — [💖 Sponsor](https://github.com/sponsors/AmrasElessar)</sub>
