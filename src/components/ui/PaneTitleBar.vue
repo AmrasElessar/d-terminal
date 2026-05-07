@@ -121,6 +121,27 @@ const broadcasting = computed(
 const agentView = agentWatch.paneView(props.leaf.id);
 const agentRunning = computed(() => agentView.value.agents.some((a) => a.status === 'running'));
 const agentWaiting = computed(() => agentView.value.agents.some((a) => a.status === 'waiting'));
+const agentSummary = agentWatch.paneSummary(props.leaf.id);
+const agentCounterText = computed(() => {
+  const s = agentSummary.value;
+  if (s.totalTokens === 0) return '';
+  // Tokens: 1.2k / 12k / 120k
+  const tok = s.totalTokens < 1000
+    ? `${s.totalTokens}`
+    : s.totalTokens < 100_000
+      ? `${(s.totalTokens / 1000).toFixed(1)}k`
+      : `${Math.round(s.totalTokens / 1000)}k`;
+  let parts = `${tok} tok`;
+  if (s.totalCost !== null && s.totalCost > 0) {
+    const c = s.totalCost < 0.001
+      ? '<$0.001'
+      : s.totalCost < 1
+        ? `$${s.totalCost.toFixed(4)}`
+        : `$${s.totalCost.toFixed(2)}`;
+    parts += ` ${c}`;
+  }
+  return parts;
+});
 function toggleAgentWatch() {
   agentWatch.toggleVisible(props.leaf.id);
 }
@@ -202,6 +223,11 @@ function toggleAgentWatch() {
 #
 </button>
 
+    <span
+      v-if="agentCounterText"
+      class="title-bar__counter"
+      :title="t('agentWatch.tokenCounterHint')"
+    >{{ agentCounterText }}</span>
     <button
       v-if="agentView.hasAny || agentView.visible"
       type="button"
@@ -394,6 +420,18 @@ function toggleAgentWatch() {
   outline: none;
   width: 90px;
   height: 14px;
+}
+/* Token + cost mini sayacı — agent var ve token > 0 olduğunda görünür.
+   Title bar'da gerçek estate kazanmadan AI session metrikleri verir. */
+.title-bar__counter {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-cyan);
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--color-cyan) 25%, transparent);
+  border-radius: 2px;
+  white-space: nowrap;
+  cursor: help;
 }
 .title-bar__blocks,
 .title-bar__agent {

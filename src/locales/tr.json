@@ -386,7 +386,9 @@
     "broadcastOff": "yayın",
     "broadcastHint": "Aktif tab'daki tüm terminal panellerine paralel klavye girişi (Ctrl+Shift+B)",
     "broadcastEnabledToast": "Yayın AÇIK — tuşlar {count} panele aynı anda gidiyor",
-    "broadcastDisabledToast": "Yayın KAPALI"
+    "broadcastDisabledToast": "Yayın KAPALI",
+    "agentTokensHint": "Tüm pane'lerdeki AI agent'lar tarafından harcanan toplam token",
+    "agentCostHint": "Tüm AI agent'ların tahmini toplam maliyeti (her pane'in seçili modeline göre)"
   },
   "about": {
     "title": "D-Terminal Hakkında",
@@ -477,7 +479,8 @@
     "thinkingBlocks": "Reasoning ({count} blok)",
     "model": "Model",
     "stopAgent": "Agent'ı durdur",
-    "stopHint": "Terminal'e Ctrl+C (SIGINT) gönderir — sadece bu agent değil, tüm AI oturumunu durdurur"
+    "stopHint": "Terminal'e Ctrl+C (SIGINT) gönderir — sadece bu agent değil, tüm AI oturumunu durdurur",
+    "tokenCounterHint": "Bu pane'deki AI agent'lar tarafından harcanan token (maliyet tahminiyle)"
   },
   "block": {
     "title": "Komut Blokları",

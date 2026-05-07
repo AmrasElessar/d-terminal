@@ -165,6 +165,67 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
     });
   }
 
+  /** Tüm pane'lerin toplamı — global statusbar için.
+   *  costUsd: agent explicit göndermediyse o pane'in seçili modelinden
+   *  hesaplanır. Bilinmeyen model → o agent'ın katkısı `null` → toplam null. */
+  const globalSummary = computed(() => {
+    let totalTokens = 0;
+    let totalCost: number | null = 0;
+    let running = 0;
+    let waiting = 0;
+    let total = 0;
+    for (const p of panes.value.values()) {
+      const price = MODEL_PRICING[p.modelId];
+      for (const a of p.byId.values()) {
+        total += 1;
+        if (a.status === 'running') running += 1;
+        else if (a.status === 'waiting') waiting += 1;
+        totalTokens += a.inputTokens + a.outputTokens;
+        if (totalCost !== null) {
+          let c: number | null = a.costUsd;
+          if (a.costUsd === 0 && (a.inputTokens > 0 || a.outputTokens > 0)) {
+            c = price
+              ? (a.inputTokens / 1_000_000) * price.inputPer1M
+                + (a.outputTokens / 1_000_000) * price.outputPer1M
+              : null;
+          }
+          if (c === null) totalCost = null;
+          else totalCost += c;
+        }
+      }
+    }
+    return { totalTokens, totalCost, running, waiting, total };
+  });
+
+  /** Tek pane için kompakt özet — title bar inline counter için.
+   *  paneView'in subset'i ama daha hafif (full agent array dönmüyor). */
+  function paneSummary(paneId: string) {
+    return computed(() => {
+      const p = panes.value.get(paneId);
+      if (!p || p.byId.size === 0) {
+        return { totalTokens: 0, totalCost: null as number | null, count: 0 };
+      }
+      const price = MODEL_PRICING[p.modelId];
+      let totalTokens = 0;
+      let totalCost: number | null = 0;
+      for (const a of p.byId.values()) {
+        totalTokens += a.inputTokens + a.outputTokens;
+        if (totalCost !== null) {
+          let c: number | null = a.costUsd;
+          if (a.costUsd === 0 && (a.inputTokens > 0 || a.outputTokens > 0)) {
+            c = price
+              ? (a.inputTokens / 1_000_000) * price.inputPer1M
+                + (a.outputTokens / 1_000_000) * price.outputPer1M
+              : null;
+          }
+          if (c === null) totalCost = null;
+          else totalCost += c;
+        }
+      }
+      return { totalTokens, totalCost, count: p.byId.size };
+    });
+  }
+
   return {
     dispatch,
     setVisible,
@@ -172,6 +233,8 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
     setModel,
     clearPane,
     paneView,
+    paneSummary,
+    globalSummary,
   };
 });
 

@@ -4,11 +4,13 @@ import { useI18n } from 'vue-i18n';
 import { usePanesStore } from '@/stores/panes';
 import { useAIStore } from '@/stores/ai';
 import { useThemeStore } from '@/stores/theme';
+import { useAgentWatchStore } from '@/stores/agentWatch';
 
 const { t } = useI18n();
 const panes = usePanesStore();
 const ai = useAIStore();
 const themeStore = useThemeStore();
+const agentWatch = useAgentWatchStore();
 
 const aiLabel = computed(() => {
   if (!ai.activeProvider) return t('statusBar.noProvider');
@@ -18,6 +20,26 @@ const aiLabel = computed(() => {
 const sidecarLabel = computed(() =>
   panes.sidecarAlive ? t('statusBar.ready') : t('statusBar.sidecarDown'),
 );
+
+/** Tüm pane'lerin agent token+cost toplamı — alt bar'da kompakt göster.
+ *  Toplam token > 0 olunca chip görünür, aksi halde gizli (kalabalık olmasın). */
+const agentTokensText = computed(() => {
+  const s = agentWatch.globalSummary;
+  if (s.totalTokens === 0) return '';
+  const tok = s.totalTokens < 1000
+    ? `${s.totalTokens}`
+    : s.totalTokens < 100_000
+      ? `${(s.totalTokens / 1000).toFixed(1)}k`
+      : `${Math.round(s.totalTokens / 1000)}k`;
+  return `Σ ${tok} tok`;
+});
+const agentCostText = computed(() => {
+  const c = agentWatch.globalSummary.totalCost;
+  if (c === null || c === 0) return '';
+  if (c < 0.001) return 'Σ <$0.001';
+  if (c < 1)    return `Σ $${c.toFixed(4)}`;
+  return `Σ $${c.toFixed(2)}`;
+});
 </script>
 
 <template>
@@ -40,6 +62,16 @@ const sidecarLabel = computed(() =>
     >
       ⌘ {{ panes.broadcastInput ? t('statusBar.broadcastOn') : t('statusBar.broadcastOff') }}
     </button>
+    <span
+      v-if="agentTokensText"
+      class="status-bar__item status-bar__item--tokens"
+      :title="t('statusBar.agentTokensHint')"
+    >{{ agentTokensText }}</span>
+    <span
+      v-if="agentCostText"
+      class="status-bar__item status-bar__item--cost"
+      :title="t('statusBar.agentCostHint')"
+    >{{ agentCostText }}</span>
     <span class="status-bar__sep" />
     <span
       class="status-bar__item status-bar__sidecar"
@@ -95,6 +127,18 @@ const sidecarLabel = computed(() =>
 }
 .status-bar__item--theme {
   color: color-mix(in srgb, var(--color-yellow) 75%, var(--color-fg));
+}
+/* Agent toplam metrikler — sadece aktivite varsa görünür (v-if).
+   Cyan token, yellow cost: title bar inline counter ile aynı palet. */
+.status-bar__item--tokens {
+  color: color-mix(in srgb, var(--color-cyan) 80%, var(--color-fg));
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+.status-bar__item--cost {
+  color: color-mix(in srgb, var(--color-yellow) 80%, var(--color-fg));
+  font-variant-numeric: tabular-nums;
+  cursor: help;
 }
 .status-bar__sep {
   flex: 1;

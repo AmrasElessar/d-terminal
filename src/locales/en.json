@@ -386,7 +386,9 @@
     "broadcastOff": "broadcast",
     "broadcastHint": "Mirror keyboard input to all terminal panes in active tab (Ctrl+Shift+B)",
     "broadcastEnabledToast": "Broadcast ON — keystrokes mirrored to {count} pane(s)",
-    "broadcastDisabledToast": "Broadcast OFF"
+    "broadcastDisabledToast": "Broadcast OFF",
+    "agentTokensHint": "Total tokens consumed across all AI agents in all panes",
+    "agentCostHint": "Estimated total cost across all AI agents (sum from selected models in each pane)"
   },
   "about": {
     "title": "About D-Terminal",
@@ -477,7 +479,8 @@
     "thinkingBlocks": "Reasoning ({count} blocks)",
     "model": "Model",
     "stopAgent": "Stop agent",
-    "stopHint": "Sends Ctrl+C (SIGINT) to terminal — interrupts the whole AI session, not just this agent"
+    "stopHint": "Sends Ctrl+C (SIGINT) to terminal — interrupts the whole AI session, not just this agent",
+    "tokenCounterHint": "Tokens consumed by AI agents in this pane (with cost estimate)"
   },
   "block": {
     "title": "Command Blocks",
