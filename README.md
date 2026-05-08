@@ -9,7 +9,7 @@
 *Tek pencerede çoklu shell, AI entegrasyonu ve uzmanlaşmış pane tipleri*  
 *Multi-shell, AI-native, specialized-pane terminal — all in one window*
 
-🌐 **TR · EN** — Bu README iki dillidir / This README is bilingual
+🌐 **TR · EN** — Bu README iki dillidir / This README is bilingual (English collapsibles below each section)
 
 </div>
 
@@ -49,19 +49,16 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 
 ---
 
-## 📌 Kısaca / At a Glance
-
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
+## 📌 Kısaca
 
 D-Terminal, Windows kullanıcıları için modern, hızlı ve **AI-yerli** açık kaynaklı bir terminal uygulamasıdır. PowerShell, CMD ve WSL oturumlarını; AI sohbetlerini; sistem bilgisi ve log akışlarını **tek bir pencerede** birleştirir.
 
-**Tauri v2** ile yazıldığında — Rust core + WebView2 — Electron tabanlı alternatiflerden **5× daha hafif** (~5 MB binary, ~100 MB RAM).
+**Tauri v2** ile yazıldığı için — Rust core + WebView2 — Electron tabanlı alternatiflerden **5× daha hafif** (~5 MB binary, ~100 MB RAM).
 
 **Kişisel kullanım için** geliştirilen, **MIT lisanslı** bir D Brand projesidir. ARM64 ve x64 mimarileri için **çift mimari (dual-arch)** binary üretir; Windows 10 1809 ve üzeri ile Windows 11'de çalışır.
 
-</td><td>
+<details>
+<summary>🇬🇧 At a glance (English)</summary>
 
 D-Terminal is a modern, fast, **AI-native**, fully open-source terminal for Windows users. It collapses PowerShell, CMD and WSL sessions, AI conversations, system metrics, and log streams into a **single window**.
 
@@ -69,19 +66,13 @@ Built on **Tauri v2** — Rust core + WebView2 — it is **5× lighter** than El
 
 It is a **personal-use** D Brand project under the **MIT license**. Builds ship for both **ARM64 and x64** Windows; runs on Windows 10 1809+ and Windows 11.
 
-</td></tr>
-</table>
+</details>
 
 ---
 
-## 🆕 Yenilikler — v0.9.x serisi / What's New — v0.9.x series
+## 🆕 Yenilikler — v0.9.x serisi
 
-> 🇹🇷 **v0.9.x serisinde** D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.  
-> 🇬🇧 *In the **v0.9.x series**, D-Terminal was substantially reshaped — architecture and UX. Headlines below.*
-
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
+> v0.1.1'den v0.9.2'ye geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
 
 - 🪟 **Frameless pencere** — özel başlık çubuğu, popover komut paleti, native min/max/close (Tauri 2 capabilities izinleri ile)
 - 🤖 **AI Agent Watch** — pane başına AI tool-kullanım gözlemcisi, OSC 9999 protokolü, canlı maliyet rozeti, "waiting / running / interrupted" durumları, Claude Code paralel batch parser, otomatik split + heuristik tespit
@@ -96,7 +87,10 @@ It is a **personal-use** D Brand project under the **MIT license**. Builds ship 
 - 💖 **GitHub Sponsors entegrasyonu** — 4 tier perk altyapısı, issue/PR template'lerinde sponsor link
 - 🔐 **Güvenlik & a11y audit** — FAZ A/B fixleri uygulandı, a11y composable
 
-</td><td>
+<details>
+<summary>🇬🇧 What's new — v0.9.x series (English)</summary>
+
+> In the v0.9.x series, D-Terminal was substantially reshaped — architecture and UX. Headlines below.
 
 - 🪟 **Frameless window** — custom title bar, popover command palette, native min/max/close (Tauri 2 capabilities permissions wired)
 - 🤖 **AI Agent Watch** — per-pane AI tool-use observer, OSC 9999 protocol, live cost badge, "waiting / running / interrupted" states, Claude Code parallel-batch parser, auto-split + heuristic detection
@@ -111,39 +105,30 @@ It is a **personal-use** D Brand project under the **MIT license**. Builds ship 
 - 💖 **GitHub Sponsors integration** — 4-tier perk scaffolding, sponsor link in issue/PR templates
 - 🔐 **Security & a11y audit** — Phase A/B fixes applied, a11y composable
 
-</td></tr>
-</table>
+</details>
 
 ---
 
-## 🎯 Vizyon / Vision
-
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
+## 🎯 Vizyon
 
 D-Terminal, Windows üzerinde günlük çalışma akışını terminal merkezli yürüten kullanıcılar için, dağıtık araçlara duyulan ihtiyacı tek bir uygulamada toplamayı hedefler. PowerShell, CMD ve WSL oturumlarını; AI sohbetlerini; sistem ve log akışlarını **ortak bir kabuğun altında** birleştirir.
 
 Windows Terminal sağlam bir tab/split altyapısı sunar; D-Terminal bunun üzerine **native AI entegrasyonu**, **output triggers**, **blok tabanlı komut tarihi** ve **profil sistemi** ekleyerek terminali bir geliştirme platformuna dönüştürür.
 
-</td><td>
+<details>
+<summary>🇬🇧 Vision (English)</summary>
 
 D-Terminal targets Windows users who run their daily workflow from a terminal. It collapses the need for fragmented tools into a single application: PowerShell, CMD, and WSL sessions; AI conversations; system metrics and log streams — **all under one shell**.
 
 Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top with **native AI integration**, **output triggers**, **block-based command history**, and a **profile system** — turning the terminal into a development platform.
 
-</td></tr>
-</table>
+</details>
 
 ---
 
 ## ✨ Öne Çıkan Özellikler / Key Features
 
 ### 🤖 Yapay Zeka / AI
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - **4 sağlayıcı**: Anthropic, OpenAI, Gemini, Ollama (offline) + OpenAI-uyumlu özel endpoint
 - **5 yerel runtime** entegrasyonu (Ollama, LM Studio, Jan, Text Generation WebUI, Llama.cpp server)
@@ -152,7 +137,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - **Blok'tan AI'a**: terminal komut bloklarını tek tıkla AI Chat'e enjekte et
 - **Maliyet takibi**: token + ücret canlı gösterim, oturum toplamı
 
-</td><td>
+<details>
+<summary>🇬🇧 AI features (English)</summary>
 
 - **4 providers**: Anthropic, OpenAI, Gemini, Ollama (offline) + a custom OpenAI-compatible endpoint
 - **5 local-runtime** integrations (Ollama, LM Studio, Jan, Text Generation WebUI, Llama.cpp server)
@@ -161,22 +147,18 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - **Block → AI**: send terminal command blocks straight into AI Chat with one click
 - **Cost tracking**: live token + price display, per-session totals
 
-</td></tr>
-</table>
+</details>
 
 ### 🛰️ Agent Watch
 
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
-
-- **Pane başına AI agent gözlemcisi** — Claude Code, Codex, Aider, Cursor gibi agent'lar koştuğunda otomatik tespit eder
+- **Pane başına AI agent gözlemcisi** — Claude Code, Codex, Aider, Cursor gibi agent'lar koştuğunda otomatik tespit
 - **OSC 9999 protokolü** — agent çıktısı sessizce gözlemlenir (tool çağrıları, tamamlanan adımlar, bekleyen onaylar)
 - **Canlı maliyet + token rozeti** — başlık çubuğunda + status bar'da gerçek zamanlı
 - **Auto-split + heuristik dedektör** — paralel agent batch'leri tespit edilir, görsel olarak ayrılır
 - **Durumlar**: `running` / `waiting (input)` / `interrupted` rozetleri
 
-</td><td>
+<details>
+<summary>🇬🇧 Agent Watch (English)</summary>
 
 - **Per-pane AI agent observer** — auto-detects when agents like Claude Code, Codex, Aider, Cursor are running
 - **OSC 9999 protocol** — silently observes agent output (tool calls, completed steps, pending approvals)
@@ -184,14 +166,9 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - **Auto-split + heuristic detector** — parallel agent batches detected and visually separated
 - **States**: `running` / `waiting (input)` / `interrupted` badges
 
-</td></tr>
-</table>
+</details>
 
 ### 📦 Blok Tabanlı Komut Tarihi / Block-Based Command History (OSC 133)
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - Her komut + çıktı + exit kodu otomatik yakalanır
 - Renkli durum: ✓ success / ✗ error / ◌ running / ⊘ aborted
@@ -199,7 +176,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - PowerShell shell-integration prompt'u yerleşik (CMD da)
 - Pane başlığında **git diff +/-** chip (OSC 7 cwd ile)
 
-</td><td>
+<details>
+<summary>🇬🇧 Block-based history (English)</summary>
 
 - Every command + output + exit code is captured automatically
 - Color-coded status: ✓ success / ✗ error / ◌ running / ⊘ aborted
@@ -207,33 +185,24 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - Built-in PowerShell shell-integration prompt (CMD too)
 - **Git diff +/-** chip in the pane title (via OSC 7 cwd)
 
-</td></tr>
-</table>
+</details>
 
-### 🎯 Output Triggers (iTerm2 paritesi / parity)
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
+### 🎯 Output Triggers (iTerm2 paritesi)
 
 - Regex eşleşmesinde otomatik aksiyon: toast, AI'a iletme, snippet çalıştırma
 - Cooldown + scope (per shell tipi) kontrolü
 - `{{0}}`, `{{1}}` template ile match groups
 
-</td><td>
+<details>
+<summary>🇬🇧 Output Triggers (English)</summary>
 
 - Auto-action on regex match: toast, AI hand-off, snippet execution
 - Cooldown + scope (per shell type) controls
 - Match groups via `{{0}}`, `{{1}}` template placeholders
 
-</td></tr>
-</table>
+</details>
 
 ### 🪟 Pane Sistemi / Pane System
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - Yatay/dikey split, **sekme başına bağımsız ağaç**
 - **Drag-rearrange**: pane başlığını sürükle, başka pane'in 4 kenarından birine bırak
@@ -243,7 +212,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - Çok satırlı yapıştırma — bracketed mode + satır sayısı toast'u
 - Context menu: kopya, yapıştır, temizle, böl, kapat
 
-</td><td>
+<details>
+<summary>🇬🇧 Pane system (English)</summary>
 
 - Horizontal/vertical splits, **per-tab independent tree**
 - **Drag-rearrange**: drop a pane title onto another pane's 4 edges
@@ -253,54 +223,41 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - Multi-line paste — bracketed mode + line-count toast
 - Context menu: copy, paste, clear, split, close
 
-</td></tr>
-</table>
+</details>
 
 ### 🔌 Shell Profilleri / Shell Profiles (iTerm2/Tabby parity)
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - Built-in: PowerShell / CMD / WSL
 - Kullanıcı tanımlı: SSH host, Docker exec, pwsh 7, Python REPL...
 - Her profil: shell + args + cwd + env + ikon + renk badge
 
-</td><td>
+<details>
+<summary>🇬🇧 Shell profiles (English)</summary>
 
 - Built-in: PowerShell / CMD / WSL
 - User-defined: SSH host, Docker exec, pwsh 7, Python REPL, ...
 - Per-profile: shell + args + cwd + env + icon + color badge
 
-</td></tr>
-</table>
+</details>
 
 ### 🎨 Tema ve Görünüm / Themes & Appearance
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - **14 dahili tema**: D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruvbox, D-Retro, D-Solarized-Dark/Light, D-OneDark, D-RosePine, D-GitHub-Dark
 - JSON ile özel tema, runtime renk değişimi
 - **Mica / Acrylic / None** — runtime vibrancy switch (Win11 22H2+)
 - Ayarlar'da kart-grid önizleme + ANSI swatch'ları
 
-</td><td>
+<details>
+<summary>🇬🇧 Themes (English)</summary>
 
 - **14 built-in themes**: D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruvbox, D-Retro, D-Solarized-Dark/Light, D-OneDark, D-RosePine, D-GitHub-Dark
 - Custom themes via JSON, runtime color swap
 - **Mica / Acrylic / None** — runtime vibrancy switch (Win11 22H2+)
 - Card-grid preview in Settings + ANSI swatches
 
-</td></tr>
-</table>
+</details>
 
 ### 📊 DFetch — Canlı Sistem Bilgisi / Live System Info (neofetch parity)
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - **Canlı stat'lar**: CPU, RAM, disk, ekran + DPI, batarya, tema, locale, timezone, swap, boot time, GPU (WMI)
 - **Yerel IP** (IPv4/IPv6) — public IP'ye dokunmaz (offline-first)
@@ -310,7 +267,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - 16 ANSI color blocks alttaki bant
 - Tema-uyumlu overlay rendering
 
-</td><td>
+<details>
+<summary>🇬🇧 DFetch (English)</summary>
 
 - **Live stats**: CPU, RAM, disk, display + DPI, battery, theme, locale, timezone, swap, boot time, GPU (WMI)
 - **Local IP** (IPv4/IPv6) — never touches public IP (offline-first)
@@ -320,14 +278,9 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - 16 ANSI color blocks in the bottom strip
 - Theme-aware overlay rendering
 
-</td></tr>
-</table>
+</details>
 
 ### 🔍 xterm Motoru / Engine
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - WebGL renderer + Canvas/DOM otomatik fallback
 - Scrollback search (`Ctrl+F`, regex/case/word, decoration highlight)
@@ -336,7 +289,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - Smart link: file path, git SHA, IP/host tıklanabilir
 - Buffer serialize → clipboard
 
-</td><td>
+<details>
+<summary>🇬🇧 xterm engine (English)</summary>
 
 - WebGL renderer + automatic Canvas/DOM fallback
 - Scrollback search (`Ctrl+F`, regex/case/word, decoration highlight)
@@ -345,77 +299,60 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - Smart links: file paths, git SHAs, IPs/hosts are clickable
 - Buffer serialize → clipboard
 
-</td></tr>
-</table>
+</details>
 
 ### ⌨️ Klavye-first / Keyboard-first
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - 24 varsayılan kısayol, **kapsayıcı editör** (Ayarlar → Kısayollar)
 - Tuş yakalama capture overlay, çakışma tespiti, override persist
 - Command palette (`Ctrl+Shift+P`) — popover stil
 - Quake hotkey (`F1` — pencere göster/gizle)
 
-</td><td>
+<details>
+<summary>🇬🇧 Keyboard-first (English)</summary>
 
 - 24 default shortcuts, **comprehensive editor** (Settings → Shortcuts)
 - Key-capture overlay, conflict detection, override persistence
 - Command palette (`Ctrl+Shift+P`) — popover style
 - Quake hotkey (`F1` — show/hide window)
 
-</td></tr>
-</table>
+</details>
 
 ### 🔒 Güvenlik / Security
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - Windows DPAPI ile credential storage (master parola yok)
 - AI key Rust tarafında, frontend'e sızmaz
 - CSP enforced (`script-src 'self'`), `wasm-unsafe-eval` limited
 - FAZ A/B güvenlik audit fixleri uygulandı (M7/M8 kritik)
 
-</td><td>
+<details>
+<summary>🇬🇧 Security (English)</summary>
 
 - Credential storage via Windows DPAPI (no master password)
 - AI keys live on the Rust side and never leak to the frontend
 - CSP enforced (`script-src 'self'`), `wasm-unsafe-eval` limited
 - Phase A/B security audit fixes applied (critical M7/M8)
 
-</td></tr>
-</table>
+</details>
 
 ### 💾 Kalıcılık / Persistence
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - Session restore (layout + komut geçmişi)
 - SQLite WAL mode, kullanıcı dosyalarına dokunmaz
 - Snippet & history full-text search
 - PSReadLine geçmiş içe aktarma
 
-</td><td>
+<details>
+<summary>🇬🇧 Persistence (English)</summary>
 
 - Session restore (layout + command history)
 - SQLite WAL mode, keeps user files untouched
 - Full-text search across snippets & history
 - PSReadLine history import
 
-</td></tr>
-</table>
+</details>
 
 ### 🚀 Mimari / Architecture
-
-<table>
-<tr><th width="50%">🇹🇷</th><th width="50%">🇬🇧</th></tr>
-<tr><td>
 
 - **Tauri v2** — Rust core + WebView2, ~5 MB binary, ~100 MB RAM (Electron 5× daha hafif)
 - Length-prefixed binary IPC ile node-pty sidecar (ADR-0001), pkg-bundled standalone (Node.js gereksiz)
@@ -423,7 +360,8 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - IPC coalescing performans optimizasyonu
 - Merkezi updater (silent/passive/full UI 3 mod) — ARM/x64 dual-arch entegre
 
-</td><td>
+<details>
+<summary>🇬🇧 Architecture (English)</summary>
 
 - **Tauri v2** — Rust core + WebView2, ~5 MB binary, ~100 MB RAM (5× lighter than Electron)
 - Length-prefixed binary IPC to a node-pty sidecar (ADR-0001), pkg-bundled standalone (no Node.js needed)
@@ -431,8 +369,7 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - IPC coalescing for performance
 - Centralized updater (silent / passive / full UI — 3 modes) — integrated with ARM/x64 dual-arch
 
-</td></tr>
-</table>
+</details>
 
 ---
 
@@ -466,23 +403,67 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### İndir / Download (v0.9.2)
+### En çok kullanılan / Most common (v0.9.2)
 
-[GitHub Releases sayfasından / from GitHub Releases](https://github.com/AmrasElessar/d-terminal/releases) en son sürümü indir / get the latest:
+| Senin için / For you | İndir / Download |
+|---|---|
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.2_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.2_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.2_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.2_arm64_tr-TR.msi) |
+
+> Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
+> `Ayarlar / Settings → Sistem / System → Hakkında / About → Sistem türü / System type`
+
+<details>
+<summary>📦 Diğer indirme seçenekleri / Other downloads (NSIS, EN locale)</summary>
+
+[GitHub Releases sayfası / page](https://github.com/AmrasElessar/d-terminal/releases) — tüm dosyalar / all files:
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.9.2_x64_tr-TR.msi` | x86_64 | **Türkçe installer** (önerilen / recommended) |
-| `D-Terminal_0.9.2_x64_en-US.msi` | x86_64 | English installer |
+| `D-Terminal_0.9.2_x64_en-US.msi` | x86_64 | English MSI installer |
 | `D-Terminal_0.9.2_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.9.2_arm64_tr-TR.msi` | aarch64 | **ARM64 Türkçe** (Surface Pro X, Snapdragon laptops) |
 | `D-Terminal_0.9.2_arm64_en-US.msi` | aarch64 | ARM64 English |
 | `D-Terminal_0.9.2_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
 
-### 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results
+</details>
+
+---
+
+## 🚀 İlk Adımlar / Quick Start
+
+Kurulumdan sonra D-Terminal'i ilk açtığında deneyebileceğin **5 hızlı şey**:
+
+1. **`Ctrl+Shift+P`** → komut paleti aç (her şey burada — tema değiştir, pane böl, profil seç, settings...)
+2. **Boş satıra `#` yaz, sonra doğal dil yaz** → AI senin yerine shell komutu üretir (örn: `# son 10 dosya değişikliğini göster` → `git log --diff-filter=M -10`)
+3. **Pane başlığını sürükle**, başka bir pane'in kenarına bırak → otomatik split
+4. **`F1`** → pencereyi gizle/göster (Quake mode, dilediğin an çağırılabilir terminal)
+5. **`Ctrl+Shift+G`** → AI komut üretici modal'ı (boş prompt'a `#` ile aynı, ama her zaman erişilebilir)
+
+> 💡 Tüm 24 kısayolu görmek/değiştirmek için: **Ayarlar → Kısayollar**  
+> 💡 İlk çalıştırmada **AI sağlayıcı eklemek için**: Ayarlar → AI Sağlayıcılar → API key gir (DPAPI vault'ta şifrelenir)
+
+<details>
+<summary>🇬🇧 Quick Start (English)</summary>
+
+After installing, here are **5 quick things** to try when you first open D-Terminal:
+
+1. **`Ctrl+Shift+P`** → open the command palette (everything is here — switch theme, split pane, pick profile, settings, ...)
+2. **Type `#` on an empty line, then natural language** → AI generates a shell command for you (e.g., `# show the last 10 modified files` → `git log --diff-filter=M -10`)
+3. **Drag a pane title** onto another pane's edge → auto-split
+4. **`F1`** → hide/show the window (Quake mode — terminal you can summon any time)
+5. **`Ctrl+Shift+G`** → AI command generator modal (same as `#` on empty prompt, but always reachable)
+
+> 💡 To view/change all 24 shortcuts: **Settings → Shortcuts**  
+> 💡 To add an AI provider on first run: **Settings → AI Providers** → enter API key (encrypted in the DPAPI vault)
+
+</details>
+
+---
+
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results
 
 > 🇹🇷 v0.9.2 build'i yayınlandığında VirusTotal + Hybrid Analysis taramaları yenilenecek; aşağıdaki referans sonuçlar son kararlı yayında alınmıştır.  
 > 🇬🇧 VirusTotal + Hybrid Analysis scans will be refreshed when the v0.9.2 build ships; the reference results below come from the last stable release.
@@ -499,7 +480,7 @@ Tüm 6 dosya / all 6 files: **VirusTotal** + **Hybrid Analysis MetaDefender** �
 - **MSI EN**: [2/58](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad) — same two engines
 - **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — Sophos ML PUA + VirIT
 
-Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet — **hepsi clean / all clean** her dosya için / across all files.  
+Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet — **hepsi clean / all clean**.  
 Hybrid Analysis MetaDefender Multi-Scan: **6/6 dosya clean / files clean**.
 
 > 🇹🇷 Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar; ML false positive'lerin de neredeyse hepsi düşer.  
@@ -515,18 +496,7 @@ Hybrid Analysis MetaDefender Multi-Scan: **6/6 dosya clean / files clean**.
 
 ## 🤝 Katkı / Contributing
 
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
-
 Bu proje **kişisel bir Windows terminal projesidir** ve topluluk katkı kapsamı bilinçli olarak dar tutulmuştur. Çekirdek mimari ve özellik geliştirme tek elden ilerliyor — ama topluluğun değer katabileceği iki şerit açık.
-
-</td><td>
-
-This is a **personal Windows terminal project** and the community contribution scope is intentionally narrow. Core architecture and feature work are owned by the maintainer — but two lanes are open where the community can add real value.
-
-</td></tr>
-</table>
 
 | ✅ Kabul edilen / Accepted | ❌ Şu an kabul edilmeyen / Not currently accepted |
 |---|---|
@@ -540,22 +510,18 @@ This is a **personal Windows terminal project** and the community contribution s
 
 Detaylar / Details: [CONTRIBUTING.md](./CONTRIBUTING.md) · [Tema rehberi / Theme guide](./themes/COMMUNITY.md)
 
+<details>
+<summary>🇬🇧 Contributing (English)</summary>
+
+This is a **personal Windows terminal project** and the community contribution scope is intentionally narrow. Core architecture and feature work are owned by the maintainer — but two lanes are open where the community can add real value: language packs and themes. See the table above and [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+
+</details>
+
 ---
 
 ## 🎨 D Brand Ailesi / D Brand Family
 
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
-
 D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adından ilham alır:
-
-</td><td>
-
-D-Terminal is the Windows arm of the D Brand family. Members are inspired by the name "Denizhan":
-
-</td></tr>
-</table>
 
 | Ürün / Product | Platform | Açıklama / Description |
 |---|---|---|
@@ -568,20 +534,16 @@ D-Terminal is the Windows arm of the D Brand family. Members are inspired by the
 
 ## 💖 Sponsorlar / Sponsors
 
-<table>
-<tr><th width="50%">🇹🇷 Türkçe</th><th width="50%">🇬🇧 English</th></tr>
-<tr><td>
-
 D-Terminal açık kaynak (MIT) ve sürekli geliştiriliyor. Sponsorluk doğrudan **yeni uygulama geliştirmeye** dönüşür — yapılacaklar listesinde 6 fikir daha var.
 
-</td><td>
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-AmrasElessar-db61a2?logo=githubsponsors)](https://github.com/sponsors/AmrasElessar)
+
+<details>
+<summary>🇬🇧 Sponsors (English)</summary>
 
 D-Terminal is open source (MIT) and actively developed. Sponsorships translate directly into **new app development** — six more ideas in the queue.
 
-</td></tr>
-</table>
-
-[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-AmrasElessar-db61a2?logo=githubsponsors)](https://github.com/sponsors/AmrasElessar)
+</details>
 
 <!-- SPONSORS:HERO -->
 <!-- Hero tier ($25/ay · /mo) sponsorları buraya pinlenir / are pinned here -->
