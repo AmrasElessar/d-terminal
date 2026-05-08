@@ -20,7 +20,7 @@ D-Terminal'e ilgilendiğin için teşekkürler! Bu proje **kişisel bir Windows 
 | ✨ Yeni özellik (kod) | Issue açıp önerin yeter — değerlendirip kendim implementlerim |
 | ♻️ Refactor / temizlik | Çekirdek bakımım benim sorumluluğumda |
 
-> **Neden bu kadar dar?** D-Terminal v0.1 aşamasında, mimari hızla şekilleniyor. Çekirdek üzerinde dış katkı şu an benim için bakım yükü oluşturuyor — bunun yerine **dil ve tema** topluluk katkısına çok uygun: yan etkisi yok, kullanıcıya doğrudan değer.
+> **Neden bu kadar dar?** D-Terminal pre-alpha aşamasında (v0.9.x serisi); mimari hızla şekilleniyor. Çekirdek üzerinde dış katkı şu an benim için bakım yükü oluşturuyor — bunun yerine **dil ve tema** topluluk katkısına çok uygun: yan etkisi yok, kullanıcıya doğrudan değer.
 
 ---
 

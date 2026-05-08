@@ -49,6 +49,12 @@ desktop.ini
 /screenshot*.png
 *.avif
 
+# Marketing source files (kaynak görseller / büyük gif'ler — release notes ve sosyal
+# medya için saklanır, repo'ya commit'lenmez. README hero video docs/media/ altında.)
+/1024*.png
+/Animation.gif
+/appstore-images/
+
 # Environment
 .env
 .env.local
