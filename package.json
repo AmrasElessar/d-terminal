@@ -1,6 +1,6 @@
 {
   "name": "d-terminal",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Agent-aware Windows terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler",
   "private": true,
   "type": "module",

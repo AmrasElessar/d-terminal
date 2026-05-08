@@ -18,7 +18,7 @@ function global:prompt {
 Clear-Host
 # D-Terminal banner — Splash ile aynı kalın D-T logosu, sürüm + ipucu.
 # 256-color ANSI: cyan logo + magenta versiyon + dim açıklama.
-$dtVersion = '0.9.1'
+$dtVersion = '0.9.2'
 $psVersion = $PSVersionTable.PSVersion.ToString()
 # $PSEdition built-in read-only değişken — case-insensitive collision; farklı isim:
 $dtPsEdition = $PSVersionTable.PSEdition
