@@ -13,8 +13,6 @@
 refinery::embed_migrations!("./migrations");
 
 pub fn run(conn: &mut rusqlite::Connection) -> crate::error::AppResult<()> {
-    migrations::runner()
-        .set_abort_divergent(false)
-        .run(conn)?;
+    migrations::runner().set_abort_divergent(false).run(conn)?;
     Ok(())
 }
