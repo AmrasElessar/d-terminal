@@ -1,5 +1,91 @@
 # D-Terminal Release Notes
 
+## v0.9.2 — 2026-05-08
+
+D-Terminal'in v0.1.1'den bu yana ilk yayını — **v0.9.x serisi** kapsamında mimari ve UX olarak baştan sona şekillenmiş bir release. CI build matrix (x64 + ARM64), imzalı installer + auto-updater, bilingual TR/EN README, yeni D-Terminal ikon seti.
+
+### 🆕 v0.9.x Yenilikleri
+
+- 🪟 **Frameless pencere** — özel başlık çubuğu, popover komut paleti, native min/max/close (Tauri 2 capabilities izinleri ile).
+- 🤖 **AI Agent Watch** — pane başına AI tool-kullanım gözlemcisi, OSC 9999 protokolü, canlı maliyet rozeti, "waiting / running / interrupted" durumları, Claude Code paralel batch parser, otomatik split + heuristik tespit.
+- 🔄 **Merkezi güncelleme sistemi** — 3 mod (silent / passive / full UI), ARM/x64 dual-arch updater'da entegre. `latest.json` + minisign `.sig` dosyaları release'de.
+- 📊 **Canlı DFetch** — gerçek zamanlı sistem istatistikleri (CPU/RAM/disk), broadcast UX, snapshot, tema-uyumlu overlay.
+- 🔢 **Pane başına git diff +/- chip** — pane başlığında değişen satır sayısı (OSC 7 cwd + `git shortstat`).
+- 🤖 **5 yerel AI runtime** — Ollama, LM Studio, Jan, Text Generation WebUI, Llama.cpp server + esnek özel endpoint sağlayıcısı (OpenAI-uyumlu).
+- 🏠 **Home dir başlangıç + welcome banner** — D-T logosu, sürüm rozeti, TR locale paneli.
+- 📋 **Çok satırlı yapıştırma** — bracketed paste modu + satır sayısı toast'u.
+- ⚡ **Performans** — IPC coalescing, BlockTracker output truncation.
+- 💖 **GitHub Sponsors entegrasyonu** — 4 tier perk altyapısı, issue/PR template'lerinde sponsor link.
+- 🔐 **Güvenlik & a11y audit** — FAZ A/B fixleri uygulandı (M7/M8 kritik), a11y composable.
+
+### 🎨 Yeni ikon seti
+
+DT lettering, terminal pencere şekli, mavi gradient — `pnpm tauri icon` ile 50+ asset (Tauri PNG/ICO/ICNS, Windows tile, iOS AppIcon, Android mipmap) yeniden üretildi. Kaynak: 1024×1024 kare appstore ikonu.
+
+### 📝 Bilingual README
+
+Türkçe ana metin + her bölümün altında `<details>` collapsible İngilizce versiyon. Mobilde sıkışmayan layout. Hero demo videosu (`docs/media/d-terminal-showcase.mp4`).
+
+### 🔑 Güncelleyici (Updater) altyapısı
+
+- **Yeni Tauri minisign keypair** (önceki şifreli key kayıp; yeni key şifresiz)
+  - Public key ID: `6F3DE74919BAAEA3`
+  - `tauri.conf.json` `plugins.updater.pubkey` güncellendi
+- `bundle.createUpdaterArtifacts: true` flag'i eklendi (Tauri 2'de explicit gerekli — Tauri 1'de varsayılandı)
+- CI release.yml'da TAURI_SIGNING_PRIVATE_KEY env üzerinden imzalama
+- ⚠️ **Eski v0.1.1 kurulumlarından otomatik geçiş yok** — pubkey değişti, manuel indirme gerekir. Aktif kullanıcı sayısı az olduğu için kabul edildi.
+
+### 📥 İndirme
+
+| Dosya | Boyut | SHA-256 |
+|---|---|---|
+| `D-Terminal_0.9.2_x64_tr-TR.msi` | 39.32 MB | `f58cabb3e3ee07f4686659e1cbc639ddde9e7fd942501a48edf11f279646475f` |
+| `D-Terminal_0.9.2_x64_en-US.msi` | 39.32 MB | `6a4084c57f632c8a93d97a9fa2a5fe37251ecd20d49daff6cb45e5fc649c6109` |
+| `D-Terminal_0.9.2_x64-setup.exe` | 26.14 MB | `ee7cac9f1aaecd6b261c962cae9823004fcda316a5d9c0e699f43fc6ce64cf61` |
+| `D-Terminal_0.9.2_arm64_tr-TR.msi` | 37.13 MB | `f1723d17d686c9030be6e57788d8029656c99257b8164b1924b5da2f1685957d` |
+| `D-Terminal_0.9.2_arm64_en-US.msi` | 37.13 MB | `f9f0ac4ed693dc4aa574f120d7063682795a0f5b8f50f27fef5908ec7ec0bd8a` |
+| `D-Terminal_0.9.2_arm64-setup.exe` | 23.97 MB | `ac062d1694ccba4ea4fb187f5996a4754da5bc919c5ff229e6b42ded393de113` |
+
+Her installer için yanında `.sig` (minisign updater imzası) dosyası ve toplu `latest.json` updater manifest'i release'de.
+
+### 🛡 Güvenlik / VirusTotal taraması (2026-05-08)
+
+#### aarch64 (ARM64)
+
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **0/59** ✅ ([VT](https://www.virustotal.com/gui/file/f1723d17d686c9030be6e57788d8029656c99257b8164b1924b5da2f1685957d)) | Tamamen clean — 0 detection |
+| EN MSI | **0/59** ✅ ([VT](https://www.virustotal.com/gui/file/f9f0ac4ed693dc4aa574f120d7063682795a0f5b8f50f27fef5908ec7ec0bd8a)) | Tamamen clean — 0 detection |
+| NSIS setup | **1/70** ([VT](https://www.virustotal.com/gui/file/ac062d1694ccba4ea4fb187f5996a4754da5bc919c5ff229e6b42ded393de113)) | Sophos `Generic ML PUA` — unsigned NSIS tipik |
+
+#### x86_64 (x64)
+
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **3/59** ([VT](https://www.virustotal.com/gui/file/f58cabb3e3ee07f4686659e1cbc639ddde9e7fd942501a48edf11f279646475f)) | Antiy-AVL `Trojan/Win32.Agent` + K7GW `Spyware` + Rising `Spyware.Agent!8.C6` — generic ML false positive |
+| EN MSI | **4/59** ([VT](https://www.virustotal.com/gui/file/6a4084c57f632c8a93d97a9fa2a5fe37251ecd20d49daff6cb45e5fc649c6109)) | Aynı 3 + Zillya `Trojan.DiscoStealer.Win32.236` |
+| NSIS setup | **3/69** ([VT](https://www.virustotal.com/gui/file/ee7cac9f1aaecd6b261c962cae9823004fcda316a5d9c0e699f43fc6ce64cf61)) | K7GW + Sophos `Generic ML PUA` + VirIT `Trojan.Win64.GenX.JMO` |
+
+**Tüm major engine'ler temiz**: Microsoft Defender, Kaspersky, BitDefender, ESET-NOD32, Sophos (x64 MSI), Avast, AVG, McAfee, Symantec, Trend Micro, Fortinet, GData, Malwarebytes, Avira, Panda, Emsisoft, CrowdStrike Falcon, Acronis Static ML.
+
+ARM64 MSI'lar **sıfır flag** aldı (v0.1.1 ile aynı pattern — ARM64 binary structure'ı x64 ML modellerinin training set'inde daha az temsil ediliyor). x64 tarafında flag sayısı v0.1.1'e göre 1 motor arttı (K7GW yeni, Sophos x64 MSI'de düştü).
+
+Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası uyarı kalkar, ML false positive'lerin neredeyse hepsi de düşer.
+
+### 🤖 CI/CD altyapısı
+
+- **Otomatik VT + HA tarama** — `release.yml` build sonrası `security-scan` job'u eklendi: SHA-256 hesaplar, VT/HA submit eder, GitHub Step Summary'ye dosya bazlı tablo yazar (rate limit: 20s/dosya).
+- **Manuel scan workflow** — `scan-release.yml` ile mevcut bir release'i rebuild etmeden taratabilirsin (workflow_dispatch + tag input).
+
+### 🆙 Sistem gereksinimleri
+
+- Windows 10 1809 (ConPTY için) veya Windows 11
+- ~80 MB RAM, ~50 MB disk
+- WebView2 runtime (Win11'de yerleşik, Win10'da ilk kurulumda otomatik)
+- Node.js gerekli **DEĞİL** (v0.1.1'den beri sidecar bundle ile)
+
+---
+
 ## v0.1.1 — 2026-05-04
 
 İkinci pre-alpha sürüm. v0.1.0-alpha'da yayınlanan kritik bug'lar düzeltildi, Gemini 2.5 code review'undan gelen 10 önerinin tamamı uygulandı, ARM64 desteği + UAC elevation eklendi.

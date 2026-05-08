@@ -37,10 +37,9 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 
 **🛡 Güvenlik / Security**
 
-[![VT ARM64 MSI](https://img.shields.io/badge/VT_ARM64_MSI-0%2F57_clean-brightgreen?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec)
-[![VT x64 MSI](https://img.shields.io/badge/VT_x64_MSI-2%2F57_(false_positive)-success?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06)
-[![VT NSIS](https://img.shields.io/badge/VT_NSIS-1--2%2F70_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76)
-[![Hybrid Analysis](https://img.shields.io/badge/Hybrid_Analysis-6%2F6_clean-brightgreen)](https://hybrid-analysis.com/sample/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad)
+[![VT ARM64 MSI](https://img.shields.io/badge/VT_ARM64_MSI-0%2F59_clean-brightgreen?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/f1723d17d686c9030be6e57788d8029656c99257b8164b1924b5da2f1685957d)
+[![VT x64 MSI](https://img.shields.io/badge/VT_x64_MSI-3--4%2F59_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/f58cabb3e3ee07f4686659e1cbc639ddde9e7fd942501a48edf11f279646475f)
+[![VT NSIS](https://img.shields.io/badge/VT_NSIS-1--3%2F70_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/ee7cac9f1aaecd6b261c962cae9823004fcda316a5d9c0e699f43fc6ce64cf61)
 [![Code Signing](https://img.shields.io/badge/code_signing-SignPath_FOSS_pending-orange)](https://signpath.org/foundation)
 [![DPAPI](https://img.shields.io/badge/secret_storage-Windows_DPAPI-blue?logo=windows)](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection)
 [![CSP](https://img.shields.io/badge/CSP-strict_(no_unsafe--eval)-success)](./src-tauri/tauri.conf.json)
@@ -463,25 +462,21 @@ After installing, here are **5 quick things** to try when you first open D-Termi
 
 ---
 
-## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.9.2 — 2026-05-08)
 
-> 🇹🇷 v0.9.2 build'i yayınlandığında VirusTotal + Hybrid Analysis taramaları yenilenecek; aşağıdaki referans sonuçlar son kararlı yayında alınmıştır.  
-> 🇬🇧 VirusTotal + Hybrid Analysis scans will be refreshed when the v0.9.2 build ships; the reference results below come from the last stable release.
-
-Tüm 6 dosya / all 6 files: **VirusTotal** + **Hybrid Analysis MetaDefender** — detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md)
+Tüm 6 installer **VirusTotal**'da tarandı (detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md))
 
 **ARM64** ✨
-- **MSI TR**: [0/57 clean](https://www.virustotal.com/gui/file/13ec82c543a05e48d897a1735582264a3af97d89694799dc8d9eb8751992afec) ✅
-- **MSI EN**: [0/57 clean](https://www.virustotal.com/gui/file/11a371cb957821567cbd4abed1cdcac60cef06d166778300b95902a0b11b8feb) ✅
-- **NSIS setup**: [1/70](https://www.virustotal.com/gui/file/ef7edc19b301adf61ca8e0f80e3c5980883b537f8f939a0bf993a177c4c6b927) — sadece / only Sophos ML PUA (typical unsigned NSIS)
+- **MSI TR**: [0/59 clean](https://www.virustotal.com/gui/file/f1723d17d686c9030be6e57788d8029656c99257b8164b1924b5da2f1685957d) ✅
+- **MSI EN**: [0/59 clean](https://www.virustotal.com/gui/file/f9f0ac4ed693dc4aa574f120d7063682795a0f5b8f50f27fef5908ec7ec0bd8a) ✅
+- **NSIS setup**: [1/70](https://www.virustotal.com/gui/file/ac062d1694ccba4ea4fb187f5996a4754da5bc919c5ff229e6b42ded393de113) — sadece / only Sophos ML PUA (typical unsigned NSIS)
 
 **x64**
-- **MSI TR**: [2/57](https://www.virustotal.com/gui/file/c82bc54c4b18e0efa6f4cf4a323d51cbec8965617b3c95ec004c47b42a271a06) — Antiy-AVL + Rising generic ML false positive
-- **MSI EN**: [2/58](https://www.virustotal.com/gui/file/4b75ea036cf61201a6fea40adb151a044fc69bcae35a73a09aca17d2ec64f3ad) — same two engines
-- **NSIS setup**: [2/70](https://www.virustotal.com/gui/file/62bad45a2202729be9e8e29999258677b4008d84f3cf1c3c2565cce762380c76) — Sophos ML PUA + VirIT
+- **MSI TR**: [3/59](https://www.virustotal.com/gui/file/f58cabb3e3ee07f4686659e1cbc639ddde9e7fd942501a48edf11f279646475f) — Antiy-AVL + K7GW + Rising generic ML false positive
+- **MSI EN**: [4/59](https://www.virustotal.com/gui/file/6a4084c57f632c8a93d97a9fa2a5fe37251ecd20d49daff6cb45e5fc649c6109) — same three + Zillya
+- **NSIS setup**: [3/69](https://www.virustotal.com/gui/file/ee7cac9f1aaecd6b261c962cae9823004fcda316a5d9c0e699f43fc6ce64cf61) — K7GW + Sophos ML PUA + VirIT
 
-Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet — **hepsi clean / all clean**.  
-Hybrid Analysis MetaDefender Multi-Scan: **6/6 dosya clean / files clean**.
+Microsoft Defender, Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet, Avast, AVG, Sophos (x64 MSI), Malwarebytes — **hepsi clean / all clean**.
 
 > 🇹🇷 Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar; ML false positive'lerin de neredeyse hepsi düşer.  
 > 🇬🇧 Code signing is pending (SignPath FOSS application in progress) — Windows SmartScreen will warn "Unknown publisher"; click "Run anyway" to continue. After signing, the warning goes away and most ML false positives drop too.
