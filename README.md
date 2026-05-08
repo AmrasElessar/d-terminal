@@ -34,6 +34,7 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri)
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs)
 ![Rust](https://img.shields.io/badge/Rust-stable-CE412B?logo=rust)
+[![MS Store](https://img.shields.io/badge/Microsoft_Store-coming_soon-0078D4?logo=microsoftstore&logoColor=white)](https://github.com/AmrasElessar/d-terminal/blob/main/docs/store/listing.md)
 
 **🛡 Güvenlik / Security**
 
@@ -393,10 +394,13 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Sürüm / Version | Hedef / Target | İçerik / Content |
 |---|---|---|
-| **v1.0** | 3-4 ay / months | Çoğu özellik mevcut; release polish + test + docs / most features in place; release polish + tests + docs |
+| **v0.9.x** | ✅ yayında / shipped | Frameless, Agent Watch, AI native, ARM64+x64 dual-arch, auto-updater |
+| **v1.0** | 3-4 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
 | **v1.0.5** | +2 ay / months | vue-i18n 11 migration (CSP `unsafe-eval` kaldır / drop), Log Stream pane, snippet senkron / sync |
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
+
+> 🛒 **Microsoft Store yolculuğu / journey:** v1.0 hedefli MSIX paketleme + Store submission hazırlığı başladı. Detaylar / Details: [`docs/store/`](./docs/store/) — privacy policy, store listing (TR+EN), identity migration plan, AppX config notes.
 
 ---
 
@@ -554,6 +558,45 @@ D-Terminal is open source (MIT) and actively developed. Sponsorships translate d
 <!-- SPONSORS:LIST -->
 <sub>Henüz sponsor yok / No sponsors yet. **İlk sponsor sen ol / Be the first →** [github.com/sponsors/AmrasElessar](https://github.com/sponsors/AmrasElessar)</sub>
 <!-- /SPONSORS:LIST -->
+
+---
+
+## ❤️ D-Terminal'i destekle / Support D-Terminal
+
+<table>
+<tr>
+<td align="center" width="33%">
+
+### ⭐ Star at / Star it
+
+GitHub'da **Star** projeyi başkalarına da görünür kılar.  
+Make the project visible to others.
+
+[⭐ github.com/AmrasElessar/d-terminal](https://github.com/AmrasElessar/d-terminal)
+
+</td>
+<td align="center" width="33%">
+
+### 💖 Sponsor ol / Sponsor
+
+Geliştirme aktif, yapılacaklar listesinde 6+ uygulama fikri var.  
+Active development, 6+ app ideas in queue.
+
+[💖 github.com/sponsors/AmrasElessar](https://github.com/sponsors/AmrasElessar)
+
+</td>
+<td align="center" width="33%">
+
+### 🛒 Yakında Store'da / Coming to Store
+
+Microsoft Store submission hazırlığı **v1.0** hedefli sürmektedir.  
+Microsoft Store submission prep ongoing for **v1.0**.
+
+[🛒 Detaylar / Details](./docs/store/)
+
+</td>
+</tr>
+</table>
 
 ---
 
