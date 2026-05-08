@@ -1,5 +1,62 @@
 # D-Terminal Release Notes
 
+## v0.9.3 — 2026-05-08
+
+**Critical patch release.** v0.9.2'de v0.1.1'den upgrade eden kullanicilarda startup panic atiyordu (refinery V001 checksum mismatch). Bu sürüm bunu fix eder + ikon Win11 squircle mask uyumu için padding eklenir.
+
+### 🐛 Düzeltmeler
+
+- **Migration tolerance** (`storage/migrations.rs`): `runner().set_abort_divergent(false)` eklendi. Refinery 0.8.16 embed_migrations checksum'i derleme ortamı nuance'ı yüzünden tutarsız çıkabiliyordu — strict mode panic atıp app'i çökertiyordu. Tolerant mode warning logla, app çalışmaya devam eder. Migration disiplini değişmedi: V001 dokunulmaz, yeni şemalar V002+ olarak.
+- **İkon safe-area padding** (~%15): Source ikon full bleed'di → Win11 squircle mask kenarlardan kesiyordu, dış rounded frame kayboluyordu. 1024×1024 transparent canvas üzerinde %85 boyutta merkezlendi (her kenardan 76px = ~%7.5 safe area, toplam ~%15 margin).
+- **CI fmt**: `cargo fmt` builder chain whitespace fix.
+
+### 📥 İndirme
+
+| Dosya | Boyut | SHA-256 |
+|---|---|---|
+| `D-Terminal_0.9.3_x64_tr-TR.msi` | 39.38 MB | `51a89d518300a3f917343bdd0843aacc367d8503ee8b107fb8e02d50fb0679d2` |
+| `D-Terminal_0.9.3_x64_en-US.msi` | 39.38 MB | `872826a66270d5acf02014fc2cdc6fb2d54b468cf2763b7e4ca7556d4132838a` |
+| `D-Terminal_0.9.3_x64-setup.exe` | 26.17 MB | `b991d1355d425e9734f3e86216bd1c382bde3b05dc54c199ac39a3836f157094` |
+| `D-Terminal_0.9.3_arm64_tr-TR.msi` | 37.19 MB | `fccac462bb30ef423cd36f1430923d3682fbd6c7c0781405ba4e904ef77cc166` |
+| `D-Terminal_0.9.3_arm64_en-US.msi` | 37.19 MB | `27ab12050c85272c5642160af6eece7df6598a51bc17ddeb4deaf87c6431a1a5` |
+| `D-Terminal_0.9.3_arm64-setup.exe` | 24.00 MB | `b7510906be78d42ca7856a235a81b35683e9b5d900ab10c8e1aee1d6a895a7c0` |
+
+Her installer için yanında `.sig` (minisign updater imzası) dosyası ve `latest.json` updater manifest'i release'de.
+
+### 🛡 Güvenlik / VirusTotal taraması (2026-05-08)
+
+#### aarch64 (ARM64)
+
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **0/60** ✅ ([VT](https://www.virustotal.com/gui/file/fccac462bb30ef423cd36f1430923d3682fbd6c7c0781405ba4e904ef77cc166)) | Tamamen clean — 0 detection |
+| EN MSI | **0/60** ✅ ([VT](https://www.virustotal.com/gui/file/27ab12050c85272c5642160af6eece7df6598a51bc17ddeb4deaf87c6431a1a5)) | Tamamen clean — 0 detection |
+| NSIS setup | **1/70** ([VT](https://www.virustotal.com/gui/file/b7510906be78d42ca7856a235a81b35683e9b5d900ab10c8e1aee1d6a895a7c0)) | Sadece Sophos `Generic ML PUA` — unsigned NSIS tipik |
+
+#### x86_64 (x64)
+
+| Dosya | Skor | Yorum |
+|---|---|---|
+| TR MSI | **3/60** ([VT](https://www.virustotal.com/gui/file/51a89d518300a3f917343bdd0843aacc367d8503ee8b107fb8e02d50fb0679d2)) | Antiy-AVL `Trojan/Win32.Agent` + K7GW `Spyware` + Rising `Spyware.Agent!8.C6` — generic ML false positive |
+| EN MSI | **2/60** ([VT](https://www.virustotal.com/gui/file/872826a66270d5acf02014fc2cdc6fb2d54b468cf2763b7e4ca7556d4132838a)) | Antiy-AVL + K7GW (v0.9.2'ye göre Rising/Zillya düştü) |
+| NSIS setup | **4/71** ([VT](https://www.virustotal.com/gui/file/b991d1355d425e9734f3e86216bd1c382bde3b05dc54c199ac39a3836f157094)) | K7GW + **Microsoft `Trojan:Win32/Wacatac.B!ml`** + Sophos `Generic ML PUA` + VirIT — Wacatac generic false positive (NSIS+native module pattern) |
+
+**Tüm major engine'ler temiz (MSI'lar için)**: Microsoft Defender, Kaspersky, BitDefender, ESET-NOD32, Sophos, Avast, AVG, McAfee, Symantec, Trend Micro, Fortinet, GData, Malwarebytes, Avira, Panda, Emsisoft, CrowdStrike Falcon.
+
+> ⚠️ **Microsoft Defender NSIS'i flagged**: `Trojan:Win32/Wacatac.B!ml` — bu generic ML imzası imzasız NSIS uygulamalarında klasik false positive. Code signing geldiğinde (SignPath FOSS sürecinde) düşer. **MSI installer'ları (Defender clean) önerilir**; NSIS kullanacaksan kullanıcı VT'de "false positive report" submit edebilir.
+
+ARM64 NSIS yine 1/70, ARM64 MSI'lar 0/60 — pattern v0.9.2 ile aynı (ARM64 binary structure x64 ML modellerin training set'inde az temsil ediliyor).
+
+Code signing eksik — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar.
+
+### 🆙 Upgrade notu (v0.1.1 → v0.9.3 doğrudan)
+
+v0.9.2 broken'dı; v0.1.1 kullanıcıları **doğrudan v0.9.3'e** geçer. Migration tolerance fix'iyle eski DB sorunsuz upgrade olur. Manuel DB silmeye gerek yok.
+
+> ⚠️ Pubkey değişti (önceki v0.1.1 → v0.9.3): otomatik updater zinciri bu sürüm geçişinde **manuel** indirme ile çalışır. v0.9.3 → v0.9.4+ otomatik olur.
+
+---
+
 ## v0.9.2 — 2026-05-08
 
 D-Terminal'in v0.1.1'den bu yana ilk yayını — **v0.9.x serisi** kapsamında mimari ve UX olarak baştan sona şekillenmiş bir release. CI build matrix (x64 + ARM64), imzalı installer + auto-updater, bilingual TR/EN README, yeni D-Terminal ikon seti.
