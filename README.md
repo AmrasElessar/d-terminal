@@ -480,6 +480,11 @@ Tüm 6 installer **VirusTotal**'da tarandı (detay / details: [RELEASE_NOTES.md]
 
 Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet, Avast, AVG, Sophos (x64 MSI), Malwarebytes, Microsoft Defender (MSI'lar) — **hepsi clean / all clean**.
 
+> 🛡️ **Bağımsız doğrulama / Independent verification (2026-05-08):** Tüm v0.9.3 dosyaları (geliştirme klasörü + 6 installer) **Kaspersky Security Cloud** lisanslı sürümde clean — full real-time + heuristic + behavioral + KSN cloud reputation tüm katmanlardan geçti.  
+> *All v0.9.3 files (source folder + 6 installers) scanned clean by **licensed Kaspersky Security Cloud** — passed real-time + heuristic + behavioral + KSN cloud reputation across all layers.*
+
+> 🧪 **Sandbox dynamic analysis** (VT runtime, x64 NSIS): No detections, no IDS/Sigma rules triggered, no network communications, no suspicious dropped files. 29 INFO-level MITRE signatures (registry write, taskkill old version, install path scan) are **standard installer behavior** — not malware indicators. Confirms static-scan flags are ML false positives.
+
 > 🇹🇷 Code signing eksik (SignPath FOSS başvurusu sürecinde) — Windows SmartScreen "Bilinmeyen yayıncı" uyarısı verir, "Yine de çalıştır" ile devam edilir. Sertifika sonrası bu kalkar; ML false positive'lerin de neredeyse hepsi düşer.  
 > 🇬🇧 Code signing is pending (SignPath FOSS application in progress) — Windows SmartScreen will warn "Unknown publisher"; click "Run anyway" to continue. After signing, the warning goes away and most ML false positives drop too.
 
