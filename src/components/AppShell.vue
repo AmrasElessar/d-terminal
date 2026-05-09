@@ -108,6 +108,33 @@ async function winToggleMax() {
 async function winClose() {
   try { await getCurrentWindow().close(); } catch (e) { console.warn('close failed', e); }
 }
+
+/** Manuel pencere sürükleme — Tauri 2 + WebView2 + Mica/transparent
+ *  kombinasyonunda `data-tauri-drag-region` attribute'u her zaman tetiklenmiyor
+ *  (frame'siz pencerede pencere taşınamıyor, ikinci ekrana geçirilemiyordu).
+ *  `startDragging()` API'si Tauri 2'de explicit drag handler — mousedown'da
+ *  pencere sürüklemeyi başlatır, kullanıcı bırakana kadar OS yönetir.
+ *
+ *  Capability: `core:window:allow-start-dragging` zaten default.json'da. */
+async function onHeaderMouseDown(e: MouseEvent) {
+  // Sol tık değilse atla (sağ tık menü, orta tık scroll vs.).
+  if (e.button !== 0) return;
+  // Hedef interaktif eleman ise (button/input/select/a) drag başlatma —
+  // header'daki butonlara tıklama drag'ı tetiklemesin.
+  const target = e.target as HTMLElement;
+  if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+  try {
+    await getCurrentWindow().startDragging();
+  } catch (err) {
+    log.warn('startDragging failed', { error: String(err) });
+  }
+}
+/** Header çift-tık: Windows native title bar davranışı — maximize toggle. */
+async function onHeaderDblClick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+  await winToggleMax();
+}
 function openSessionSave() { modals.openSession('save'); }
 function openSessionLoad() { modals.openSession('load'); }
 
@@ -295,8 +322,15 @@ watch(
 <template>
   <main class="shell">
     <!-- Frameless window: native title bar yok, bu header drag region.
-         Çocuk butonlar `data-tauri-drag-region` taşımaz, normal click alır. -->
-    <header class="shell__header" data-tauri-drag-region>
+         Çocuk butonlar drag tetiklemez (onHeaderMouseDown kontrolü). Tauri 2'de
+         data-tauri-drag-region tek başına Mica+transparent kombinasyonunda
+         çalışmıyor (v0.9.3 bug); startDragging() API ile manuel handler. -->
+    <header
+      class="shell__header"
+      data-tauri-drag-region
+      @mousedown="onHeaderMouseDown"
+      @dblclick="onHeaderDblClick"
+    >
       <div class="shell__brand" data-tauri-drag-region>{{ t('app.title') }}</div>
       <span
         v-if="isElevated"
