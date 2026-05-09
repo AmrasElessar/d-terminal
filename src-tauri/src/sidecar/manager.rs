@@ -60,6 +60,11 @@ struct Inner {
     panes: HashSet<u64>,
     next_pane_id: u64,
     last_pong: Instant,
+    /// Reader/stderr/heartbeat thread join handle'ları. Sidecar restart'ında
+    /// (crash → ensure_started yeniden çağrıldığında) eski thread'ler join'le
+    /// alınır → Weak<Self> upgrade'lerinin terklisinde bile thread leak olmaz.
+    /// shutdown'da da bekle; child kill sonrasi pipe'lar EOF/EPIPE ile bitirir.
+    threads: Vec<thread::JoinHandle<()>>,
 }
 
 /// PTY event kuyruğu için backpressure sınırı.
@@ -84,6 +89,7 @@ impl SidecarManager {
                 panes: HashSet::new(),
                 next_pane_id: 1,
                 last_pong: Instant::now(),
+                threads: Vec::new(),
             }),
             events_rx: Mutex::new(Some(rx)),
             events_tx: tx,
@@ -143,9 +149,27 @@ impl SidecarManager {
         inner.child = Some(child);
         inner.last_pong = Instant::now();
 
-        spawn_reader_thread(stdout, self.events_tx.clone(), Arc::downgrade(self));
-        spawn_stderr_thread(stderr);
-        spawn_heartbeat_thread(stdin_arc, Arc::downgrade(self));
+        // Eski thread handle'ları varsa drain et (sidecar restart senaryosu).
+        // Kill edilmiş child'in pipe'ları EOF gönderip thread'leri çıkartmıştır;
+        // burada join ile gerçekten bitmiş olduklarını doğrulayıp slot'u boşalt.
+        let old_threads = std::mem::take(&mut inner.threads);
+        // Lock'u serbest bırak — thread spawn pahalı + join blocking olabilir.
+        drop(inner);
+        for h in old_threads {
+            let _ = h.join();
+        }
+
+        let mut new_threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(3);
+        if let Some(h) = spawn_reader_thread(stdout, self.events_tx.clone(), Arc::downgrade(self)) {
+            new_threads.push(h);
+        }
+        if let Some(h) = spawn_stderr_thread(stderr) {
+            new_threads.push(h);
+        }
+        if let Some(h) = spawn_heartbeat_thread(stdin_arc, Arc::downgrade(self)) {
+            new_threads.push(h);
+        }
+        self.inner.lock().threads = new_threads;
 
         try_send_lifecycle(&self.events_tx, PtyEvent::SidecarUp);
         tracing::info!("sidecar process started");
@@ -249,6 +273,15 @@ impl SidecarManager {
         }
         inner.stdin = None;
         inner.panes.clear();
+        // Thread handle'larını lock dışında join et (deadlock riskini önle).
+        let threads = std::mem::take(&mut inner.threads);
+        drop(inner);
+        for h in threads {
+            // Pipe'lar EOF aldığı için thread'ler hızla biter; yine de
+            // sentetik bir bekleme limiti gerekirse spawn-then-detach pattern'a
+            // geçilebilir. Şimdilik tam join — thread leak garantisiz biter.
+            let _ = h.join();
+        }
     }
 }
 
@@ -282,7 +315,7 @@ fn spawn_reader_thread(
     stdout: ChildStdout,
     tx: SyncSender<PtyEvent>,
     weak: std::sync::Weak<SidecarManager>,
-) {
+) -> Option<thread::JoinHandle<()>> {
     let tx_for_err = tx.clone();
     let result = thread::Builder::new()
         .name("dterm-sidecar-reader".into())
@@ -321,14 +354,18 @@ fn spawn_reader_thread(
                 }
             }
         });
-    if let Err(e) = result {
-        tracing::error!(error = %e, "failed to spawn sidecar reader thread");
-        try_send_lifecycle(
-            &tx_for_err,
-            PtyEvent::SidecarDown {
-                reason: format!("reader thread spawn failed: {e}"),
-            },
-        );
+    match result {
+        Ok(handle) => Some(handle),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to spawn sidecar reader thread");
+            try_send_lifecycle(
+                &tx_for_err,
+                PtyEvent::SidecarDown {
+                    reason: format!("reader thread spawn failed: {e}"),
+                },
+            );
+            None
+        }
     }
 }
 
@@ -396,7 +433,7 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
     }
 }
 
-fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
+fn spawn_stderr_thread(stderr: std::process::ChildStderr) -> Option<thread::JoinHandle<()>> {
     let result = thread::Builder::new()
         .name("dterm-sidecar-stderr".into())
         .spawn(move || {
@@ -417,12 +454,19 @@ fn spawn_stderr_thread(stderr: std::process::ChildStderr) {
         });
     // Stderr thread başlatılamazsa tek sonuç sidecar log mesajlarını
     // göremeyiz — kritik değil, app çalışmaya devam eder.
-    if let Err(e) = result {
-        tracing::warn!(error = %e, "failed to spawn sidecar stderr thread (logs will be lost)");
+    match result {
+        Ok(h) => Some(h),
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to spawn sidecar stderr thread (logs will be lost)");
+            None
+        }
     }
 }
 
-fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<SidecarManager>) {
+fn spawn_heartbeat_thread(
+    stdin: Arc<Mutex<ChildStdin>>,
+    weak: std::sync::Weak<SidecarManager>,
+) -> Option<thread::JoinHandle<()>> {
     let weak_for_err = weak.clone();
     let result = thread::Builder::new()
         .name("dterm-sidecar-heartbeat".into())
@@ -449,15 +493,19 @@ fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<S
             }
             let _ = guard.flush();
         });
-    if let Err(e) = result {
-        tracing::error!(error = %e, "failed to spawn sidecar heartbeat thread");
-        if let Some(mgr) = weak_for_err.upgrade() {
-            try_send_lifecycle(
-                &mgr.events_tx,
-                PtyEvent::SidecarDown {
-                    reason: format!("heartbeat thread spawn failed: {e}"),
-                },
-            );
+    match result {
+        Ok(h) => Some(h),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to spawn sidecar heartbeat thread");
+            if let Some(mgr) = weak_for_err.upgrade() {
+                try_send_lifecycle(
+                    &mgr.events_tx,
+                    PtyEvent::SidecarDown {
+                        reason: format!("heartbeat thread spawn failed: {e}"),
+                    },
+                );
+            }
+            None
         }
     }
 }

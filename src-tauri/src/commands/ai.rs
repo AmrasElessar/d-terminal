@@ -8,6 +8,7 @@ use crate::ai::{provider_for, AiModel, ChatMessage, ChatOptions};
 use crate::state::AppState;
 use std::sync::Arc;
 use tauri::{ipc::Channel, State};
+use tokio::sync::oneshot;
 use zeroize::Zeroizing;
 
 #[tauri::command]
@@ -28,6 +29,7 @@ pub async fn ai_chat_stream(
     provider: String,
     messages: Vec<ChatMessage>,
     options: ChatOptions,
+    stream_id: u64,
     on_chunk: Channel<String>,
 ) -> Result<(), String> {
     let p = provider_for(&provider).ok_or_else(|| format!("unknown provider: {provider}"))?;
@@ -40,17 +42,39 @@ pub async fn ai_chat_stream(
         let _ = on_chunk.send(text);
     });
 
-    // key Zeroizing<String> — chat çağrısı bittikten sonra drop'ta sıfırlanır.
-    let result = p
-        .chat(
-            key.as_deref().map(|s| s.as_str()),
-            messages,
-            options,
-            chunk_sink,
-        )
-        .await;
+    // Abort kanalı: frontend `ai_abort_stream(stream_id)` çağırırsa cancel_tx
+    // `()` gönderir; tokio::select! chat future'ını drop eder, reqwest HTTP
+    // bağlantısı kapatılır, daha fazla token harcanmaz (AI providers H1).
+    let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+    state.ai_aborts.lock().insert(stream_id, cancel_tx);
+
+    let chat_future = p.chat(
+        key.as_deref().map(|s| s.as_str()),
+        messages,
+        options,
+        chunk_sink,
+    );
+
+    let result = tokio::select! {
+        res = chat_future => res,
+        _ = cancel_rx => Err("aborted".to_string()),
+    };
+
+    // Cleanup: stream sonlandı → handle map'ten çıkar (cancelled veya complete).
+    state.ai_aborts.lock().remove(&stream_id);
     drop(key); // explicit zeroize sinyali (drop sırasında zaten gerçekleşir)
     result
+}
+
+/// Çalışan bir AI stream'i iptal eder. `stream_id` `ai_chat_stream`'i
+/// başlatırken frontend'in ürettiği unique sayı (Date.now() + counter).
+/// Stream zaten bittiyse no-op (entry map'te yok).
+#[tauri::command]
+pub fn ai_abort_stream(state: State<'_, AppState>, stream_id: u64) {
+    if let Some(tx) = state.ai_aborts.lock().remove(&stream_id) {
+        // send hata dönerse (receiver zaten drop) — yine de OK.
+        let _ = tx.send(());
+    }
 }
 
 /// DPAPI vault'tan provider key'ini düz metne çek. Provider id "ai_provider"

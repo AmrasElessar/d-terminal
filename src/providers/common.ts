@@ -33,22 +33,32 @@ export async function fetchModels(provider: ProviderId): Promise<AIModel[]> {
   }
 }
 
+/** Stream id üretici — Date.now() + counter ile çakışma riski sıfır.
+ *  Rust tarafında ai_aborts HashMap key'i olarak kullanılır. */
+let _streamCounter = 0;
+function nextStreamId(): number {
+  _streamCounter = (_streamCounter + 1) % 1_000_000;
+  // Date.now()*1000 + counter — saniye altı çakışma için yeterli benzersizlik.
+  return Date.now() * 1000 + _streamCounter;
+}
+
 /**
  * Rust ai_chat_stream'i çağır, gelen chunk'ları AsyncIterable<string> olarak
- * yield et. AbortSignal ile iptal — frontend'de promise reject olur, Rust
- * tarafında stream consumer drop edildiğinde provider kendi error path'ine
- * düşer.
+ * yield et. AbortSignal ile gerçek iptal — frontend abort olunca Rust tarafında
+ * `ai_abort_stream(streamId)` invoke edilir, oneshot kanalı `tokio::select!`
+ * ile chat future'ını drop eder, reqwest HTTP bağlantısı kapatılır → daha
+ * fazla token harcanmaz (önceden frontend cancel "yanılsama"ydı, Rust task
+ * tam yanıtı üretmeye devam ederdi).
  */
 export async function* streamChat(
   provider: ProviderId,
   messages: ChatMessage[],
   options: ChatOptions,
 ): AsyncIterable<string> {
+  const streamId = nextStreamId();
   const channel = new Channel<string>();
   const queue: string[] = [];
   let done = false;
-  // TS narrows `error` to never inside the loop because we only assign
-  // null at init; explicit annotation prevents that.
   let error: Error | null = null as Error | null;
   let resolveNext: (() => void) | null = null;
 
@@ -66,6 +76,7 @@ export async function* streamChat(
       max_tokens: options.maxTokens,
       endpoint: options.endpoint,
     },
+    streamId,
     onChunk: channel,
   })
     .then(() => {
@@ -78,8 +89,11 @@ export async function* streamChat(
       resolveNext?.();
     });
 
-  // AbortSignal — channel'ı kes (callPromise hata dönecektir)
+  // AbortSignal — Rust tarafında stream'i iptal et + frontend kanalını kes.
   const onAbort = () => {
+    // Rust task'ını gerçekten iptal — token harcaması durur. invoke fail
+    // olursa stream zaten bitmiş demektir, sessiz geç.
+    invoke('ai_abort_stream', { streamId }).catch(() => { /* ignore */ });
     done = true;
     error = new Error('AbortError');
     resolveNext?.();
@@ -97,13 +111,11 @@ export async function* streamChat(
     }
     if (error) {
       // AbortError special — caller upstream'de tanır
-      if (error.message === 'AbortError') {
+      if (error.name === 'AbortError' || error.message === 'AbortError') {
         const e = new Error('AbortError');
         e.name = 'AbortError';
         throw e;
       }
-      // Rust hata mesajını AnthropicProvider'ın eski 'apiFailed:...' formatına
-      // benzer bırak — UI tarafı zaten parse ediyor.
       throw error;
     }
   } finally {

@@ -187,6 +187,7 @@ pub fn run() {
             commands::ai_proxy::ai_key_masked,
             commands::ai::ai_models,
             commands::ai::ai_chat_stream,
+            commands::ai::ai_abort_stream,
             // DFetch
             commands::dfetch::dfetch_get,
             commands::dfetch::dfetch_live,
