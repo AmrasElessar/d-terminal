@@ -26,6 +26,12 @@ pub const HEADER_LEN: usize = 13;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MsgType {
+    /// HELLO — sidecar boot'ta gönderir (Tauri ileri geri yorumu CBOR
+    /// HelloPayload). Tauri ileri geri yorumu CBOR ile ilettikten sonra
+    /// `protocol_version` uyumsuzsa bağlantıyı kapatır. v0.9.4'ten itibaren
+    /// zorunlu — eski sidecar binary HELLO göndermezse Tauri 1sn timeout
+    /// sonra warn loglar ama çalışmaya devam eder (geri uyumluluk).
+    Hello = 0x00,
     Spawn = 0x01,
     Stdin = 0x02,
     Stdout = 0x03,
@@ -41,6 +47,7 @@ pub enum MsgType {
 impl MsgType {
     pub fn from_byte(b: u8) -> Result<Self, ProtocolError> {
         match b {
+            0x00 => Ok(Self::Hello),
             0x01 => Ok(Self::Spawn),
             0x02 => Ok(Self::Stdin),
             0x03 => Ok(Self::Stdout),
@@ -55,6 +62,24 @@ impl MsgType {
         }
     }
 }
+
+/// Sidecar boot HELLO payload'ı (CBOR encoded). Versiyon uyumsuzluğunu
+/// erken tespit etmek için.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HelloPayload {
+    /// Wire protocol majör versiyonu — breaking change'lerde bumpllanır.
+    pub protocol_version: u32,
+    /// Sidecar binary semver string (cosmetic).
+    pub sidecar_version: String,
+    /// Sidecar tarafının desteklediği opsiyonel yetenekler — gelecek için
+    /// (FLOW_RESUME, BACKPRESSURE, vs.). Boş liste = sadece base protocol.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
+/// Bu Tauri binary'sinin desteklediği wire protocol versiyonu. Sidecar
+/// `HelloPayload.protocol_version` farklı raporlarsa SidecarDown emit edilir.
+pub const PROTOCOL_VERSION: u32 = 1;
 
 #[derive(Debug, Error)]
 pub enum ProtocolError {

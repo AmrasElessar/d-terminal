@@ -87,6 +87,7 @@ const MAX_PAYLOAD = 16 * 1024 * 1024; // 16 MB
 const HEADER_LEN = 13;                // 4 (len) + 1 (type) + 8 (pane_id)
 
 const MsgType = Object.freeze({
+  HELLO:       0x00,
   SPAWN:       0x01,
   STDIN:       0x02,
   STDOUT:      0x03,
@@ -98,6 +99,11 @@ const MsgType = Object.freeze({
   ERROR:       0x09,
   FLOW_RESUME: 0x0A,
 });
+
+/** Protokol versiyonu — Tauri PROTOCOL_VERSION ile eşleşmeli. Breaking change'lerde
+ *  ikiside birden bumpllanır. */
+const PROTOCOL_VERSION = 1;
+const SIDECAR_VERSION = '0.9.4'; // sidecar/package.json + Tauri Cargo.toml senkron
 
 const KNOWN_TYPES = new Set(Object.values(MsgType));
 
@@ -287,6 +293,21 @@ function runMain() {
 
   const manager = new PtyManager({ writeFrame, log });
   const decoder = new FrameDecoder();
+
+  // HELLO handshake — Tauri tarafına protokol versiyon + sidecar binary
+  // versiyonunu ilet. Tauri uyumsuzluk tespit ederse SidecarDown emit edip
+  // child'i kapatır. Uyum varsa info loglar ve normal akışa geçer.
+  try {
+    const helloPayload = encodePayload({
+      protocol_version: PROTOCOL_VERSION,
+      sidecar_version: SIDECAR_VERSION,
+      capabilities: [], // Gelecek için: ['flow_resume', 'backpressure', ...]
+    });
+    writeFrame(MsgType.HELLO, 0n, helloPayload);
+  } catch (e) {
+    log(`HELLO write failed: ${e.message}`);
+    // Tauri tarafı stdout'u dinlemiyorsa ileride zaten EPIPE alacak — devam et.
+  }
 
   // Heartbeat (iki yönlü):
   //  - Tauri 5s'de bir PING gönderir, sidecar PONG döner (dispatch'te).

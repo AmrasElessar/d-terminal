@@ -428,6 +428,42 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
         MsgType::Pong => {
             mgr.inner.lock().last_pong = Instant::now();
         }
+        MsgType::Hello => {
+            use crate::sidecar::protocol::{HelloPayload, PROTOCOL_VERSION};
+            let parsed: Result<HelloPayload, _> = decode_cbor(&frame.payload);
+            match parsed {
+                Ok(h) => {
+                    if h.protocol_version != PROTOCOL_VERSION {
+                        tracing::error!(
+                            tauri_proto = PROTOCOL_VERSION,
+                            sidecar_proto = h.protocol_version,
+                            sidecar_version = %h.sidecar_version,
+                            "sidecar protocol version mismatch — incompatible binary"
+                        );
+                        try_send_lifecycle(
+                            tx,
+                            PtyEvent::SidecarDown {
+                                reason: format!(
+                                    "protocol version mismatch (Tauri v{PROTOCOL_VERSION}, sidecar v{})",
+                                    h.protocol_version
+                                ),
+                            },
+                        );
+                        // Mismatch'te sidecar shutdown — child kill edilecek.
+                        mgr.shutdown();
+                    } else {
+                        tracing::info!(
+                            sidecar_version = %h.sidecar_version,
+                            capabilities = ?h.capabilities,
+                            "sidecar handshake OK"
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "HELLO frame decode failed");
+                }
+            }
+        }
         // Ping yöneticiden gelmez; gelse bile bilgi notu yeter
         MsgType::Ping => {}
         // Sidecar→Tauri yönünde anlam taşımayan tipler
