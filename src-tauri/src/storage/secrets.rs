@@ -95,3 +95,107 @@ impl SecretsRepo {
         Ok(out)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use r2d2_sqlite::SqliteConnectionManager;
+
+    /// In-memory pool: max_size=1 + with_init migration → tek conn'da yaşayan
+    /// test DB (in-memory'de her conn ayrı DB olduğu için tek conn şart).
+    fn fresh_pool() -> ConnPool {
+        let manager = SqliteConnectionManager::memory().with_init(|c| {
+            crate::storage::migrations::run(c).map_err(|e| {
+                rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
+                    Some(format!("migration: {e}")),
+                )
+            })
+        });
+        r2d2::Pool::builder()
+            .max_size(1)
+            .build(manager)
+            .expect("pool")
+    }
+
+    /// upsert + get_blob round-trip: yazılan ciphertext aynen geri alınır.
+    #[test]
+    fn upsert_then_get_blob_roundtrip() {
+        let repo = SecretsRepo::new(fresh_pool());
+        let blob = vec![1u8, 2, 3, 4, 5];
+        repo.upsert("ai", "openai_key", &blob).unwrap();
+        let got = repo.get_blob("ai", "openai_key").unwrap();
+        assert_eq!(got, Some(blob));
+    }
+
+    /// Aynı (scope, name) ile ikinci upsert → ciphertext update edilir
+    /// (ON CONFLICT DO UPDATE), unique constraint hatası atmaz.
+    #[test]
+    fn upsert_same_key_updates_ciphertext() {
+        let repo = SecretsRepo::new(fresh_pool());
+        repo.upsert("ai", "k1", &[0u8; 4]).unwrap();
+        repo.upsert("ai", "k1", &[9u8; 4]).unwrap();
+        let got = repo.get_blob("ai", "k1").unwrap().unwrap();
+        assert_eq!(got, vec![9u8; 4]);
+        // Hâlâ tek satır olmalı.
+        let rows = repo.list("ai").unwrap();
+        assert_eq!(rows.len(), 1);
+    }
+
+    /// get_blob existing row → last_used_at NULL'dan CURRENT_TIMESTAMP'a güncellenir.
+    #[test]
+    fn get_blob_updates_last_used_at() {
+        let repo = SecretsRepo::new(fresh_pool());
+        repo.upsert("ai", "k1", b"x").unwrap();
+        // İlk get → last_used_at güncellenir.
+        let _ = repo.get_blob("ai", "k1").unwrap();
+        let rows = repo.list("ai").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(
+            rows[0].last_used_at.is_some(),
+            "last_used_at should be set after get_blob"
+        );
+    }
+
+    /// Olmayan (scope, name) → Ok(None), hata değil.
+    #[test]
+    fn get_blob_missing_returns_none() {
+        let repo = SecretsRepo::new(fresh_pool());
+        let got = repo.get_blob("ai", "yok").unwrap();
+        assert!(got.is_none());
+    }
+
+    /// delete sonrası get_blob → None.
+    #[test]
+    fn delete_then_get_blob_returns_none() {
+        let repo = SecretsRepo::new(fresh_pool());
+        repo.upsert("ai", "k1", b"abc").unwrap();
+        repo.delete("ai", "k1").unwrap();
+        let got = repo.get_blob("ai", "k1").unwrap();
+        assert!(got.is_none());
+    }
+
+    /// list(scope) → name'e göre sıralı satır listesi döner.
+    #[test]
+    fn list_returns_rows_sorted_by_name() {
+        let repo = SecretsRepo::new(fresh_pool());
+        repo.upsert("ai", "zebra", b"z").unwrap();
+        repo.upsert("ai", "alpha", b"a").unwrap();
+        repo.upsert("ai", "mango", b"m").unwrap();
+        let rows = repo.list("ai").unwrap();
+        let names: Vec<_> = rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["alpha", "mango", "zebra"]);
+    }
+
+    /// Farklı scope'lar izole — list("a") "b"yi göstermez.
+    #[test]
+    fn list_isolates_scopes() {
+        let repo = SecretsRepo::new(fresh_pool());
+        repo.upsert("ai", "k", b"1").unwrap();
+        repo.upsert("ssh", "k", b"2").unwrap();
+        let ai_rows = repo.list("ai").unwrap();
+        let ssh_rows = repo.list("ssh").unwrap();
+        assert_eq!(ai_rows.len(), 1);
+        assert_eq!(ssh_rows.len(), 1);
+    }
+}

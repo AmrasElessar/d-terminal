@@ -1,6 +1,9 @@
 // Anthropic Claude — Messages API, SSE streaming.
 
-use super::{send_with_retry, AiModel, ChatMessage, ChatOptions, ChatProvider, ChunkSink};
+use super::{
+    send_with_retry, AiModel, ChatMessage, ChatOptions, ChatProvider, ChunkSink, UsageInfo,
+    UsageSink,
+};
 use async_trait::async_trait;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
@@ -23,11 +26,32 @@ struct Delta {
     text: Option<String>,
 }
 
+/// Anthropic SSE message_start ve message_delta event'lerinde usage gelir.
+/// message_start: input_tokens kesin; message_delta: output_tokens kesin son.
+/// Bkz. https://docs.anthropic.com/en/api/messages-streaming
+#[derive(Debug, Deserialize, Default)]
+struct Usage {
+    #[serde(default)]
+    input_tokens: u32,
+    #[serde(default)]
+    output_tokens: u32,
+}
+
 #[derive(Debug, Deserialize)]
 struct Event {
     #[serde(rename = "type")]
     kind: Option<String>,
     delta: Option<Delta>,
+    #[serde(default)]
+    message: Option<EventMessage>,
+    #[serde(default)]
+    usage: Option<Usage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventMessage {
+    #[serde(default)]
+    usage: Option<Usage>,
 }
 
 pub struct Anthropic;
@@ -57,6 +81,7 @@ impl ChatProvider for Anthropic {
         messages: Vec<ChatMessage>,
         options: ChatOptions,
         mut on_chunk: ChunkSink,
+        mut on_usage: UsageSink,
     ) -> Result<(), String> {
         let key = key.ok_or_else(|| "noKey".to_string())?;
 
@@ -111,6 +136,12 @@ impl ChatProvider for Anthropic {
             return Err(format!("apiFailed:{status}"));
         }
 
+        // input_tokens'i message_start'tan, output_tokens'i message_delta'dan
+        // birleştirip stream sonunda on_usage'a yolla. Anthropic resmi streaming
+        // event akışı bu şekilde rapor eder.
+        let mut input_tokens: u32 = 0;
+        let mut output_tokens: u32 = 0;
+
         let mut stream = resp.bytes_stream().eventsource();
         loop {
             let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
@@ -125,15 +156,36 @@ impl ChatProvider for Anthropic {
                 Ok(p) => p,
                 Err(_) => continue,
             };
-            if parsed.kind.as_deref() == Some("content_block_delta") {
-                if let Some(d) = parsed.delta {
-                    if d.kind.as_deref() == Some("text_delta") {
-                        if let Some(text) = d.text {
-                            on_chunk(text);
+            match parsed.kind.as_deref() {
+                Some("content_block_delta") => {
+                    if let Some(d) = parsed.delta {
+                        if d.kind.as_deref() == Some("text_delta") {
+                            if let Some(text) = d.text {
+                                on_chunk(text);
+                            }
                         }
                     }
                 }
+                Some("message_start") => {
+                    if let Some(m) = parsed.message {
+                        if let Some(u) = m.usage {
+                            input_tokens = u.input_tokens;
+                        }
+                    }
+                }
+                Some("message_delta") => {
+                    if let Some(u) = parsed.usage {
+                        output_tokens = u.output_tokens;
+                    }
+                }
+                _ => {}
             }
+        }
+        if input_tokens > 0 || output_tokens > 0 {
+            on_usage(UsageInfo {
+                input: input_tokens,
+                output: output_tokens,
+            });
         }
         Ok(())
     }

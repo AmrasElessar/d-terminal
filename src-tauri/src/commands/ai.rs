@@ -4,7 +4,7 @@
 // alınır, HTTP istekleri reqwest ile, streaming yanıt Tauri Channel<String>
 // üzerinden frontend'e push.
 
-use crate::ai::{provider_for, AiModel, ChatMessage, ChatOptions};
+use crate::ai::{provider_for, AiModel, ChatMessage, ChatOptions, UsageInfo};
 use crate::state::AppState;
 use std::sync::Arc;
 use tauri::{ipc::Channel, State};
@@ -31,6 +31,7 @@ pub async fn ai_chat_stream(
     options: ChatOptions,
     stream_id: u64,
     on_chunk: Channel<String>,
+    on_usage: Channel<UsageInfo>,
 ) -> Result<(), String> {
     let p = provider_for(&provider).ok_or_else(|| format!("unknown provider: {provider}"))?;
     let key = retrieve_key(&state, &provider);
@@ -40,6 +41,11 @@ pub async fn ai_chat_stream(
         // send hata dönerse (frontend abort etti), drop edilir; provider
         // kendi error handler'ında tespit eder.
         let _ = on_chunk.send(text);
+    });
+    // Provider exact token raporlarsa frontend'e UsageInfo gönder; estimate
+    // yerine kesin değer kullanılır (Türkçe gibi morfolojik dillerde %30+ iyi).
+    let usage_sink: crate::ai::UsageSink = Box::new(move |info: UsageInfo| {
+        let _ = on_usage.send(info);
     });
 
     // Abort kanalı: frontend `ai_abort_stream(stream_id)` çağırırsa cancel_tx
@@ -53,6 +59,7 @@ pub async fn ai_chat_stream(
         messages,
         options,
         chunk_sink,
+        usage_sink,
     );
 
     let result = tokio::select! {

@@ -14,7 +14,45 @@ refinery::embed_migrations!("./migrations");
 
 pub fn run(conn: &mut rusqlite::Connection) -> crate::error::AppResult<()> {
     migrations::runner().set_abort_divergent(false).run(conn)?;
+    // Downgrade guard: stored _app_version mevcut binary'den daha yüksekse
+    // refuse — eski binary yeni şemayı kıramasın (kolon eksik vs. crash).
+    // İlk açılışta settings tablosu boştur, no-op.
+    let stored: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = '_app_version'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+    let current = env!("CARGO_PKG_VERSION");
+    if let Some(v) = stored {
+        if semver_lt(current, &v) {
+            return Err(crate::error::AppError::Migration(format!(
+                "DB v{v} > app v{current}; downgrade desteklenmiyor"
+            )));
+        }
+    }
+    // Mevcut sürümü yaz — sonraki açılışta downgrade tespiti için baz.
+    conn.execute(
+        "INSERT INTO settings(key, value) VALUES ('_app_version', ?1) \
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![current],
+    )?;
     Ok(())
+}
+
+/// Naive semver karşılaştırma — yalnızca `MAJOR.MINOR.PATCH` parse eder
+/// (pre-release suffix göz ardı). Production semver tam parse istersen
+/// `semver` crate'i ekleyebilirsin; mevcut versiyonlama için yeterli.
+fn semver_lt(a: &str, b: &str) -> bool {
+    let parse = |s: &str| -> (u32, u32, u32) {
+        let mut it = s.split('-').next().unwrap_or(s).split('.');
+        let major = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        let minor = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        let patch = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        (major, minor, patch)
+    };
+    parse(a) < parse(b)
 }
 
 #[cfg(test)]
@@ -73,6 +111,46 @@ mod tests {
             )
             .expect("trigger count");
         assert_eq!(trigger_count, 3, "FTS5 triggers missing");
+    }
+
+    /// `_app_version` settings tablosuna yazılıyor (downgrade guard temeli).
+    #[test]
+    fn migration_writes_app_version() {
+        let mut conn = Connection::open_in_memory().expect("in-memory");
+        run(&mut conn).expect("migration");
+        let v: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = '_app_version'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("app_version");
+        assert_eq!(v, env!("CARGO_PKG_VERSION"));
+    }
+
+    /// Stored DB versiyonu binary'den yüksekse migration reddedilir.
+    #[test]
+    fn migration_rejects_downgrade() {
+        let mut conn = Connection::open_in_memory().expect("in-memory");
+        run(&mut conn).expect("first run");
+        // DB'ye gelecekten gelmiş gibi yüksek versiyon yaz.
+        conn.execute(
+            "UPDATE settings SET value = '99.0.0' WHERE key = '_app_version'",
+            [],
+        )
+        .unwrap();
+        let result = run(&mut conn);
+        assert!(result.is_err(), "Downgrade should be rejected");
+    }
+
+    #[test]
+    fn semver_lt_basic() {
+        assert!(semver_lt("0.9.3", "0.9.4"));
+        assert!(semver_lt("0.9.3", "0.10.0"));
+        assert!(semver_lt("0.9.3", "1.0.0"));
+        assert!(!semver_lt("0.9.4", "0.9.3"));
+        assert!(!semver_lt("0.9.3", "0.9.3"));
+        assert!(semver_lt("0.9.3-beta", "0.9.4")); // pre-release suffix ignored
     }
 
     /// FTS5 sorgusu çalışıyor — INSERT/DELETE/UPDATE trigger'ları senkron.

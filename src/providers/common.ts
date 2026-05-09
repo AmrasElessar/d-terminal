@@ -42,6 +42,17 @@ function nextStreamId(): number {
   return Date.now() * 1000 + _streamCounter;
 }
 
+/** Provider tarafından raporlanan kesin token kullanımı.
+ *  Yoksa frontend `estimateTokens` (4 char/token) tahmine düşer. */
+export interface ExactUsage {
+  input: number;
+  output: number;
+}
+
+/** Caller streamChat'e geçerse provider exact usage raporu yapınca çağrılır.
+ *  Çoğu provider stream sonunda tek kez bilgi gönderir. */
+export type UsageCallback = (usage: ExactUsage) => void;
+
 /**
  * Rust ai_chat_stream'i çağır, gelen chunk'ları AsyncIterable<string> olarak
  * yield et. AbortSignal ile gerçek iptal — frontend abort olunca Rust tarafında
@@ -49,14 +60,20 @@ function nextStreamId(): number {
  * ile chat future'ını drop eder, reqwest HTTP bağlantısı kapatılır → daha
  * fazla token harcanmaz (önceden frontend cancel "yanılsama"ydı, Rust task
  * tam yanıtı üretmeye devam ederdi).
+ *
+ * `onUsage` opsiyonel: provider Anthropic message_delta / OpenAI
+ * stream_options.include_usage / Ollama done frame ile kesin token sayısı
+ * raporlarsa çağrılır. Yoksa caller estimate'a düşer.
  */
 export async function* streamChat(
   provider: ProviderId,
   messages: ChatMessage[],
   options: ChatOptions,
+  onUsage?: UsageCallback,
 ): AsyncIterable<string> {
   const streamId = nextStreamId();
   const channel = new Channel<string>();
+  const usageChannel = new Channel<ExactUsage>();
   const queue: string[] = [];
   let done = false;
   let error: Error | null = null as Error | null;
@@ -65,6 +82,9 @@ export async function* streamChat(
   channel.onmessage = (chunk) => {
     queue.push(chunk);
     resolveNext?.();
+  };
+  usageChannel.onmessage = (info) => {
+    onUsage?.(info);
   };
 
   const callPromise = invoke<void>('ai_chat_stream', {
@@ -78,6 +98,7 @@ export async function* streamChat(
     },
     streamId,
     onChunk: channel,
+    onUsage: usageChannel,
   })
     .then(() => {
       done = true;

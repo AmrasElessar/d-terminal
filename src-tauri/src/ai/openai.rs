@@ -101,6 +101,20 @@ struct DeltaInner {
 #[derive(Debug, Deserialize)]
 struct ChatChunk {
     choices: Option<Vec<Choice>>,
+    /// `stream_options.include_usage: true` ile son chunk'ta kesin token
+    /// kullanımı gelir. Cloud'da [DONE]'dan hemen önceki chunk'tadır;
+    /// yerel runtime'lar (Ollama-OpenAI compat, llama.cpp vs.) destekleyebilir
+    /// veya destekleyemez.
+    #[serde(default)]
+    usage: Option<UsageBlock>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct UsageBlock {
+    #[serde(default)]
+    prompt_tokens: u32,
+    #[serde(default)]
+    completion_tokens: u32,
 }
 
 /// Parametrik OpenAI-uyumlu provider. Yerel runtime'lar ve custom endpoint
@@ -278,6 +292,7 @@ impl ChatProvider for OpenAi {
         messages: Vec<ChatMessage>,
         options: ChatOptions,
         mut on_chunk: ChunkSink,
+        mut on_usage: super::UsageSink,
     ) -> Result<(), String> {
         if self.key_required && key.is_none() {
             return Err("noKey".to_string());
@@ -294,10 +309,12 @@ impl ChatProvider for OpenAi {
 
         // Body — temperature/max_tokens null gönderilmez (vLLM/llama.cpp bazı
         // sürümlerinde 400 dönebilir; OpenAI cloud da temiz body'yi tercih eder).
+        // stream_options.include_usage: true → son chunk'ta kesin token usage.
         let mut body = json!({
             "model": options.model,
             "messages": messages.iter().map(|m| json!({"role": m.role, "content": m.content})).collect::<Vec<_>>(),
             "stream": true,
+            "stream_options": { "include_usage": true },
         });
         if let Some(t) = options.temperature {
             body["temperature"] = json!(t);
@@ -351,6 +368,16 @@ impl ChatProvider for OpenAi {
                             }
                         }
                     }
+                }
+            }
+            // include_usage: true → son chunk usage bloğu içerir
+            // (choices boş olur). Frontend'e exact token rapor.
+            if let Some(u) = chunk.usage {
+                if u.prompt_tokens > 0 || u.completion_tokens > 0 {
+                    on_usage(super::UsageInfo {
+                        input: u.prompt_tokens,
+                        output: u.completion_tokens,
+                    });
                 }
             }
         }

@@ -57,22 +57,25 @@ pub fn psreadline_import(state: State<'_, AppState>) -> AppResult<ImportSummary>
     let recent_set: std::collections::HashSet<&str> =
         recent.iter().map(|e| e.command.as_str()).collect();
 
-    let mut imported = 0usize;
+    // Bulk insert: dedupe sonrası kalan satırları tek transaction'da yaz.
+    // 5000 satırlı PSReadLine'da 5000 ayrı pool.get() + INSERT + WAL fsync
+    // (~30sn) yerine tek transaction (<1sn). Audit Rust-perf O3.
+    let mut to_insert: Vec<NewHistoryEntry> = Vec::new();
     let mut skipped_duplicates = 0usize;
     for cmd in &candidates {
         if recent_set.contains(cmd) {
             skipped_duplicates += 1;
             continue;
         }
-        state.storage.history.add(NewHistoryEntry {
+        to_insert.push(NewHistoryEntry {
             command: (*cmd).to_string(),
             pane_id: None,
             pane_type: Some("powershell".into()),
             exit_code: None,
             duration_ms: None,
-        })?;
-        imported += 1;
+        });
     }
+    let imported = state.storage.history.add_bulk(&to_insert)?;
 
     Ok(ImportSummary {
         imported,

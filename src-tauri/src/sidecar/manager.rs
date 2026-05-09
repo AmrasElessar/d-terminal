@@ -255,10 +255,12 @@ impl SidecarManager {
     }
 
     pub fn kill(&self, pane_id: u64) -> AppResult<()> {
-        {
-            let mut inner = self.inner.lock();
-            inner.panes.remove(&pane_id);
-        }
+        // Pane'i HEMEN panes set'inden silmiyoruz — eğer silersek aradaki
+        // STDOUT/EXIT frame'leri "bu pane bilinmiyor" sayılıp drop edilir,
+        // frontend EXIT bildirimini almadan UI'dan pane silinir (Sidecar
+        // audit HIGH#5). Doğru akış: KILL frame yolla, sidecar PTY'yi
+        // sonlandırınca EXIT frame gönderir, handle_inbound EXIT'te
+        // panes.remove yapar — frontend'e EXIT garanti edilir.
         self.write_frame(&Frame::new(MsgType::Kill, pane_id, Vec::new()))
     }
 

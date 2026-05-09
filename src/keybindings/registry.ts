@@ -29,7 +29,11 @@ export class KeybindingRegistry {
   readonly prefixActive = ref(false);
 
   constructor() {
-    for (const def of DEFAULT_SHORTCUTS) {
+    // Defensive clone — DEFAULT_SHORTCUTS modül-seviyesi sabit, paylaşılan
+    // referansını tutarsak `setCombo` def.combo'yu mutate edip global tabloyu
+    // bozar (bug: yeni Registry instance bile eski override'ları görür).
+    for (const src of DEFAULT_SHORTCUTS) {
+      const def = { ...src };
       this.bindings.set(def.id, def);
       this.comboToId.set(def.combo.toLowerCase(), def.id);
     }

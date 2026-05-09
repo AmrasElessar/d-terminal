@@ -108,4 +108,62 @@ mod tests {
         let err = AppError::Migration("v3 fail".into());
         assert_eq!(err.to_string(), "migration: v3 fail");
     }
+
+    /// rusqlite::Error → AppError::Sqlite (#[from] köprüsü)
+    #[test]
+    fn sqlite_error_converts_via_from() {
+        let sqlite = rusqlite::Error::QueryReturnedNoRows;
+        let app: AppError = sqlite.into();
+        assert!(matches!(app, AppError::Sqlite(_)));
+        let json = serde_json::to_string(&app).unwrap();
+        assert!(json.contains("\"kind\":\"sqlite\""));
+    }
+
+    /// r2d2::Error → AppError::Pool (pool exhausted/connect senaryosu)
+    #[test]
+    fn pool_error_converts_via_from() {
+        // r2d2::Error doğrudan construct edilemiyor; pool max_size=1 +
+        // dummy manager + 0 timeout get → Error('timed out') simüle.
+        use r2d2_sqlite::SqliteConnectionManager;
+        let manager = SqliteConnectionManager::memory();
+        let pool = r2d2::Pool::builder()
+            .max_size(1)
+            .connection_timeout(std::time::Duration::from_millis(50))
+            .build(manager)
+            .unwrap();
+        let _hold = pool.get().unwrap();
+        let err = pool.get().unwrap_err(); // timeout → r2d2::Error
+        let app: AppError = err.into();
+        assert!(matches!(app, AppError::Pool(_)));
+        let json = serde_json::to_string(&app).unwrap();
+        assert!(json.contains("\"kind\":\"pool\""));
+    }
+
+    /// Sidecar variant Display + Serialize round-trip.
+    #[test]
+    fn sidecar_variant_serializes_correctly() {
+        let err = AppError::Sidecar("spawn failed".into());
+        assert_eq!(err.to_string(), "sidecar: spawn failed");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"kind\":\"sidecar\""));
+        assert!(json.contains("spawn failed"));
+    }
+
+    /// NotImplemented &'static str payload — kind ve message birbirini tutar.
+    #[test]
+    fn not_implemented_kind_payload() {
+        let err = AppError::NotImplemented("ipv6 listener");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"kind\":\"not_implemented\""));
+        assert!(json.contains("ipv6 listener"));
+    }
+
+    /// Internal variant String payload — Display formatı `internal: …`.
+    #[test]
+    fn internal_variant_display_format() {
+        let err = AppError::Internal("ctx missing".into());
+        assert_eq!(err.to_string(), "internal: ctx missing");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"kind\":\"internal\""));
+    }
 }

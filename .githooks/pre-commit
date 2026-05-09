@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+# D-Terminal pre-commit hook.
+# Aktivasyon: scripts/setup-hooks.ps1 (bir kerelik git config core.hooksPath .githooks)
+#
+# scripts/check-all.ps1 toplam projeyi check eder (cargo fmt + clippy +
+# vue-tsc + lint + sidecar test). Pre-commit'te tam check ağır olur — yalnızca
+# hızlı gate'leri (fmt + lint staged dosyalar) çalıştırıyoruz. CI tam check yapar.
+
+set -e
+
+# Yalnızca fmt + lint stage'lenmiş dosyalarda — Husky lint-staged eşdeğeri.
+# pnpm yoksa skip (cmd.exe ortamında bu hook çalışırsa pnpm bulunmayabilir;
+# fallback git'in normal akışıdır).
+
+# Rust fmt check (yalnızca *.rs değişmişse)
+if git diff --cached --name-only | grep -qE '\.rs$'; then
+    echo "[hook] cargo fmt --check"
+    (cd src-tauri && cargo fmt --check) || {
+        echo "[hook] HATA: 'cargo fmt' calistir, tekrar add+commit dene." >&2
+        exit 1
+    }
+fi
+
+# Frontend lint (yalnızca *.ts/*.vue değişmişse)
+if git diff --cached --name-only | grep -qE '\.(ts|vue|tsx)$'; then
+    echo "[hook] eslint (changed files)"
+    if command -v pnpm >/dev/null 2>&1; then
+        # Çakışmasız hızlı kontrol; tam build CI'da çalışır.
+        pnpm lint || {
+            echo "[hook] HATA: lint hatalari var. 'pnpm lint --fix' deneyebilirsin." >&2
+            exit 1
+        }
+    fi
+fi
+
+exit 0

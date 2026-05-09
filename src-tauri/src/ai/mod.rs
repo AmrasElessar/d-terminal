@@ -47,8 +47,23 @@ pub struct AiModel {
     pub supports_streaming: bool,
 }
 
-/// Stream tüketicisi — her chunk için on_chunk çağrılır.
+/// Stream tüketicisi — her chunk için on_chunk çağrılır (text içerik).
 pub type ChunkSink = Box<dyn FnMut(String) + Send>;
+
+/// Provider'ın stream sonunda raporladığı kesin token kullanımı.
+/// Anthropic `message_delta` event'inde, OpenAI `stream_options.include_usage`
+/// ile son chunk'ta gelir. Yoksa frontend `estimateTokens` (4 char/token) ile
+/// tahmin eder — Türkçe gibi morfolojik diller için %30 underestimate.
+#[derive(Debug, Clone, Serialize)]
+pub struct UsageInfo {
+    pub input: u32,
+    pub output: u32,
+}
+
+/// Provider tarafından raporlanan kesin token usage. Stream bittiğinde
+/// (veya provider exact rapor verdiğinde) çağrılır. Provider rapor vermezse
+/// hiç çağrılmaz; frontend o durumda tahmine düşer.
+pub type UsageSink = Box<dyn FnMut(UsageInfo) + Send>;
 
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
@@ -58,7 +73,8 @@ pub trait ChatProvider: Send + Sync {
     /// Model listesi. Network hatasında fallback döner.
     async fn models(&self, key: Option<&str>) -> Vec<AiModel>;
 
-    /// Streaming chat. Her chunk geldikçe on_chunk çağrılır.
+    /// Streaming chat. Her chunk geldikçe on_chunk çağrılır; provider exact
+    /// usage raporlarsa on_usage da bir kez çağrılır.
     /// Hata durumunda anlamlı bir mesaj döner.
     async fn chat(
         &self,
@@ -66,6 +82,7 @@ pub trait ChatProvider: Send + Sync {
         messages: Vec<ChatMessage>,
         options: ChatOptions,
         on_chunk: ChunkSink,
+        on_usage: UsageSink,
     ) -> Result<(), String>;
 }
 

@@ -23,6 +23,14 @@ struct ChatMsg {
 #[derive(Debug, Deserialize)]
 struct ChatLine {
     message: Option<ChatMsg>,
+    /// Ollama son chunk'ta `done: true` + token sayıları döner.
+    /// Bkz. https://github.com/ollama/ollama/blob/main/docs/api.md#response-15
+    #[serde(default)]
+    done: bool,
+    #[serde(default)]
+    prompt_eval_count: u32,
+    #[serde(default)]
+    eval_count: u32,
 }
 
 pub struct Ollama;
@@ -65,6 +73,7 @@ impl ChatProvider for Ollama {
         messages: Vec<ChatMessage>,
         options: ChatOptions,
         mut on_chunk: ChunkSink,
+        mut on_usage: super::UsageSink,
     ) -> Result<(), String> {
         // Ollama options: temperature + num_predict (max_tokens karşılığı).
         let mut ollama_opts = serde_json::Map::new();
@@ -120,6 +129,13 @@ impl ChatProvider for Ollama {
                             on_chunk(text);
                         }
                     }
+                }
+                // Ollama son chunk'ta `done: true` + exact token rapor.
+                if parsed.done && (parsed.prompt_eval_count > 0 || parsed.eval_count > 0) {
+                    on_usage(super::UsageInfo {
+                        input: parsed.prompt_eval_count,
+                        output: parsed.eval_count,
+                    });
                 }
             }
         }

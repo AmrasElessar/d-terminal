@@ -38,6 +38,18 @@ struct DeltaInner {
 #[derive(Debug, Deserialize)]
 struct ChatChunk {
     choices: Option<Vec<Choice>>,
+    /// Gemini OpenAI-compat endpoint `stream_options.include_usage` ile son
+    /// chunk'ta usage döner.
+    #[serde(default)]
+    usage: Option<UsageBlock>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct UsageBlock {
+    #[serde(default)]
+    prompt_tokens: u32,
+    #[serde(default)]
+    completion_tokens: u32,
 }
 
 fn fallback() -> Vec<AiModel> {
@@ -105,13 +117,15 @@ impl ChatProvider for Gemini {
         messages: Vec<ChatMessage>,
         options: ChatOptions,
         mut on_chunk: ChunkSink,
+        mut on_usage: super::UsageSink,
     ) -> Result<(), String> {
         let key = key.ok_or_else(|| "noKey".to_string())?;
-        // Body — null parametreler dışarıda tutulur (M3).
+        // Body — null parametreler dışarıda tutulur (M3); include_usage true.
         let mut body = json!({
             "model": options.model,
             "messages": messages.iter().map(|m| json!({"role": m.role, "content": m.content})).collect::<Vec<_>>(),
             "stream": true,
+            "stream_options": { "include_usage": true },
         });
         if let Some(t) = options.temperature {
             body["temperature"] = json!(t);
@@ -162,6 +176,14 @@ impl ChatProvider for Gemini {
                             }
                         }
                     }
+                }
+            }
+            if let Some(u) = chunk.usage {
+                if u.prompt_tokens > 0 || u.completion_tokens > 0 {
+                    on_usage(super::UsageInfo {
+                        input: u.prompt_tokens,
+                        output: u.completion_tokens,
+                    });
                 }
             }
         }

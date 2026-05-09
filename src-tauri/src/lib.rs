@@ -365,4 +365,49 @@ mod coalesce_tests {
     fn passes_empty_input() {
         assert_eq!(coalesce_pty_events(vec![]).len(), 0);
     }
+
+    /// Stress: 1000 farklı pane'den round-robin event → her pane bir event'e
+    /// merge olmaz çünkü araya başka pane giriyor; çıktı input'a eşit boyutta
+    /// olmalı (interleaved, hiç merge yok).
+    #[test]
+    fn stress_interleaved_panes_no_merge() {
+        let mut input = Vec::with_capacity(1000);
+        for i in 0..1000 {
+            input.push(stdout(&format!("p{}", i % 10), b"x"));
+        }
+        let result = coalesce_pty_events(input);
+        // 10 pane round-robin → ardışık aynı pane yok → coalesce 0 merge.
+        assert_eq!(result.len(), 1000);
+    }
+
+    /// Stress: 1000 ardışık aynı pane event → tek event'e merge.
+    #[test]
+    fn stress_same_pane_merges_to_one() {
+        let mut input = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            input.push(stdout("only", b"a"));
+        }
+        let result = coalesce_pty_events(input);
+        assert_eq!(result.len(), 1);
+        if let PtyEvent::Stdout { data, .. } = &result[0] {
+            assert_eq!(data.len(), 1000);
+        } else {
+            panic!("expected Stdout");
+        }
+    }
+
+    /// Büyük payload: 64 KB'lık iki ardışık event → tek event'te 128 KB
+    /// data; boyut sınırı yok (coalesce şu an cap koymuyor — backpressure
+    /// downstream'de SyncSender'da).
+    #[test]
+    fn merges_large_64kb_payloads() {
+        let big = vec![b'X'; 64 * 1024];
+        let result = coalesce_pty_events(vec![stdout("a", &big), stdout("a", &big)]);
+        assert_eq!(result.len(), 1);
+        if let PtyEvent::Stdout { data, .. } = &result[0] {
+            assert_eq!(data.len(), 128 * 1024);
+        } else {
+            panic!("expected Stdout");
+        }
+    }
 }
