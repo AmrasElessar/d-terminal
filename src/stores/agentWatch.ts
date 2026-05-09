@@ -133,12 +133,25 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
 
   function clearPane(paneId: string) {
     panes.value.delete(paneId);
+    // Memoize cache'lerini de temizle ki ölü pane id'leri ref tutmasın.
+    paneViewCache.delete(paneId);
+    paneSummaryCache.delete(paneId);
   }
 
   /** Pane için reactive view — sidebar bunu okur.
    *  Cost: provider event'te explicit gelmediyse (costUsd === 0 ve token > 0)
-   *  seçili modelin pricing'i üstünden hesaplanır (effectiveCost). */
-  function paneView(paneId: string) {
+   *  seçili modelin pricing'i üstünden hesaplanır (effectiveCost).
+   *
+   *  Memoize: Daha önce her çağrıda yeni `computed` instance üretiliyordu
+   *  (TerminalPane + PaneTitleBar + AgentWatchPanel ayrı çağırınca 60 FPS ×
+   *  pane sayısı kadar allocation). Şimdi cache'liyoruz; pane silininceye
+   *  kadar aynı computed paylaşılır. */
+  type PaneView = ReturnType<typeof buildPaneView>;
+  type PaneSummary = ReturnType<typeof buildPaneSummary>;
+  const paneViewCache = new Map<string, PaneView>();
+  const paneSummaryCache = new Map<string, PaneSummary>();
+
+  function buildPaneView(paneId: string) {
     return computed(() => {
       const p = panes.value.get(paneId);
       if (!p) {
@@ -170,6 +183,13 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         modelId: p.modelId,
       };
     });
+  }
+  function paneView(paneId: string): PaneView {
+    let c = paneViewCache.get(paneId);
+    if (c) return c;
+    c = buildPaneView(paneId);
+    paneViewCache.set(paneId, c);
+    return c;
   }
 
   /** Tüm pane'lerin toplamı — global statusbar için.
@@ -205,8 +225,9 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
   });
 
   /** Tek pane için kompakt özet — title bar inline counter için.
-   *  paneView'in subset'i ama daha hafif (full agent array dönmüyor). */
-  function paneSummary(paneId: string) {
+   *  paneView'in subset'i ama daha hafif (full agent array dönmüyor).
+   *  paneView ile aynı memoize stratejisi. */
+  function buildPaneSummary(paneId: string) {
     return computed(() => {
       const p = panes.value.get(paneId);
       if (!p || p.byId.size === 0) {
@@ -231,6 +252,13 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
       }
       return { totalTokens, totalCost, count: p.byId.size };
     });
+  }
+  function paneSummary(paneId: string): PaneSummary {
+    let c = paneSummaryCache.get(paneId);
+    if (c) return c;
+    c = buildPaneSummary(paneId);
+    paneSummaryCache.set(paneId, c);
+    return c;
   }
 
   return {

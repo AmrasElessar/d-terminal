@@ -302,7 +302,7 @@ watch(
         v-if="isElevated"
         class="shell__admin-badge"
         :title="t('admin.elevatedHint')"
-        aria-label="Administrator"
+        :aria-label="t('admin.elevatedHint')"
       >
 🛡 ADMIN
 </span>

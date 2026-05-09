@@ -624,7 +624,7 @@ void props.open;
           <div
             class="font-preview"
             :style="{ fontFamily: settings.state.fontFamily }"
-            aria-label="font preview"
+            :aria-label="t('settings.appearance.fontPreview')"
           >const ƒ = (x ⇒ y) → x !== null && x.length > 0;</div>
         </label>
         <label class="field">

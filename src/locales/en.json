@@ -246,6 +246,7 @@
       "themeHint": "Color palette, font, and background effects",
       "fontFamily": "Font Family",
       "fontSize": "Font Size",
+      "fontPreview": "Font preview",
       "ligatures": "Use ligatures",
       "opacity": "Opacity",
       "blur": "Background blur",

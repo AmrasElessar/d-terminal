@@ -246,6 +246,7 @@
       "themeHint": "Renk paleti, font ve arka plan efektleri",
       "fontFamily": "Yazı Tipi",
       "fontSize": "Yazı Boyutu",
+      "fontPreview": "Yazı tipi önizleme",
       "ligatures": "Ligature kullan",
       "opacity": "Opaklık",
       "blur": "Arka plan bulanıklığı",
