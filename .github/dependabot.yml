@@ -1,0 +1,59 @@
+version: 2
+# Dependabot — package güncellemelerini otomatik PR'la.
+# CVE alarmları gerçek zamanlı; sürüm güncellemeleri haftalık batch.
+# Audit H2: outdated deps (pinia 2→3, vite 6→8, vitest 2→4, eslint 9→10,
+# typescript 5→6) için PR akışı; manuel review + merge.
+
+updates:
+  # Frontend (pnpm)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+    # Major sürüm yükseltmeleri elle review — breaking change risk yüksek.
+    # Patch + minor otomatik eligible.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "deps(npm)"
+      include: scope
+
+  # Sidecar (Node)
+  - package-ecosystem: npm
+    directory: /sidecar
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, sidecar]
+    commit-message:
+      prefix: "deps(sidecar)"
+
+  # Rust (Cargo)
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, rust]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "deps(cargo)"
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "deps(actions)"

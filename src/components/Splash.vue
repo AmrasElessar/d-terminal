@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { APP_VERSION } from '@/version';
 
@@ -13,34 +13,44 @@ interface Line {
 }
 
 const lines = ref<Line[]>([
-  { text: 'init core runtime',         status: 'pending', delay: 80 },
-  { text: 'load WebView2 bridge',      status: 'pending', delay: 60 },
-  { text: 'open SQLite (WAL mode)',    status: 'pending', delay: 90 },
-  { text: 'apply schema migrations',   status: 'pending', delay: 70 },
-  { text: 'spawn PTY sidecar',         status: 'pending', delay: 110 },
-  { text: 'register Tauri commands',   status: 'pending', delay: 60 },
-  { text: 'mount Vue + Pinia stores',  status: 'pending', delay: 70 },
-  { text: 'load themes (3)',           status: 'pending', delay: 50 },
-  { text: 'load locales',              status: 'pending', delay: 50 },
-  { text: 'bind keyboard shortcuts',   status: 'pending', delay: 60 },
-  { text: 'subscribe sidecar events',  status: 'pending', delay: 80 },
-  { text: 'D-Terminal ready',          status: 'pending', delay: 120 },
+  // Daha onceki delay degerleri (toplam ~870ms + 250ms tail = 1.12sn) sahte
+  // bir gecikme yaratiyordu — gercek init AppShell'de paralel kosuyor, splash
+  // arkada oturuyordu (Frontend perf Y6). Sureleri %75 kistik (toplam ~210ms),
+  // animasyon hala goruluyor ama uygulama anlik aciliyor.
+  { text: 'init core runtime',         status: 'pending', delay: 18 },
+  { text: 'load WebView2 bridge',      status: 'pending', delay: 14 },
+  { text: 'open SQLite (WAL mode)',    status: 'pending', delay: 22 },
+  { text: 'apply schema migrations',   status: 'pending', delay: 18 },
+  { text: 'spawn PTY sidecar',         status: 'pending', delay: 26 },
+  { text: 'register Tauri commands',   status: 'pending', delay: 14 },
+  { text: 'mount Vue + Pinia stores',  status: 'pending', delay: 18 },
+  { text: 'load themes (3)',           status: 'pending', delay: 12 },
+  { text: 'load locales',              status: 'pending', delay: 12 },
+  { text: 'bind keyboard shortcuts',   status: 'pending', delay: 14 },
+  { text: 'subscribe sidecar events',  status: 'pending', delay: 18 },
+  { text: 'D-Terminal ready',          status: 'pending', delay: 28 },
 ]);
 
 const visibleCount = ref(0);
+let cancelled = false;
 
 async function play() {
   for (let i = 0; i < lines.value.length; i += 1) {
+    if (cancelled) return;
     visibleCount.value = i + 1;
     lines.value[i]!.status = 'loading';
     await new Promise((r) => setTimeout(r, lines.value[i]!.delay));
+    if (cancelled) return;
     lines.value[i]!.status = 'ok';
   }
-  await new Promise((r) => setTimeout(r, 250));
-  emit('done');
+  // Tail kisaltildi (250 → 80) — kullanici "ready" satirini gormek icin
+  // kucuk pause; daha kisa olunca insanlar fark etmiyor.
+  await new Promise((r) => setTimeout(r, 80));
+  if (!cancelled) emit('done');
 }
 
 onMounted(play);
+onBeforeUnmount(() => { cancelled = true; });
 </script>
 
 <template>

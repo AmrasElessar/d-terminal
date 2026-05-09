@@ -144,7 +144,7 @@
       "noEndpoint": "Custom AI endpoint not configured in Settings"
     },
     "redact": {
-      "notice": "{count} lines redacted (secrets detected)",
+      "notice": "no lines redacted | 1 line redacted (secret detected) | {count} lines redacted (secrets detected)",
       "preview": "Preview text being sent to AI",
       "confirm": "Send",
       "cancel": "Cancel"
@@ -325,7 +325,7 @@
     "copy": "Copy",
     "delete": "Delete",
     "empty": "History is empty",
-    "results": "{count} results"
+    "results": "no results | 1 result | {count} results"
   },
   "session": {
     "save": "Save Session",
@@ -385,7 +385,7 @@
     "host": "Host",
     "boot": "Boot",
     "cpu": "CPU",
-    "cores": "{count} cores",
+    "cores": "no cores | 1 core | {count} cores",
     "ram": "Memory",
     "ramFormat": "{used} / {total}",
     "swap": "Swap",
@@ -408,7 +408,7 @@
     "refresh": "Refresh"
   },
   "statusBar": {
-    "panes": "{count} panes",
+    "panes": "no panes | 1 pane | {count} panes",
     "activeProvider": "Active AI: {name}",
     "noProvider": "No AI",
     "ready": "Ready",
@@ -574,7 +574,7 @@
     "import": "Import",
     "exportHint": "Download all snippets as JSON (for sharing)",
     "importHint": "Import snippets from a JSON file (Warp Drive lite)",
-    "exportDone": "{count} snippets exported",
+    "exportDone": "no snippets exported | 1 snippet exported | {count} snippets exported",
     "importDone": "{added} snippets added, {skipped} skipped (empty or duplicate)",
     "importInvalid": "Invalid snippet file"
   },

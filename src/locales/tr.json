@@ -144,7 +144,7 @@
       "noEndpoint": "Custom AI uç noktası Ayarlar'da girilmedi"
     },
     "redact": {
-      "notice": "{count} satır gizlendi (secret tespit edildi)",
+      "notice": "satır gizlenmedi | 1 satır gizlendi (secret tespit edildi) | {count} satır gizlendi (secret tespit edildi)",
       "preview": "AI'a gönderilecek metni önizle",
       "confirm": "Gönder",
       "cancel": "Vazgeç"
@@ -325,7 +325,7 @@
     "copy": "Kopyala",
     "delete": "Sil",
     "empty": "Geçmiş boş",
-    "results": "{count} sonuç"
+    "results": "sonuç yok | 1 sonuç | {count} sonuç"
   },
   "session": {
     "save": "Session Kaydet",
@@ -385,7 +385,7 @@
     "host": "Bilgisayar",
     "boot": "Açılış",
     "cpu": "İşlemci",
-    "cores": "{count} çekirdek",
+    "cores": "çekirdek yok | 1 çekirdek | {count} çekirdek",
     "ram": "Bellek",
     "ramFormat": "{used} / {total}",
     "swap": "Swap",
@@ -408,7 +408,7 @@
     "refresh": "Yenile"
   },
   "statusBar": {
-    "panes": "{count} panel",
+    "panes": "panel yok | 1 panel | {count} panel",
     "activeProvider": "Aktif AI: {name}",
     "noProvider": "AI yok",
     "ready": "Hazır",
@@ -574,7 +574,7 @@
     "import": "İçe Aktar",
     "exportHint": "Tüm snippet'ları JSON dosyası olarak indir (paylaşım için)",
     "importHint": "JSON dosyasından snippet'ları içe aktar (Warp Drive lite)",
-    "exportDone": "{count} snippet dışa aktarıldı",
+    "exportDone": "snippet dışa aktarılmadı | 1 snippet dışa aktarıldı | {count} snippet dışa aktarıldı",
     "importDone": "{added} snippet eklendi, {skipped} atlandı (boş veya çakışan)",
     "importInvalid": "Geçersiz snippet dosyası"
   },
