@@ -109,31 +109,34 @@ async function winClose() {
   try { await getCurrentWindow().close(); } catch (e) { console.warn('close failed', e); }
 }
 
-/** Manuel pencere sürükleme — Tauri 2 + WebView2 + Mica/transparent
- *  kombinasyonunda `data-tauri-drag-region` attribute'u her zaman tetiklenmiyor
- *  (frame'siz pencerede pencere taşınamıyor, ikinci ekrana geçirilemiyordu).
- *  `startDragging()` API'si Tauri 2'de explicit drag handler — mousedown'da
- *  pencere sürüklemeyi başlatır, kullanıcı bırakana kadar OS yönetir.
+/** Manuel pencere sürükleme + Windows native title bar çift-tık davranışı.
  *
- *  Capability: `core:window:allow-start-dragging` zaten default.json'da. */
+ *  Tauri 2 + WebView2 + Mica/transparent kombinasyonunda
+ *  `data-tauri-drag-region` attribute'u her zaman tetiklenmiyor (v0.9.3 bug:
+ *  pencere mouse ile taşınamıyor). `startDragging()` API'si explicit drag.
+ *
+ *  Çift-tık tespiti: `startDragging()` çağrılınca OS'a "ben sürüklüyorum"
+ *  bildirimi gider, sonraki `dblclick` event'i WebView'a iletilmez. Çözüm:
+ *  `mousedown.detail === 2` ile çift-tık tespit edilir, o durumda drag yerine
+ *  maximize toggle çalıştırılır (klasik Windows title bar davranışı).
+ *
+ *  Capability: `core:window:allow-start-dragging` default.json'da kayıtlı. */
 async function onHeaderMouseDown(e: MouseEvent) {
   // Sol tık değilse atla (sağ tık menü, orta tık scroll vs.).
   if (e.button !== 0) return;
-  // Hedef interaktif eleman ise (button/input/select/a) drag başlatma —
-  // header'daki butonlara tıklama drag'ı tetiklemesin.
+  // Hedef interaktif eleman ise (button/input/select/a) drag/maximize tetikleme.
   const target = e.target as HTMLElement;
   if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+  // detail === 2 → çift-tık → maximize toggle (drag başlatma).
+  if (e.detail === 2) {
+    await winToggleMax();
+    return;
+  }
   try {
     await getCurrentWindow().startDragging();
   } catch (err) {
     log.warn('startDragging failed', { error: String(err) });
   }
-}
-/** Header çift-tık: Windows native title bar davranışı — maximize toggle. */
-async function onHeaderDblClick(e: MouseEvent) {
-  const target = e.target as HTMLElement;
-  if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
-  await winToggleMax();
 }
 function openSessionSave() { modals.openSession('save'); }
 function openSessionLoad() { modals.openSession('load'); }
@@ -329,7 +332,6 @@ watch(
       class="shell__header"
       data-tauri-drag-region
       @mousedown="onHeaderMouseDown"
-      @dblclick="onHeaderDblClick"
     >
       <div class="shell__brand" data-tauri-drag-region>{{ t('app.title') }}</div>
       <span
@@ -527,10 +529,27 @@ watch(
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: var(--pane-title-gradient, linear-gradient(90deg, var(--color-accent), var(--color-accent2)));
+  /* Akan gradient: 3-stop palindrome (A→B→A) tile, 200% size = tam 1 tile
+     shift'te seamless tekrar. -200% offset bir tam cycle; 0% ve -200%
+     render'ı identical → loop start/end glitch yok ("durup baştan başlama"
+     hissi kalkar). linear easing → sabit hız, akmaya devam ediyor görünür.
+     Tema değişince accent/accent2 otomatik adapte. prefers-reduced-motion
+     App.vue global rule'u ile otomatik durur. */
+  background: linear-gradient(
+    90deg,
+    var(--color-accent),
+    var(--color-accent2),
+    var(--color-accent)
+  );
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation: brandShimmer 8s linear infinite;
+}
+@keyframes brandShimmer {
+  from { background-position:    0% 50%; }
+  to   { background-position: -200% 50%; }
 }
 .shell__brand::before { content: '> '; }
 .shell__admin-badge {

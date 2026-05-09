@@ -6,6 +6,8 @@ import type { SystemInfo, DiskInfo, NetIface, LiveStats, BatteryInfo } from '@/t
 import { keybindings } from '@/keybindings/registry';
 import { useToastsStore } from '@/stores/toasts';
 import { useSettingsStore } from '@/stores/settings';
+import { useThemeStore } from '@/stores/theme';
+import MatrixRain from '@/components/ui/MatrixRain.vue';
 
 const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
@@ -14,6 +16,7 @@ const live = ref<LiveStats | null>(null);
 let livePollTimer: number | undefined;
 const toasts = useToastsStore();
 const settings = useSettingsStore();
+const themeStore = useThemeStore();
 const welcomeRef = ref<HTMLElement | null>(null);
 /** Snapshot için kart alanı — buton/hint dışarıda, simetrik padding'li bg
  *  ile kendi başına paylaşılabilir görüntü oluşur. */
@@ -30,6 +33,48 @@ const visibleRowCount = ref(0); // info satırları line-by-line reveal
  *  (network expand toggle gibi) animasyon yeniden çalmaz, yeni satırlar
  *  doğrudan gösterilir. Aksi halde slice(0, OLD_count) yeni satırları kırpardı. */
 const fullyRevealed = ref(false);
+
+/** D-Matrix temasında satır reveal'i sırasında kısa süreli scramble (Matrix
+ *  yağmuru benzeri katakana glyph cycle). row.id → geçici glyph string;
+ *  scramble bitince entry silinir, gerçek `row.value` görünür. Diğer
+ *  temalarda bu Map boş kalır, davranış değişmez. */
+const scrambleByRowId = reactive<Record<string, string>>({});
+
+/** D-Matrix tema kontrolü — template'te v-if ve script'te koşullu mantık. */
+const isMatrixTheme = computed(() => themeStore.activeName === 'D-Matrix');
+
+/** Matrix code rain yoğunluğu (0..1). Intro'da 1.0 (sadece yağmur),
+ *  satırlar gelmeye başlayınca 0.18'e düşer (atmosferik arka plan).
+ *  Diğer temalarda canvas v-if ile mount edilmez. */
+const rainIntensity = ref(1.0);
+
+/** Matrix intro: önce sadece yağmur (1500ms), sonra yağmur arka plana solar +
+ *  satır reveal başlar. Diğer temalarda direkt typewriter akışı.
+ *  Setting'lerden tema değişirse satırlar zaten görünür durumda — yeni intro
+ *  yalnızca pane fresh mount edildiğinde çalar. */
+const MATRIX_INTRO_MS = 1500;
+const MATRIX_FADE_MS = 600;
+
+/** Matrix tema scramble glyph seti — yarım-genişlik katakana + sayı, klasik
+ *  "Matrix Reloaded" terminal estetiği. */
+const MATRIX_GLYPHS =
+  'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789';
+
+function randMatrixChar(): string {
+  return MATRIX_GLYPHS[Math.floor(Math.random() * MATRIX_GLYPHS.length)] ?? '·';
+}
+function scrambleStr(len: number): string {
+  let out = '';
+  for (let i = 0; i < len; i++) out += randMatrixChar();
+  return out;
+}
+
+/** Template'in her hücresinin gösterim değeri — scramble aktifse onu, değilse
+ *  gerçek `row.value`'yu döner. */
+function getDisplayValue(row: Row): string {
+  const s = scrambleByRowId[row.id];
+  return s !== undefined ? s : row.value;
+}
 
 let cursorTimer: number | undefined;
 let typeTimers: number[] = [];
@@ -331,6 +376,20 @@ const visibleRows = computed<Row[]>(() =>
   fullyRevealed.value ? allRows.value : allRows.value.slice(0, visibleRowCount.value),
 );
 
+/** Tüm satırların ortak `key` kolon genişliği — `padEnd` bütçesi.
+ *  Her `.row` ayrı bir CSS grid olduğundan `auto` key kolonu satıra göre
+ *  boyutlanır; tek tip padding olmadan TR'de "Çalışma süresi" (14ch) ile
+ *  EN'de "OS" (2ch) farklı key kolon genişliklerine yol açar → value
+ *  sütunu satırlar arası kayar. Tüm anahtarları en uzun anahtara göre
+ *  padle ki her satırın key kolonu aynı genişlikte olsun. */
+const maxKeyLen = computed(() => {
+  let m = 8;
+  for (const r of allRows.value) {
+    if (r.key && r.key.length > m) m = r.key.length;
+  }
+  return m;
+});
+
 function typeInto(target: { value: string }, text: string, charDelay: number, startDelay: number): Promise<void> {
   return new Promise((resolve) => {
     target.value = '';
@@ -351,7 +410,10 @@ function typeInto(target: { value: string }, text: string, charDelay: number, st
   });
 }
 
-/** Info satırlarını sırayla reveal (typewriter benzeri ama line-by-line). */
+/** Info satırlarını sırayla reveal (typewriter benzeri ama line-by-line).
+ *  D-Matrix temasında her satır için kısa süreli scramble effect:
+ *  Matrix yağmurundaki gibi rastgele katakana glyph'leri ~250ms boyunca
+ *  yanıp söner, sonra gerçek değer ortaya çıkar. */
 function revealRowsAnimated(): Promise<void> {
   return new Promise((resolve) => {
     visibleRowCount.value = 0;
@@ -362,13 +424,27 @@ function revealRowsAnimated(): Promise<void> {
       resolve();
       return;
     }
+    const isMatrix = themeStore.activeName === 'D-Matrix';
+    const SCRAMBLE_TICK_MS = 30;
+    const SCRAMBLE_DURATION_MS = 250;
+
     let n = 0;
     const tick = () => {
       n += 1;
       visibleRowCount.value = n;
+      // Yeni reveal edilen satır için scramble başlat (Matrix temada).
+      if (isMatrix) {
+        const row = allRows.value[n - 1];
+        if (row && row.value && row.value.length > 0) {
+          startScramble(row.id, row.value.length, SCRAMBLE_DURATION_MS, SCRAMBLE_TICK_MS);
+        }
+      }
       if (n >= total) {
         fullyRevealed.value = true;
-        resolve();
+        // Final satır scramble bitince resolve — ekran kararlı görünsün.
+        const finalDelay = isMatrix ? SCRAMBLE_DURATION_MS + SCRAMBLE_TICK_MS : 0;
+        const id = window.setTimeout(resolve, finalDelay);
+        typeTimers.push(id);
         return;
       }
       const id = window.setTimeout(tick, 35);
@@ -377,6 +453,25 @@ function revealRowsAnimated(): Promise<void> {
     const start = window.setTimeout(tick, 100);
     typeTimers.push(start);
   });
+}
+
+/** Tek satır için scramble cycle: targetLen kadar random glyph string
+ *  durationMs boyunca tickMs aralıklarla yenilenir, bitince entry silinir. */
+function startScramble(rowId: string, targetLen: number, durationMs: number, tickMs: number) {
+  scrambleByRowId[rowId] = scrambleStr(targetLen);
+  const startedAt = performance.now();
+  const cycle = () => {
+    const elapsed = performance.now() - startedAt;
+    if (elapsed >= durationMs) {
+      delete scrambleByRowId[rowId];
+      return;
+    }
+    scrambleByRowId[rowId] = scrambleStr(targetLen);
+    const id = window.setTimeout(cycle, tickMs);
+    typeTimers.push(id);
+  };
+  const id = window.setTimeout(cycle, tickMs);
+  typeTimers.push(id);
 }
 
 function clearTimers() {
@@ -506,14 +601,39 @@ async function takeSnapshot() {
   }
 }
 
+/** play() reentrancy guard — `info` watcher ve `onMounted` aynı anda
+ *  tetiklediğinde iki paralel play() çalışmasını engeller. İkinci çağrı
+ *  birincinin Matrix intro setTimeout'unu clearTimers ile öldürünce birinci
+ *  sonsuz await'te asılırdı. Şimdi tek seferde tek play akar. */
+let playToken = 0;
 async function play() {
+  const myToken = ++playToken;
   clearTimers();
   showColors.value = false;
   // Yeni oturum/refresh — reveal state sıfırla (KVKK güvenli default)
   for (const k of Object.keys(revealed)) delete revealed[k];
 
+  // D-Matrix intro: 1500ms boyunca SADECE yağmur akar, logo ve satırlar gizli;
+  // sonra yağmur 0.18 atmosfere solar + logo typewriter başlar. Diğer
+  // temalarda intro yok, normal akış.
+  if (isMatrixTheme.value) {
+    rainIntensity.value = 1.0;
+    typedLogo.value = '';
+    await new Promise((r) => {
+      const id = window.setTimeout(r, MATRIX_INTRO_MS);
+      typeTimers.push(id);
+    });
+    if (myToken !== playToken) return; // başka play başladı, eskisini abort et
+    // Yağmur arka plana çekilirken logo typewriter başlar (paralel).
+    rainIntensity.value = 0.18;
+  } else {
+    rainIntensity.value = 0; // garantilemek için (diğer temalarda canvas v-if zaten)
+  }
+
   await typeInto(typedLogo, LOGO, 4, 0);
+  if (myToken !== playToken) return;
   await revealRowsAnimated();
+  if (myToken !== playToken) return;
   showColors.value = true;
   const hint = `› ${t('welcome.openFirstPane', { shortcut: newPaneCombo.value })}`;
   await typeInto(typedHint, hint, 12, 200);
@@ -534,8 +654,11 @@ onMounted(async () => {
   keybindings.register('dfetch.toggleNetExpand', () => toggleNetExpand());
 });
 
-watch(info, (next) => {
-  if (next) play();
+// Tema değişince intro'yu yeniden çal — kullanıcı default→Matrix yaptığında
+// rain canvas mount olur ama prop'taki intensity stale (0) kalmamasın diye
+// fresh play() ile rainIntensity=1.0'dan akış yeniden başlasın.
+watch(isMatrixTheme, () => {
+  if (info.value) play();
 });
 
 onBeforeUnmount(() => {
@@ -587,7 +710,11 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
 </script>
 
 <template>
-  <div ref="welcomeRef" class="welcome">
+  <div ref="welcomeRef" class="welcome" :class="{ 'welcome--matrix': isMatrixTheme }">
+    <!-- D-Matrix temasında klasik "code rain" overlay — intro'da tam yoğunluk,
+         satırlar gelmeye başlayınca atmosferik arka plana solar.
+         Diğer temalarda v-if ile mount edilmez (canvas ve rAF loop'u yok). -->
+    <MatrixRain v-if="isMatrixTheme" :intensity="rainIntensity" />
     <button
       type="button"
       class="welcome__snap"
@@ -627,7 +754,7 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
             :title="t('welcome.netExpandHint')"
             @click="toggleNetExpand"
           >
-            <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
+            <span class="row__key">{{ row.key.padEnd(maxKeyLen, ' ') }}</span>
             <span class="row__value row__value--expander">
               <span class="chev">{{ netExpanded ? '▾' : '▸' }}</span>
               {{ netExpanded
@@ -635,10 +762,10 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
                 : t('welcome.netShowOthers', { count: row.netHiddenCount }) }}
             </span>
           </button>
-          <div v-else class="row">
-            <span class="row__key">{{ row.key.padEnd(11, ' ') }}</span>
+          <div v-else class="row" :class="{ 'row--scramble': scrambleByRowId[row.id] !== undefined }">
+            <span class="row__key">{{ row.key.padEnd(maxKeyLen, ' ') }}</span>
             <span class="row__value">
-              {{ row.sensitive && !isRevealed(row.id) ? row.masked : row.value }}
+              {{ row.sensitive && !isRevealed(row.id) ? row.masked : getDisplayValue(row) }}
               <span
                 v-if="row.pct !== undefined"
                 class="pct"
@@ -700,6 +827,18 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   flex-direction: column;
   gap: 10px;
   position: relative;
+  /* MatrixRain canvas z-index: 0; içeriği üzerine getir ki yağmur arkada
+     kalsın, satırlar/logo okunabilir olsun. */
+  z-index: 1;
+}
+/* D-Matrix temasında welcome wrapper'ı koyu siyah arka plan ister — code
+   rain canvas'ın alt katmanında siyah dolgu. Mica/transparent vibrancy bile
+   olsa yağmur etkisi için solid backdrop olmalı. */
+.welcome--matrix {
+  background: rgba(0, 8, 0, 0.92);
+}
+.welcome--matrix .welcome__snap {
+  z-index: 2;
 }
 .welcome__capture--snapping {
   gap: 12px;
@@ -885,6 +1024,16 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   color: var(--color-fg);
   font-variant-numeric: tabular-nums;
 }
+/* D-Matrix scramble effect — satır reveal anında glyph yağmuru görünürken
+   yeşil glow + hafif text-shadow ile "Matrix Reloaded" terminal estetiği.
+   Scramble bittiğinde class kalkar, gerçek değer normal renge döner. */
+.row--scramble .row__value {
+  color: var(--color-green);
+  text-shadow:
+    0 0 4px color-mix(in srgb, var(--color-green) 60%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-green) 30%, transparent);
+  letter-spacing: 0.05em;
+}
 /* Network "Other interfaces (N)" expander — button olarak render edilir
    ama görsel olarak satır gibi durur. Tema-uyumlu. */
 .row--expander {
@@ -962,6 +1111,8 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
   margin: 4px 0 0 0;
   font-size: 11px;
   color: var(--color-dim);
+  position: relative;
+  z-index: 1;
 }
 .prompt {
   color: var(--color-accent);
