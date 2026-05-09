@@ -122,7 +122,7 @@ async function streamInto(
   priorContext: ChatMessage[],
   signal: AbortSignal,
 ) {
-  const provider = getProvider(providerId);
+  const provider = await getProvider(providerId);
   if (!provider) throw new Error(`provider çözülemedi: ${providerId}`);
   let acc = '';
   for await (const chunk of provider.chat(priorContext, { model: modelId, signal })) {
@@ -156,7 +156,7 @@ async function send() {
     // Her provider için varsayılan model — provider.models()[0]
     const resolved: { id: ProviderId; model: string }[] = [];
     for (const id of picks) {
-      const p = getProvider(id);
+      const p = await getProvider(id);
       if (!p) continue;
       const list = await p.models();
       const m = list[0]?.id;

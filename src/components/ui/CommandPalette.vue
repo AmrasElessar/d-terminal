@@ -8,7 +8,7 @@ import { useSnippetsStore } from '@/stores/snippets';
 import { useToastsStore } from '@/stores/toasts';
 import { api } from '@/api/tauri';
 import type { PaneType } from '@/types/pane';
-import { availableLocales, localeMeta } from '@/locales';
+import { availableLocales, localeMeta, loadLocaleMeta } from '@/locales';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{
@@ -252,7 +252,12 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => snippets.load());
+onMounted(() => {
+  void snippets.load();
+  // Locale switch action'ı için meta'yı lazy yükle (palette açılınca çağrılır,
+  // initial bundle'a 33 dilin raw JSON'u dahil olmasın).
+  void loadLocaleMeta();
+});
 </script>
 
 <template>

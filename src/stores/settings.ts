@@ -58,6 +58,10 @@ export interface SettingsState {
    *  - auto: indir + quit'te otomatik kur (sormadan).
    *  - off: hiç check etme. */
   updateMode: 'off' | 'notify' | 'download-wait' | 'auto';
+  /** xterm scrollback satır sayısı. Pane başına ~80 char × 2 byte (UTF-16)
+   *  bellek tüketir; 5000 satır ≈ 800 KB/pane. Default 5000 — modern terminal
+   *  pratiği (önceki 10000 çok pane'li kullanımda 16+ MB/pencere). */
+  scrollback: number;
 }
 
 const DEFAULTS: SettingsState = {
@@ -82,6 +86,7 @@ const DEFAULTS: SettingsState = {
   dfetchPollIntervalMs: 1500,
   autoSplitOnAgent: false,
   updateMode: 'notify',
+  scrollback: 5000,
 };
 
 const KEY_PREFIX = 'ui.';
@@ -118,20 +123,26 @@ export const useSettingsStore = defineStore('settings', () => {
     await api.settingsSet(`${KEY_PREFIX}${String(key)}`, JSON.stringify(value));
   }
 
-  // Auto-persist watch — load tamamlandıktan sonra aktif
-  watch(
-    () => ({ ...state.value }),
-    async (next, prev) => {
-      if (!loaded.value) return;
-      const changed = (Object.keys(next) as Array<keyof SettingsState>).filter(
-        (k) => JSON.stringify(next[k]) !== JSON.stringify(prev?.[k]),
+  // Auto-persist: per-field watch — daha önce tek deep-watch her değişiklikte
+  // 26 field × 2 (next + prev) = 52 JSON.stringify çağırıyordu (Frontend perf
+  // K2). Şimdi her field kendi watcher'ı ile bağımsız serialize ediliyor;
+  // diğer field'lar etkilenmiyor. Paralel persist için (5 ayar değişirse 5
+  // sıralı IPC yerine paralel) Promise tutmuyoruz — her watcher zaten
+  // bağımsız async kontrolü.
+  function attachAutoPersist() {
+    const keys = Object.keys(DEFAULTS) as Array<keyof SettingsState>;
+    for (const k of keys) {
+      watch(
+        () => state.value[k],
+        async (next) => {
+          if (!loaded.value) return;
+          await api.settingsSet(`${KEY_PREFIX}${String(k)}`, JSON.stringify(next));
+        },
+        { deep: true },
       );
-      for (const k of changed) {
-        await api.settingsSet(`${KEY_PREFIX}${String(k)}`, JSON.stringify(next[k]));
-      }
-    },
-    { deep: true },
-  );
+    }
+  }
+  attachAutoPersist();
 
   const isReady = computed(() => loaded.value);
 

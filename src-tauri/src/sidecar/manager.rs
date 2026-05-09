@@ -160,15 +160,34 @@ impl SidecarManager {
             .ok_or_else(|| AppError::Sidecar("sidecar not started".into()))?
             .clone();
         drop(inner);
-        let bytes = frame.to_bytes()?;
+        // Frame doğrudan stdin'e encode edilir — daha önce to_bytes() ile
+        // ara Vec alloc oluyordu (heartbeat 5sn'de bir + her keystroke + her
+        // resize). Şimdi 0 alloc/frame; allocator pressure düşer.
         let mut guard = stdin.lock();
-        guard
-            .write_all(&bytes)
-            .map_err(|e| AppError::Sidecar(format!("stdin write: {e}")))?;
-        guard
-            .flush()
-            .map_err(|e| AppError::Sidecar(format!("stdin flush: {e}")))?;
-        Ok(())
+        let result = (|| -> AppResult<()> {
+            frame
+                .encode(&mut *guard)
+                .map_err(|e| AppError::Sidecar(format!("stdin write: {e}")))?;
+            guard
+                .flush()
+                .map_err(|e| AppError::Sidecar(format!("stdin flush: {e}")))?;
+            Ok(())
+        })();
+        if result.is_err() {
+            // Pipe broken / sidecar crashed — child handle'ı temizle ki
+            // sonraki ensure_started yeniden başlatabilsin (Sidecar audit O10).
+            drop(guard);
+            let mut inner = self.inner.lock();
+            inner.child = None;
+            inner.stdin = None;
+            try_send_lifecycle(
+                &self.events_tx,
+                PtyEvent::SidecarDown {
+                    reason: "stdin write failed".into(),
+                },
+            );
+        }
+        result
     }
 
     pub fn spawn_pane(self: &Arc<Self>, payload: SpawnPayload) -> AppResult<u64> {
@@ -422,13 +441,10 @@ fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<S
                 mgr.shutdown();
                 break;
             }
+            // Heartbeat frame doğrudan stdin'e — ara Vec alloc yok.
             let frame = Frame::control(MsgType::Ping);
-            let bytes = match frame.to_bytes() {
-                Ok(b) => b,
-                Err(_) => continue,
-            };
             let mut guard = stdin.lock();
-            if guard.write_all(&bytes).is_err() {
+            if frame.encode(&mut *guard).is_err() {
                 break;
             }
             let _ = guard.flush();

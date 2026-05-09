@@ -1,5 +1,10 @@
 // Locale yükleyici. `src/locales/*.json` build-time bundle'a alınır; yeni bir
 // dil eklemek için yapılacak tek şey dosya bırakmak — kod değişmez.
+//
+// Optimization: `raw` glob daha önce eager idi (her dilin ham JSON metni
+// startup'ta yükleniyordu, _meta okumak için). 33 dil × ~3-5 KB = ~100-150 KB
+// gereksiz initial bundle. Şimdi raw lazy — `loadLocaleMeta()` çağrılınca
+// (Settings dil seçici açılınca) on-demand yüklenir.
 
 export interface LocaleMeta {
   language: string;
@@ -9,18 +14,12 @@ export interface LocaleMeta {
   completion: string;
 }
 
-// İki kanal:
-//   1) `compiled` — unplugin-vue-i18n tarafından AST'ye derlenmiş messages.
-//      vue-i18n runtime bunu kullanır.
-//   2) `raw` — Vite `?raw` query ile ham JSON metni. _meta gibi insan-okuyacağı
-//      alanları AST düğümü değil string olarak okumak için.
-// vue-i18n LocaleMessage tipi recursive — burada `any` bilinçli bir kaçış.
 const compiled = import.meta.glob<Record<string, any>>('./*.json', {
   eager: true,
   import: 'default',
 });
-const raw = import.meta.glob<string>('./*.json', {
-  eager: true,
+// LAZY: raw JSON yalnızca _meta için gerekli; eager yapma.
+const rawLoaders = import.meta.glob<string>('./*.json', {
   query: '?raw',
   import: 'default',
 });
@@ -32,27 +31,12 @@ export const localeMeta: Record<string, LocaleMeta> = {};
 for (const [path, mod] of Object.entries(compiled)) {
   const code = path.match(/^\.\/(.+)\.json$/)?.[1];
   if (!code) continue;
-
-  // messages: derlenmiş AST'den `_meta` anahtarını çıkar (i18n için anlamsız).
   const { _meta: _ignored, ...entries } = mod as Record<string, any>;
   void _ignored;
   messages[code] = entries;
   availableLocales.push(code);
-
-  // localeMeta: ham JSON'dan oku (UI'de native isim olarak gösterilir).
-  let meta: LocaleMeta | undefined;
-  const rawText = raw[path];
-  if (rawText) {
-    try {
-      const parsed = JSON.parse(rawText) as { _meta?: LocaleMeta };
-      if (parsed._meta && typeof parsed._meta === 'object') {
-        meta = parsed._meta;
-      }
-    } catch {
-      /* parse hatasında fallback'e düş */
-    }
-  }
-  localeMeta[code] = meta ?? {
+  // Önce default fallback meta. loadLocaleMeta() çağrılırsa override edilir.
+  localeMeta[code] = {
     language: code,
     nativeName: code,
     code,
@@ -62,6 +46,33 @@ for (const [path, mod] of Object.entries(compiled)) {
 }
 
 availableLocales.sort();
+
+let metaLoaded = false;
+/** Raw JSON globlarını lazy fetch et + `_meta` alanlarını localeMeta'ya
+ *  dağıt. Settings dil seçici/açılır ilk render'ında çağrılır; idempotent. */
+export async function loadLocaleMeta(): Promise<void> {
+  if (metaLoaded) return;
+  const entries = await Promise.all(
+    Object.entries(rawLoaders).map(async ([path, loader]) => {
+      const code = path.match(/^\.\/(.+)\.json$/)?.[1];
+      if (!code) return null;
+      try {
+        const text = await loader();
+        const parsed = JSON.parse(text) as { _meta?: LocaleMeta };
+        if (parsed._meta && typeof parsed._meta === 'object') {
+          return [code, parsed._meta] as const;
+        }
+      } catch {
+        /* yoksay */
+      }
+      return null;
+    }),
+  );
+  for (const item of entries) {
+    if (item) localeMeta[item[0]] = item[1];
+  }
+  metaLoaded = true;
+}
 
 /** Tarayıcı diline en iyi eşleşeni döner; yoksa `en`, o da yoksa ilk kayıt. */
 export function pickInitialLocale(navLang: string = navigator.language || 'en'): string {

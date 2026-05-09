@@ -1,15 +1,13 @@
 // Provider registry — id'den concrete instance döndürür.
+//
+// Lazy-load: 9 provider'ın hepsi eager import ediliyordu (~30-40 KB main
+// bundle). Kullanıcı genelde 1-2 provider seçer, gerisi asla kullanılmaz.
+// Şimdi her provider kendi chunk'ında dinamik import ediliyor — Vite tree
+// shaking + chunk splitting ile main bundle hafifler. Bu fonksiyon `async`
+// olduğu için tüm caller'lar zaten await ediyor (stores/ai.ts resolveProvider,
+// AIChatPane.streamInto + send brainstorm loop).
 
 import type { AIProvider, ProviderId } from '@/types/ai';
-import { AnthropicProvider } from './anthropic';
-import { OllamaProvider } from './ollama';
-import { OpenAIProvider } from './openai';
-import { GeminiProvider } from './gemini';
-import { LMStudioProvider } from './lmstudio';
-import { JanProvider } from './jan';
-import { LlamaCppProvider } from './llamacpp';
-import { FoundryProvider } from './foundry';
-import { CustomProvider } from './custom';
 
 export const ALL_PROVIDER_IDS: ProviderId[] = [
   // Bulut
@@ -22,20 +20,24 @@ export const ALL_PROVIDER_IDS: ProviderId[] = [
 
 const cache = new Map<ProviderId, AIProvider>();
 
-export function getProvider(id: ProviderId): AIProvider | null {
-  if (cache.has(id)) return cache.get(id)!;
-  let instance: AIProvider | null = null;
-  switch (id) {
-    case 'anthropic': instance = new AnthropicProvider(); break;
-    case 'openai':    instance = new OpenAIProvider();    break;
-    case 'gemini':    instance = new GeminiProvider();    break;
-    case 'ollama':    instance = new OllamaProvider();    break;
-    case 'lmstudio':  instance = new LMStudioProvider();  break;
-    case 'jan':       instance = new JanProvider();       break;
-    case 'llamacpp':  instance = new LlamaCppProvider();  break;
-    case 'foundry':   instance = new FoundryProvider();   break;
-    case 'custom':    instance = new CustomProvider();    break;
-  }
-  if (instance) cache.set(id, instance);
+const LOADERS: Record<ProviderId, () => Promise<AIProvider>> = {
+  anthropic: () => import('./anthropic').then((m) => new m.AnthropicProvider()),
+  openai:    () => import('./openai').then((m) => new m.OpenAIProvider()),
+  gemini:    () => import('./gemini').then((m) => new m.GeminiProvider()),
+  ollama:    () => import('./ollama').then((m) => new m.OllamaProvider()),
+  lmstudio:  () => import('./lmstudio').then((m) => new m.LMStudioProvider()),
+  jan:       () => import('./jan').then((m) => new m.JanProvider()),
+  llamacpp:  () => import('./llamacpp').then((m) => new m.LlamaCppProvider()),
+  foundry:   () => import('./foundry').then((m) => new m.FoundryProvider()),
+  custom:    () => import('./custom').then((m) => new m.CustomProvider()),
+};
+
+export async function getProvider(id: ProviderId): Promise<AIProvider | null> {
+  const cached = cache.get(id);
+  if (cached) return cached;
+  const loader = LOADERS[id];
+  if (!loader) return null;
+  const instance = await loader();
+  cache.set(id, instance);
   return instance;
 }

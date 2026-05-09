@@ -37,7 +37,7 @@ import { DEFAULT_SHORTCUTS } from '@/keybindings/defaults';
 import { api } from '@/api/tauri';
 import { useToastsStore } from '@/stores/toasts';
 import { onMounted } from 'vue';
-import { availableLocales, localeMeta } from '@/locales';
+import { availableLocales, localeMeta, loadLocaleMeta } from '@/locales';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import AICostPanel from '@/components/ui/AICostPanel.vue';
 import { useDialogA11y } from '@/composables/useDialogA11y';
@@ -67,6 +67,9 @@ const isElevated = ref(false);
 onMounted(async () => {
   try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
   try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
+  // Settings modal açıldığında dil seçici listesi için raw _meta'yı lazy yükle.
+  // Modal kapalıyken bu chunk yüklenmez (initial bundle ~100-150 KB hafifler).
+  void loadLocaleMeta();
 });
 
 async function restartAsAdmin() {

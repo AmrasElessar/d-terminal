@@ -98,7 +98,7 @@ export const useAIStore = defineStore('ai', () => {
 
   async function resolveProvider() {
     if (!activeProvider.value) return null;
-    return getProvider(activeProvider.value);
+    return await getProvider(activeProvider.value);
   }
 
   return {

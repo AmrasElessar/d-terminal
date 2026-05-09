@@ -670,7 +670,7 @@ onMounted(async () => {
     fontSize: effectiveFontSize.value,
     cursorBlink: true,
     cursorStyle: 'bar',
-    scrollback: 10000,
+    scrollback: settings.state.scrollback,
     theme: xtheme,
     allowProposedApi: true,
     lineHeight: 1.2,
