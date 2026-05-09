@@ -12,6 +12,7 @@ import { useI18n } from 'vue-i18n';
 import { useAIUsageStore } from '@/stores/aiUsage';
 import { useToastsStore } from '@/stores/toasts';
 import { formatUsageBadge } from '@/types/aiPricing';
+import { confirmAsk } from '@/utils/dialog';
 
 const { t } = useI18n();
 const usage = useAIUsageStore();
@@ -29,8 +30,8 @@ function clearLimit() {
   limitInput.value = '';
 }
 
-function clearAll() {
-  if (!confirm(t('settings.aiCost.clearConfirm'))) return;
+async function clearAll() {
+  if (!(await confirmAsk(t('settings.aiCost.clearConfirm'), { kind: 'warning' }))) return;
   usage.clear();
   toasts.success(t('settings.aiCost.cleared'));
 }

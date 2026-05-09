@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useSnippetsStore } from '@/stores/snippets';
 import { useToastsStore } from '@/stores/toasts';
 import type { Snippet } from '@/types/snippet';
+import { confirmAsk } from '@/utils/dialog';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -42,7 +43,7 @@ async function save() {
 }
 
 async function remove(s: Snippet) {
-  if (!confirm(t('snippet.deleteConfirm', { name: s.name }))) return;
+  if (!(await confirmAsk(t('snippet.deleteConfirm', { name: s.name }), { kind: 'warning' }))) return;
   await snippets.remove(s.id);
   toasts.success(t('snippet.deleted'));
 }

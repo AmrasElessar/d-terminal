@@ -38,6 +38,7 @@ import { api } from '@/api/tauri';
 import { useToastsStore } from '@/stores/toasts';
 import { onMounted } from 'vue';
 import { availableLocales, localeMeta, loadLocaleMeta } from '@/locales';
+import { confirmAsk } from '@/utils/dialog';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import AICostPanel from '@/components/ui/AICostPanel.vue';
 import { useDialogA11y } from '@/composables/useDialogA11y';
@@ -73,7 +74,7 @@ onMounted(async () => {
 });
 
 async function restartAsAdmin() {
-  if (!confirm(t('settings.general.adminRestartConfirm'))) return;
+  if (!(await confirmAsk(t('settings.general.adminRestartConfirm'), { kind: 'warning' }))) return;
   try {
     await api.adminRestartElevated();
     // Process kapanacak, başka şey yapma
@@ -128,7 +129,7 @@ async function exportConfig() {
 }
 
 async function importConfig() {
-  if (!confirm(t('settings.general.configImportConfirm'))) return;
+  if (!(await confirmAsk(t('settings.general.configImportConfirm'), { kind: 'warning' }))) return;
   try {
     const count = await api.configImport();
     toasts.success(t('settings.general.configImportOk', { count }), 4000);

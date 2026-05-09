@@ -7,6 +7,7 @@ import { useToastsStore } from '@/stores/toasts';
 import { usePanesStore } from '@/stores/panes';
 import { useAIStore } from '@/stores/ai';
 import { api } from '@/api/tauri';
+import { confirmAsk } from '@/utils/dialog';
 
 const props = defineProps<{ paneId: string; open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -95,8 +96,8 @@ function remove(b: CommandBlock) {
   tracker.value?.remove(b.id);
 }
 
-function clear() {
-  if (confirm(t('block.clearConfirm'))) tracker.value?.clear();
+async function clear() {
+  if (await confirmAsk(t('block.clearConfirm'), { kind: 'warning' })) tracker.value?.clear();
 }
 
 function toggleCollapsed(b: CommandBlock) {

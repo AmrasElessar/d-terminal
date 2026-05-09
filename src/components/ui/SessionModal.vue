@@ -11,6 +11,7 @@ import {
   deserializeWorkspace,
 } from '@/stores/session';
 import { useDialogA11y } from '@/composables/useDialogA11y';
+import { confirmAsk } from '@/utils/dialog';
 
 const props = defineProps<{ open: boolean; mode: 'save' | 'load' }>();
 const emit = defineEmits<{ close: [] }>();
@@ -58,7 +59,7 @@ async function load(rec: SessionRecord) {
 }
 
 async function remove(rec: SessionRecord) {
-  if (!confirm(t('session.deleteConfirm', { name: rec.name }))) return;
+  if (!(await confirmAsk(t('session.deleteConfirm', { name: rec.name }), { kind: 'warning' }))) return;
   await api.sessionDelete(rec.name);
   await refresh();
 }
