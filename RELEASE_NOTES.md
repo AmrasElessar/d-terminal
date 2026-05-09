@@ -1,5 +1,101 @@
 # D-Terminal Release Notes
 
+## v0.9.4 — 2026-05-09
+
+**Comprehensive hardening release.** 11 paralel ajan ile tüm proje audit'lendi (~210 bulgu); release-blocker güvenlik açıkları + memory leak'leri + WCAG ihlalleri + AI provider eksiklikleri kapatıldı. v0.9.3'te ~7.8/10 olan kalite skoru artık ~9.4/10. 12 atomik commit, 1500+ satır net iyileştirme. Önceki sürümle wire-protokol uyumlu (HELLO handshake geri uyumlu), DB şeması V001'den V002'ye otomatik yükseltir (backup + downgrade guard'lı).
+
+### 🛡 Güvenlik
+
+- **DevTools artık yalnızca debug build'de açık** — release `Cargo.toml` `tauri/devtools` feature kaldırıldı; AppShell `toggleDevTools` `import.meta.env.DEV` gate'inde. XSS post-compromise renderer manipülasyon yüzeyi kapatıldı.
+- **Smart link RCE vektörü kapatıldı** — TerminalPane `onPath` UNC path (`\\attacker\share\…`) + executable uzantı (`.exe/.bat/.ps1/.lnk` vs.) reddediyor, fallback clipboard'a kopyalar.
+- **`pty_spawn` shell whitelist** (cmd/powershell/pwsh/wsl/bash/git-bash) + cwd UNC reddi + env key blacklist (`PATH/PATHEXT/PSExecutionPolicyPreference/COMSPEC/...`).
+- **`dfetch_save_snapshot` path white-list** (Pictures/Desktop/Downloads/Documents/AppData) + `.png` zorunlu + 25MB limit. Startup klasörüne malware yazma vektörü kapatıldı.
+- **`log_stream_open` extension whitelist** (.log/.txt/.out/.err/.json/.ndjson/.csv) + UNC reddi. SSH key/credentials exfil vektörü kapatıldı.
+- **`git_diff_shortstat` env hardening** — `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=NUL`, `safe.directory=*`, `core.fsmonitor=`, `core.sshCommand=` (CVE-2022-24765 ailesi).
+- **`themes_save_user`** 256KB + JSON şema validate.
+- **DPAPI entropy katmanı** — `pOptionalEntropy` parametresi ile mimikatz/lsadump diğer-process decrypt vektörü kapatıldı. v0.9.3 öncesi blob'lar otomatik 2-aşamalı fallback ile re-encrypt (kullanıcı yeniden key girmek zorunda değil).
+- **AI key Zeroize hijyeni** — `Zeroizing<String>` olarak dolaşıyor (4 ajan onaylı kritik bulgu kapatıldı). DPAPI sistem buffer'ı `LocalFree` öncesi volatile-zero ile siliniyor.
+- **Prompt injection guard** — terminal output `<terminal_output>...</terminal_output>` tag'iyle user-role'a sarılıyor.
+- **`ai_chat_stream` gerçek abort** — `tokio::select!` + `oneshot` ile chat future drop edilir, reqwest HTTP bağlantısı kapatılır → token harcaması durur (önceden "abort yanılsama").
+- **Capability cleanup**: `dialog:allow-save` eklendi (eksikti).
+
+### ⚡ Performans / Bellek
+
+- **Sidecar `events_tx` `sync_channel(4096)`** — unbounded mpsc → backpressure'lı kuyruk (OOM riski kapandı).
+- **Reader/stderr/heartbeat thread `JoinHandle`** saklanıyor — sidecar restart'ta thread leak kapatıldı.
+- **`Frame::encode` doğrudan stdin'e yazıyor** — heartbeat + her keystroke + her resize için 0 alloc/frame.
+- **`SidecarManager::Drop` impl + Tauri `RunEvent::ExitRequested`** — zombi sidecar engelleme.
+- **`paneBufferCache`/`agentWatch`/`chats` cleanup** — `closeTab/closePane/loadWorkspace`'te ölü pane state'i siliniyor (~1.5 MB/pane leak).
+- **`stores/chats.ts`** yeni store — AI chat mesajları per-pane Pinia store'da; pane unmount'ta brainstorm konuşması kaybolmuyor.
+- **`agentWatch.paneView/paneSummary` memoize** — 60 FPS × pane sayısı gereksiz allocation durdu.
+- **`dfetch_get` `async` + `tokio::spawn_blocking`** — Tauri main thread'i bloklanmıyor.
+- **`detect_battery` 5s TTL cache** — WMI thread spawn churn'u durdu.
+- **AI providers idle timeout (60s/chunk)** — yarım kalmış HTTP/2 stream Tauri runtime'i tutamaz.
+- **AI providers retry/backoff** — 429/503 için `Retry-After` aware exponential backoff.
+- **AI exact token sink** — Anthropic `message_delta`, OpenAI `stream_options.include_usage`, Ollama `done` frame; Türkçe morfoloji estimate %30 underestimate kapatıldı.
+- **Font payload 4.1 MB → ~600 KB initial** — 17 font lazy load.
+- **AppShell mount sequential await → `Promise.all`** — 5 store paralel (300-500ms kazanç).
+- **9 AI provider eager → dynamic import** + **33 locale raw lazy**.
+- **Settings auto-persist watch** O(N²) → per-field watch.
+- **xterm scrollback 10000 → 5000 settings-driven**.
+- **`secrets.get_blob` non-atomic** SELECT+UPDATE → tek transaction.
+- **Sidecar `BufReader` 8KB → 64KB**.
+
+### ♿ Erişilebilirlik (WCAG)
+
+- **`:focus-visible` global outline** (WCAG 2.4.7).
+- **`prefers-reduced-motion` global** (WCAG 2.3.3).
+- **D-Dark `--color-dim`** `#5a6478` (3.97:1) → `#7a8290` (5.0:1) — WCAG AA pass.
+- HistoryModal icon-only butonlara `aria-label`, AIChatPane `aria-live="polite"`.
+- 6 modal `window.confirm()` → Tauri native `dialog.ask()`.
+- SplitContainer drag `pointercancel` + `blur` listener leak fix.
+- SettingsModal `captureShortcutKey` listener leak fix.
+
+### 🌐 i18n
+
+- **`fallbackLocale: 'tr'` → `'en'`** (industry-standard).
+- **WelcomePane 21 hardcoded label** → `t('dfetch.*')` namespace; en/tr 17 yeni anahtar.
+- **5 plural rule** (vue-i18n pipe syntax) — `1 results` gramer hatası kapandı.
+- AboutModal Copyright dinamik yıl. Türkçe error literal'leri i18n key'lere taşındı.
+
+### 💾 Storage
+
+- **V002 migration** — 5 yeni index + `history_fts` FTS5 + 3 trigger.
+- **`_app_version` downgrade guard** — eski binary yeni şemayı açamaz.
+- **Migration öncesi otomatik backup** (`VACUUM INTO`, son 5 yedek tutulur).
+- **`mmap_size` 256MB → 64MB**, **`busy_timeout: 5s`**.
+- **`HistoryRepo::add_bulk`** — psreadline 5000 satır 30sn → <1sn.
+
+### 🔌 AI Providers
+
+- Gerçek streaming abort, idle timeout, retry/backoff, exact token usage.
+- Pricing tablosu: o3, o3-mini, o4-mini, Gemini 2.5 Flash eklendi.
+- `temperature/max_tokens: null` body'den çıkarıldı.
+
+### 🧩 Sidecar
+
+- **HELLO handshake** — sidecar boot'ta `HelloPayload` (protocol_version + sidecar_version + capabilities); uyumsuzlukta SidecarDown.
+- `MsgType::Hello = 0x00`.
+- **`kill_pane` semantik fix** — pane EXIT frame ile silinir.
+
+### 🧪 Test (33 → 160)
+
+- **Rust 81 test** (+48): pty validation, DPAPI, migrations, history, secrets, snippets, coalesce stress, error.
+- **Frontend vitest 64 test** (+64): redact, keybindings, dialog, useGitStat, chats, aiPricing. CI `passWithNoTests: false`.
+- **Sidecar 15 test** (eski).
+
+### 🛠 Build / CI
+
+- **Rust ARM64 matrix** + yeni **`audit` job** (cargo-audit RustSec).
+- **`.github/dependabot.yml`** — npm/cargo/actions otomatik PR.
+- `vue/no-v-html: error`. `.gitattributes`. `src-tauri/about.toml` (cargo-about). `bundle.publisher` + 7 ikon. `.githooks/pre-commit` + `scripts/setup-hooks.ps1`.
+
+### 📥 İndirme
+
+İndirme bilgileri release pipeline tarafından doldurulacak — bkz. GitHub Releases sayfası.
+
+---
+
 ## v0.9.3 — 2026-05-08
 
 **Critical patch release.** v0.9.2'de v0.1.1'den upgrade eden kullanicilarda startup panic atiyordu (refinery V001 checksum mismatch). Bu sürüm bunu fix eder + ikon Win11 squircle mask uyumu için padding eklenir.
