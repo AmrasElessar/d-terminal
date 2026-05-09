@@ -169,17 +169,28 @@ function onKey(e: KeyboardEvent) {
             <span class="ts">{{ entry.executedAt.replace('T', ' ').slice(0, 19) }}</span>
           </div>
           <div class="results__actions">
-            <button type="button" :title="t('history.rerun')" @click.stop="rerun(entry)">▶</button>
+            <button type="button"
+                    :aria-label="t('history.rerun')"
+                    :title="t('history.rerun')"
+                    @click.stop="rerun(entry)">▶</button>
             <button
               type="button"
+              :aria-label="entry.isFavorite ? t('history.unfavorite') : t('history.favorite')"
               :title="entry.isFavorite ? t('history.unfavorite') : t('history.favorite')"
               :class="{ on: entry.isFavorite }"
               @click.stop="toggleFavorite(entry)"
             >
 ★
 </button>
-            <button type="button" :title="t('history.copy')" @click.stop="copy(entry)">⎘</button>
-            <button type="button" :title="t('history.delete')" class="danger" @click.stop="remove(entry)">×</button>
+            <button type="button"
+                    :aria-label="t('history.copy')"
+                    :title="t('history.copy')"
+                    @click.stop="copy(entry)">⎘</button>
+            <button type="button"
+                    :aria-label="t('history.delete')"
+                    :title="t('history.delete')"
+                    class="danger"
+                    @click.stop="remove(entry)">×</button>
           </div>
         </li>
       </ul>

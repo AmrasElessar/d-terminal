@@ -37,21 +37,31 @@ impl SecretsRepo {
     }
 
     pub fn get_blob(&self, scope: &str, name: &str) -> AppResult<Option<Vec<u8>>> {
-        let conn = self.pool.get()?;
-        let mut stmt =
-            conn.prepare("SELECT ciphertext FROM secrets WHERE scope = ?1 AND name = ?2")?;
-        let mut rows = stmt.query(rusqlite::params![scope, name])?;
-        if let Some(row) = rows.next()? {
-            // Erişim izlemesi
-            conn.execute(
+        // SELECT + UPDATE (last_used_at) tek transaction'da: WAL modunda
+        // başka thread aynı row'u silebilir veya upsert ile değiştirebilir;
+        // race window'unu kapatır (audit P1-2).
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+        let blob: Option<Vec<u8>> = tx
+            .query_row(
+                "SELECT ciphertext FROM secrets WHERE scope = ?1 AND name = ?2",
+                rusqlite::params![scope, name],
+                |r| r.get::<_, Vec<u8>>(0),
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(other),
+            })?;
+        if blob.is_some() {
+            tx.execute(
                 "UPDATE secrets SET last_used_at = CURRENT_TIMESTAMP \
                  WHERE scope = ?1 AND name = ?2",
                 rusqlite::params![scope, name],
             )?;
-            Ok(Some(row.get::<_, Vec<u8>>(0)?))
-        } else {
-            Ok(None)
         }
+        tx.commit()?;
+        Ok(blob)
     }
 
     pub fn delete(&self, scope: &str, name: &str) -> AppResult<()> {

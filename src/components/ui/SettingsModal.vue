@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '@/stores/settings';
 import { useThemeStore } from '@/stores/theme';
@@ -248,6 +248,12 @@ function startEditShortcut(id: string) {
   // Window-level keydown ile tuş yakala
   window.addEventListener('keydown', captureShortcutKey, true);
 }
+// Modal Esc ile kapanırsa cancelEditShortcut çağrılmadan unmount olur →
+// listener kalıcı kalır, modal yeniden açılınca duplicate handler. Bu
+// onBeforeUnmount cleanup'ı leak'i kapatır (Frontend bugs Y5).
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', captureShortcutKey, true);
+});
 function cancelEditShortcut() {
   shortcutEditingId.value = null;
   shortcutCaptureCombo.value = null;

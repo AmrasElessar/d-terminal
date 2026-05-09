@@ -390,7 +390,7 @@ void props.leaf; // ileride leaf.state restore burada
         </button>
       </header>
 
-      <div ref="scrollContainer" class="ai-pane__messages">
+      <div ref="scrollContainer" class="ai-pane__messages" aria-live="polite" aria-atomic="false">
         <article v-for="(m, idx) in messages" :key="idx" class="msg" :class="`msg--${m.role}`">
           <div class="msg__role">
             <template v-if="m.role === 'assistant' && m.model">

@@ -26,9 +26,16 @@ function startDrag(e: PointerEvent) {
     dragging.value = false;
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+    window.removeEventListener('blur', stop);
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', stop);
+  // Drag bitirilmeden alt+tab/taskbar tıklaması olursa pointerup
+  // ateşlenmeyebilir; pointercancel + window blur ile listener leak'i kapat
+  // ve dragging state'ini sıfırla (Frontend bugs O3).
+  window.addEventListener('pointercancel', stop);
+  window.addEventListener('blur', stop);
 }
 
 const firstStyle = computed(() => ({

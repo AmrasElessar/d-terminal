@@ -268,7 +268,10 @@ fn spawn_reader_thread(
     let result = thread::Builder::new()
         .name("dterm-sidecar-reader".into())
         .spawn(move || {
-            let mut reader = BufReader::new(stdout);
+            // 64 KB buffer — PTY frame'leri 4-256 KB tipik; default 8 KB ile
+            // büyük chunk'larda 4-32 underlying read syscall'u olur. 64 KB
+            // syscall sayisini 1-4'e indirir (perf O1).
+            let mut reader = BufReader::with_capacity(64 * 1024, stdout);
             loop {
                 match Frame::decode(&mut reader) {
                     Ok(Some(frame)) => {
