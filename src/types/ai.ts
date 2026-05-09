@@ -48,6 +48,10 @@ export interface ChatOptions {
   /** OpenAI-uyumlu provider için endpoint override (custom provider zorunlu;
    *  yerel runtime'larda kullanıcı default port'u değiştirmek istediğinde). */
   endpoint?: string;
+  /** Provider kesin token raporu (Anthropic message_delta, OpenAI
+   *  stream_options.include_usage, Ollama done frame) — yoksa caller
+   *  estimateTokens ile tahmine düşer. */
+  onUsage?: (usage: { input: number; output: number }) => void;
 }
 
 export interface AIModel {

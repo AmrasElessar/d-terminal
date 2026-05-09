@@ -25,19 +25,24 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   'claude-3-5-haiku':        { inputPer1M:  0.8, outputPer1M:  4   },
 
   // OpenAI (2025-2026)
-  'gpt-5':                   { inputPer1M:  3,   outputPer1M: 10   },
-  'gpt-5-mini':              { inputPer1M:  0.6, outputPer1M:  2.4 },
-  'gpt-4o':                  { inputPer1M:  2.5, outputPer1M: 10   },
-  'gpt-4o-mini':             { inputPer1M:  0.15, outputPer1M: 0.6 },
-  'o1':                      { inputPer1M: 15,   outputPer1M: 60   },
-  'o1-mini':                 { inputPer1M:  3,   outputPer1M: 12   },
+  'gpt-5':                   { inputPer1M:  3,    outputPer1M: 10   },
+  'gpt-5-mini':              { inputPer1M:  0.6,  outputPer1M:  2.4 },
+  'gpt-4o':                  { inputPer1M:  2.5,  outputPer1M: 10   },
+  'gpt-4o-mini':             { inputPer1M:  0.15, outputPer1M:  0.6 },
+  'o1':                      { inputPer1M: 15,    outputPer1M: 60   },
+  'o1-mini':                 { inputPer1M:  3,    outputPer1M: 12   },
+  // OpenAI o-serisi reasoning models (2025+ release)
+  'o3':                      { inputPer1M:  2,    outputPer1M:  8   },
+  'o3-mini':                 { inputPer1M:  1.1,  outputPer1M:  4.4 },
+  'o4-mini':                 { inputPer1M:  1.1,  outputPer1M:  4.4 },
 
   // Google Gemini
-  'gemini-2.5-pro':          { inputPer1M:  1.25, outputPer1M: 5   },
-  'gemini-2.0-pro':          { inputPer1M:  1.25, outputPer1M: 5   },
-  'gemini-2.0-flash':        { inputPer1M:  0.1,  outputPer1M: 0.4 },
+  'gemini-2.5-pro':          { inputPer1M:  1.25, outputPer1M:  5   },
+  'gemini-2.5-flash':        { inputPer1M:  0.075, outputPer1M: 0.3 },
+  'gemini-2.0-pro':          { inputPer1M:  1.25, outputPer1M:  5   },
+  'gemini-2.0-flash':        { inputPer1M:  0.1,  outputPer1M:  0.4 },
   'gemini-2.0-flash-lite':   { inputPer1M:  0.075, outputPer1M: 0.3 },
-  'gemini-1.5-pro':          { inputPer1M:  1.25, outputPer1M: 5   },
+  'gemini-1.5-pro':          { inputPer1M:  1.25, outputPer1M:  5   },
   'gemini-1.5-flash':        { inputPer1M:  0.075, outputPer1M: 0.3 },
 
   // Ollama — yerel, sıfır maliyet
@@ -69,15 +74,19 @@ export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-/** Bir mesaj çiftinin (input prompt + output cevap) maliyetini hesapla. */
+/** Bir mesaj çiftinin (input prompt + output cevap) maliyetini hesapla.
+ *  `exactTokens` verilirse (provider exact rapor — Anthropic message_delta,
+ *  OpenAI stream_options.include_usage, Ollama done frame) heuristik yerine
+ *  kullanılır. Cost yine model pricing'inden hesaplanır. */
 export function estimateCost(
   provider: string,
   modelId: string,
   inputText: string,
   outputText: string,
+  exactTokens?: { inputTokens: number; outputTokens: number },
 ): UsageEstimate {
-  const inputTokens = estimateTokens(inputText);
-  const outputTokens = estimateTokens(outputText);
+  const inputTokens = exactTokens?.inputTokens ?? estimateTokens(inputText);
+  const outputTokens = exactTokens?.outputTokens ?? estimateTokens(outputText);
 
   if (isLocal(provider, modelId)) {
     return { inputTokens, outputTokens, costUsd: 0 };

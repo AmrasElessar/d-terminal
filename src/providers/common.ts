@@ -69,7 +69,7 @@ export async function* streamChat(
   provider: ProviderId,
   messages: ChatMessage[],
   options: ChatOptions,
-  onUsage?: UsageCallback,
+  onUsageOverride?: UsageCallback,
 ): AsyncIterable<string> {
   const streamId = nextStreamId();
   const channel = new Channel<string>();
@@ -78,6 +78,8 @@ export async function* streamChat(
   let done = false;
   let error: Error | null = null as Error | null;
   let resolveNext: (() => void) | null = null;
+  // Caller ya 4. parametre verir ya da ChatOptions.onUsage'da. Birincisi öncelikli.
+  const onUsage = onUsageOverride ?? options.onUsage;
 
   channel.onmessage = (chunk) => {
     queue.push(chunk);

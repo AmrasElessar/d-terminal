@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
-import type { ChatMessage, AIModel } from '@/types/ai';
+import type { ChatMessage, AIModel, ChatOptions } from '@/types/ai';
 import { useAIStore } from '@/stores/ai';
 import { useAIUsageStore } from '@/stores/aiUsage';
 import { useChatsStore } from '@/stores/chats';
@@ -125,7 +125,16 @@ async function streamInto(
   const provider = await getProvider(providerId);
   if (!provider) throw new Error(`provider çözülemedi: ${providerId}`);
   let acc = '';
-  for await (const chunk of provider.chat(priorContext, { model: modelId, signal })) {
+  // Provider stream sonunda exact token raporlarsa burada yakala — heuristik
+  // (4 char/token) yerine kullanılır. Türkçe gibi morfolojik dillerde estimate
+  // %30+ underestimate; gerçek değer kullanıcıya doğru maliyet gösterir.
+  let exactUsage: { input: number; output: number } | null = null;
+  const opts: ChatOptions = {
+    model: modelId,
+    signal,
+    onUsage: (u) => { exactUsage = u; },
+  };
+  for await (const chunk of provider.chat(priorContext, opts)) {
     acc += chunk;
     const m = messages.value[msgIdx];
     if (m) m.content = acc;
@@ -134,7 +143,13 @@ async function streamInto(
   const m = messages.value[msgIdx];
   if (m) {
     const inputText = priorContext.map((x) => x.content).join('\n');
-    const u = estimateCost(providerId, modelId, inputText, acc);
+    const eu = exactUsage as { input: number; output: number } | null;
+    const u = eu
+      ? estimateCost(providerId, modelId, inputText, acc, {
+          inputTokens: eu.input,
+          outputTokens: eu.output,
+        })
+      : estimateCost(providerId, modelId, inputText, acc);
     m.usage = u;
     aiUsage.recordEstimate(providerId, modelId, props.leaf.id, u, brainstormMode.value);
   }
