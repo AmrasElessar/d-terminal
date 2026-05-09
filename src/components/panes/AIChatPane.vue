@@ -5,6 +5,7 @@ import type { LeafNode } from '@/types/pane';
 import type { ChatMessage, AIModel } from '@/types/ai';
 import { useAIStore } from '@/stores/ai';
 import { useAIUsageStore } from '@/stores/aiUsage';
+import { useChatsStore } from '@/stores/chats';
 import { formatError } from '@/utils/error';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import type { ProviderId } from '@/types/ai';
@@ -15,8 +16,13 @@ const props = defineProps<{ leaf: LeafNode }>();
 const { t } = useI18n();
 const ai = useAIStore();
 const aiUsage = useAIUsageStore();
+const chats = useChatsStore();
 
-const messages = ref<ChatMessage[]>([]);
+// Pane'e bağlı kalıcı mesaj listesi — pane unmount'ta veri kaybolmaz, sadece
+// pane kalıcı silinince (closePane/closeTab/loadWorkspace) chats.clearPane ile
+// boşaltılır. Component remount'tan etkilenmez (split tree restructure, tab
+// değişimi vb.).
+const messages = chats.ensure(props.leaf.id);
 const input = ref('');
 const streaming = ref(false);
 const error = ref<string | null>(null);

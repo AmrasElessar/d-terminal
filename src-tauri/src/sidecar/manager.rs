@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{BufReader, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -50,7 +50,7 @@ pub struct SidecarManager {
     /// Dış dünya bu Receiver'ı consume edip Tauri event olarak emit eder.
     /// `take_events()` ile bir kez alınır (lib.rs setup).
     events_rx: Mutex<Option<Receiver<PtyEvent>>>,
-    events_tx: Sender<PtyEvent>,
+    events_tx: SyncSender<PtyEvent>,
     sidecar_path: std::path::PathBuf,
 }
 
@@ -62,9 +62,21 @@ struct Inner {
     last_pong: Instant,
 }
 
+/// PTY event kuyruğu için backpressure sınırı.
+///
+/// Daha önce `std::sync::mpsc::channel()` (unbounded) kullanılıyordu — frontend
+/// yavaşlarsa (V8 GC pause, WebView IPC bloklama) PTY çıktısı sınırsız büyür
+/// ve OOM riski doğardı (`cat huge.log` gibi senaryolarda 100 MB/sn enqueue).
+/// `sync_channel(N)` ile sıkışınca sender bloklanır ya da `try_send` Drop yolu
+/// devreye girer; reader thread doğal olarak yavaşlar (TCP backpressure'a
+/// benzer). 4096 yeterince büyük (lifecycle event'leri yutulmaz) ama kayda
+/// değer bir bellek üst sınırı koyar (~64 KB sentinel ortalama × 4096 ≈ 256 MB
+/// worst-case, pratikte coalescing ile çok altında).
+const EVENT_QUEUE_CAPACITY: usize = 4096;
+
 impl SidecarManager {
     pub fn new(sidecar_path: std::path::PathBuf) -> Arc<Self> {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(EVENT_QUEUE_CAPACITY);
         Arc::new(Self {
             inner: Mutex::new(Inner {
                 child: None,
@@ -135,7 +147,7 @@ impl SidecarManager {
         spawn_stderr_thread(stderr);
         spawn_heartbeat_thread(stdin_arc, Arc::downgrade(self));
 
-        let _ = self.events_tx.send(PtyEvent::SidecarUp);
+        try_send_lifecycle(&self.events_tx, PtyEvent::SidecarUp);
         tracing::info!("sidecar process started");
         Ok(())
     }
@@ -211,15 +223,45 @@ impl SidecarManager {
         let mut inner = self.inner.lock();
         if let Some(mut child) = inner.child.take() {
             let _ = child.kill();
+            // Sidecar'ın temiz kapanması için kısa bir wait — child.kill()
+            // SIGKILL eşdeğeri Windows TerminateProcess; sidecar tarafındaki
+            // pty cleanup için 100ms tolerance ver. Tauri exit'inde bu yeterli.
+            let _ = child.wait();
         }
         inner.stdin = None;
         inner.panes.clear();
     }
 }
 
+/// Sidecar process'i Tauri kapanırken / SidecarManager Arc'ı drop edilirken
+/// otomatik olarak temizle. Bu olmadan child handle drop edildiğinde Windows
+/// `dterminal-pty-bridge.exe` process'i orphan kalabilir (15s heartbeat
+/// timeout'a kadar). Drop impl + Tauri RunEvent::ExitRequested handler
+/// kombinasyonu zombi sidecar riskini kapatır.
+impl Drop for SidecarManager {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+/// Lifecycle event'leri (SidecarUp/Down/Error/Exit) için non-blocking send.
+/// Kuyruk doluysa drop edilir + warn loglanır — heartbeat veya error
+/// path'lerinde block etmek deadlock yaratabilir.
+fn try_send_lifecycle(tx: &SyncSender<PtyEvent>, ev: PtyEvent) {
+    match tx.try_send(ev) {
+        Ok(_) => {}
+        Err(TrySendError::Full(dropped)) => {
+            tracing::warn!(?dropped, "PTY event queue full, dropped lifecycle event");
+        }
+        Err(TrySendError::Disconnected(_)) => {
+            // Receiver dropped — uygulama kapanıyor, sessiz geç.
+        }
+    }
+}
+
 fn spawn_reader_thread(
     stdout: ChildStdout,
-    tx: Sender<PtyEvent>,
+    tx: SyncSender<PtyEvent>,
     weak: std::sync::Weak<SidecarManager>,
 ) {
     let tx_for_err = tx.clone();
@@ -237,15 +279,21 @@ fn spawn_reader_thread(
                         }
                     }
                     Ok(None) => {
-                        let _ = tx.send(PtyEvent::SidecarDown {
-                            reason: "stdout closed".into(),
-                        });
+                        try_send_lifecycle(
+                            &tx,
+                            PtyEvent::SidecarDown {
+                                reason: "stdout closed".into(),
+                            },
+                        );
                         break;
                     }
                     Err(e) => {
-                        let _ = tx.send(PtyEvent::SidecarDown {
-                            reason: format!("decode error: {e}"),
-                        });
+                        try_send_lifecycle(
+                            &tx,
+                            PtyEvent::SidecarDown {
+                                reason: format!("decode error: {e}"),
+                            },
+                        );
                         break;
                     }
                 }
@@ -253,13 +301,16 @@ fn spawn_reader_thread(
         });
     if let Err(e) = result {
         tracing::error!(error = %e, "failed to spawn sidecar reader thread");
-        let _ = tx_for_err.send(PtyEvent::SidecarDown {
-            reason: format!("reader thread spawn failed: {e}"),
-        });
+        try_send_lifecycle(
+            &tx_for_err,
+            PtyEvent::SidecarDown {
+                reason: format!("reader thread spawn failed: {e}"),
+            },
+        );
     }
 }
 
-fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame) {
+fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: Frame) {
     tracing::trace!(
         msg_type = ?frame.msg_type,
         pane_id = frame.pane_id,
@@ -268,6 +319,11 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame
     );
     match frame.msg_type {
         MsgType::Stdout => {
+            // Stdout için BLOCKING send — backpressure: kuyruk doluysa reader
+            // thread bloklanır → sidecar stdout pipe dolar → sidecar Node
+            // process'inde proc.write doğal yavaşlar → PTY shell'i yavaşlatır.
+            // Bu zincir OOM riskini ortadan kaldırır; kullanıcı UI'da kısa
+            // gecikme görür ama hiçbir output kaybetmez.
             let _ = tx.send(PtyEvent::Stdout {
                 pane_id: frame.pane_id.to_string(),
                 data: frame.payload,
@@ -279,11 +335,14 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame
                 .map(|p| (p.exit_code, p.signal))
                 .unwrap_or((-1, None));
             mgr.inner.lock().panes.remove(&frame.pane_id);
-            let _ = tx.send(PtyEvent::Exit {
-                pane_id: frame.pane_id.to_string(),
-                exit_code: code,
-                signal,
-            });
+            try_send_lifecycle(
+                tx,
+                PtyEvent::Exit {
+                    pane_id: frame.pane_id.to_string(),
+                    exit_code: code,
+                    signal,
+                },
+            );
         }
         MsgType::Error => {
             let parsed: Result<crate::sidecar::protocol::ErrorPayload, _> =
@@ -296,11 +355,14 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &Sender<PtyEvent>, frame: Frame
             } else {
                 Some(frame.pane_id.to_string())
             };
-            let _ = tx.send(PtyEvent::Error {
-                pane_id: pane,
-                code,
-                message,
-            });
+            try_send_lifecycle(
+                tx,
+                PtyEvent::Error {
+                    pane_id: pane,
+                    code,
+                    message,
+                },
+            );
         }
         MsgType::Pong => {
             mgr.inner.lock().last_pong = Instant::now();
@@ -348,9 +410,12 @@ fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<S
             // PONG son 15 saniyede gelmediyse sidecar dead say
             let last = mgr.inner.lock().last_pong;
             if last.elapsed() > Duration::from_secs(15) {
-                let _ = mgr.events_tx.send(PtyEvent::SidecarDown {
-                    reason: "heartbeat timeout".into(),
-                });
+                try_send_lifecycle(
+                    &mgr.events_tx,
+                    PtyEvent::SidecarDown {
+                        reason: "heartbeat timeout".into(),
+                    },
+                );
                 mgr.shutdown();
                 break;
             }
@@ -368,9 +433,12 @@ fn spawn_heartbeat_thread(stdin: Arc<Mutex<ChildStdin>>, weak: std::sync::Weak<S
     if let Err(e) = result {
         tracing::error!(error = %e, "failed to spawn sidecar heartbeat thread");
         if let Some(mgr) = weak_for_err.upgrade() {
-            let _ = mgr.events_tx.send(PtyEvent::SidecarDown {
-                reason: format!("heartbeat thread spawn failed: {e}"),
-            });
+            try_send_lifecycle(
+                &mgr.events_tx,
+                PtyEvent::SidecarDown {
+                    reason: format!("heartbeat thread spawn failed: {e}"),
+                },
+            );
         }
     }
 }

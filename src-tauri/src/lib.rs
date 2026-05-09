@@ -211,8 +211,19 @@ pub fn run() {
             // Window
             commands::window::window_set_vibrancy,
         ])
-        .run(tauri::generate_context!())
-        .expect("D-Terminal Tauri runtime failed to start");
+        .build(tauri::generate_context!())
+        .expect("D-Terminal Tauri runtime failed to start")
+        .run(|app, event| {
+            // Tauri kapanırken sidecar process'i açıkça temizle. Drop impl da
+            // var ama Tauri runtime AppHandle Arc'ları sırayla drop ettiğinden
+            // sidecar drop'u state.unwrap'a kalabiliyor; ExitRequested
+            // hook'u zombi sidecar riskini kesin olarak kapatır.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state = app.state::<state::AppState>();
+                state.sidecar.shutdown();
+                tracing::info!("sidecar shutdown via ExitRequested");
+            }
+        });
 }
 
 /// Ardışık Stdout event'lerini aynı pane için tek event'te birleştir.

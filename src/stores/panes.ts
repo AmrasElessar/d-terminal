@@ -21,6 +21,8 @@ import {
   PANE_FONT_MAX,
 } from '@/types/pane';
 import { useSettingsStore } from '@/stores/settings';
+import { useAgentWatchStore } from '@/stores/agentWatch';
+import { useChatsStore } from '@/stores/chats';
 
 function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
@@ -138,11 +140,35 @@ export const usePanesStore = defineStore('panes', () => {
     if (prev) activeTabId.value = prev.id;
   }
 
+  /** Bir pane id'si için per-pane lifecycle state'i temizler:
+   *  - paneBufferCache (xterm serialize snapshot) — ~1.5 MB/pane leak önler
+   *  - agentWatch state — agent geçmişi RAM'de yaşamasın
+   *  Bu yardımcı closeTab + loadWorkspace + closePane'in ortak cleanup'ını
+   *  tek yerden uygular. */
+  function cleanupPaneState(leafId: string) {
+    // xterm serialize snapshot cache (~1.5 MB/pane) — leak önle
+    const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
+      .__dtermPaneBuffer;
+    cache?.delete(leafId);
+    // agent watch state (PaneAgents map'inde tutulan agent geçmişi)
+    try {
+      useAgentWatchStore().clearPane(leafId);
+    } catch {
+      /* store henüz initialize değil olabilir; sessiz geç */
+    }
+    // AI chat geçmişi (per-pane mesaj listesi)
+    try {
+      useChatsStore().clearPane(leafId);
+    } catch {
+      /* a.g. */
+    }
+  }
+
   async function closeTab(id: string) {
     const idx = tabs.value.findIndex((t) => t.id === id);
     if (idx < 0) return;
     const tab = tabs.value[idx]!;
-    // Tab'daki tüm pane'lerin PTY'sini kill et
+    // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle
     for (const leaf of listLeaves(tab.tree.root)) {
       if (leaf.ptyId) {
         try {
@@ -151,6 +177,7 @@ export const usePanesStore = defineStore('panes', () => {
           /* zaten ölmüş olabilir */
         }
       }
+      cleanupPaneState(leaf.id);
     }
     tabs.value.splice(idx, 1);
     if (tabs.value.length === 0) {
@@ -305,10 +332,8 @@ export const usePanesStore = defineStore('panes', () => {
     if (maximizedByTab.value[tab.id] === id) {
       maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
     }
-    // PTY persistence cache'inden de sil (memory leak önleme)
-    const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
-      .__dtermPaneBuffer;
-    cache?.delete(id);
+    // Per-pane lifecycle state'lerini temizle (xterm cache + agent + chat)
+    cleanupPaneState(id);
   }
 
   function setLeafState(id: string, patch: Partial<LeafNode>) {
@@ -338,12 +363,15 @@ export const usePanesStore = defineStore('panes', () => {
    *  (status: 'idle' leaf'ler ilk render'da spawn olur). */
   async function loadWorkspace(newTabs: Tab[], targetActiveTabId: string | null) {
     if (newTabs.length === 0) return;
-    // Mevcut açık PTY'leri sessizce kill et — yeni workspace fresh başlar
+    // Mevcut açık PTY'leri sessizce kill et + per-pane state'i temizle —
+    // yeni workspace fresh başlar; eski leaf id'ler globalThis cache'inde
+    // yaşamasın.
     for (const tab of tabs.value) {
       for (const leaf of listLeaves(tab.tree.root)) {
         if (leaf.ptyId) {
           try { await api.ptyKill(leaf.ptyId); } catch { /* zaten ölmüş */ }
         }
+        cleanupPaneState(leaf.id);
       }
     }
     tabs.value = newTabs;

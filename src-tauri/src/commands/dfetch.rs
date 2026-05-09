@@ -550,16 +550,79 @@ fn detect_hybrid_cpu() -> Option<HybridCores> {
 //
 // Frontend html-to-image ile dataURL üretir, Tauri save dialog'tan path alır,
 // bu komut path + binary'i diske yazar. Plugin-fs eklemekten kaçınıldı.
+//
+// GÜVENLİK: frontend XSS post-compromise senaryosunda saldırgan path olarak
+// `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\evil.exe` veya
+// kullanıcının `.bashrc` / `profile.ps1` dosyasını gönderebilir. Bu yüzden
+// burada path'i WHITE-LIST kontrol ediyoruz: yalnızca kullanıcının resim/desktop
+// dizinlerine + uygulamanın AppData snapshots klasörüne, üstelik yalnızca .png
+// uzantısıyla yazmaya izin veriyoruz. Dialog akışı normalde bu yollara çıkar
+// ama backend dialog'a güvenmek zorunda değil.
 
 #[tauri::command]
 pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> {
     use std::io::Write;
     let p = std::path::PathBuf::from(&path);
-    // Parent dizinini oluştur — kullanıcı save dialog'tan klasör seçmiş olur
-    // ama emin olmak için
-    if let Some(parent) = p.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+
+    // Uzantı kontrolü — yalnızca .png. Diğer hiçbir şey yazılmaz.
+    let ext_ok = p
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.eq_ignore_ascii_case("png"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err("only .png files allowed".into());
     }
+
+    // UNC reddet.
+    if path.starts_with(r"\\") || path.starts_with("//") {
+        return Err("UNC path not allowed".into());
+    }
+
+    // Allowed root listesi — çoğu canonical değil çünkü dosya henüz yok;
+    // ancak parent canonical olabilir. Önce parent'ı resolve ediyoruz.
+    let parent = p
+        .parent()
+        .ok_or_else(|| "path has no parent dir".to_string())?;
+    // create_dir_all parent yoksa oluştur — yine de allowed root altında olmalı.
+    let allowed_roots: Vec<std::path::PathBuf> = [
+        dirs::picture_dir(),
+        dirs::desktop_dir(),
+        dirs::download_dir(),
+        dirs::document_dir(),
+        // Uygulama snapshot klasörü — auto-save akışı için.
+        dirs::data_dir().map(|d| d.join("D-Terminal").join("snapshots")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    // create_dir_all sonra canonicalize edebiliriz; ama önce başlangıç check.
+    let _ = std::fs::create_dir_all(parent);
+    let canon_parent = parent
+        .canonicalize()
+        .map_err(|e| format!("canonicalize parent: {e}"))?;
+    let allowed = allowed_roots.iter().any(|root| {
+        root.canonicalize()
+            .map(|r| canon_parent.starts_with(&r))
+            .unwrap_or(false)
+    });
+    if !allowed {
+        return Err(
+            "path outside allowed roots (Pictures/Desktop/Documents/Downloads/AppData)".into(),
+        );
+    }
+
+    // Boyut sınırı — html-to-image PNG genelde &lt; 5 MB; saldırgan 1 GB
+    // gönderemesin (DoS).
+    const MAX_PNG_BYTES: usize = 25 * 1024 * 1024;
+    if bytes.len() > MAX_PNG_BYTES {
+        return Err(format!(
+            "snapshot too large: {} bytes (max {MAX_PNG_BYTES})",
+            bytes.len()
+        ));
+    }
+
     let mut f = std::fs::File::create(&p).map_err(|e| format!("create: {e}"))?;
     f.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
     Ok(())

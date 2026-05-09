@@ -8,6 +8,7 @@ use crate::ai::{provider_for, AiModel, ChatMessage, ChatOptions};
 use crate::state::AppState;
 use std::sync::Arc;
 use tauri::{ipc::Channel, State};
+use zeroize::Zeroizing;
 
 #[tauri::command]
 pub async fn ai_models(
@@ -16,7 +17,9 @@ pub async fn ai_models(
 ) -> Result<Vec<AiModel>, String> {
     let p = provider_for(&provider).ok_or_else(|| format!("unknown provider: {provider}"))?;
     let key = retrieve_key(&state, &provider);
-    Ok(p.models(key.as_deref()).await)
+    // key.as_deref() Zeroizing<String> üzerinden Option<&str> verir; çağrı
+    // bittikten sonra `key` drop edilir ve plaintext bellekte sıfırlanır.
+    Ok(p.models(key.as_deref().map(|s| s.as_str())).await)
 }
 
 #[tauri::command]
@@ -37,20 +40,35 @@ pub async fn ai_chat_stream(
         let _ = on_chunk.send(text);
     });
 
-    p.chat(key.as_deref(), messages, options, chunk_sink).await
+    // key Zeroizing<String> — chat çağrısı bittikten sonra drop'ta sıfırlanır.
+    let result = p
+        .chat(
+            key.as_deref().map(|s| s.as_str()),
+            messages,
+            options,
+            chunk_sink,
+        )
+        .await;
+    drop(key); // explicit zeroize sinyali (drop sırasında zaten gerçekleşir)
+    result
 }
 
 /// DPAPI vault'tan provider key'ini düz metne çek. Provider id "ai_provider"
 /// scope'unda saklanır. Ollama key gerektirmez (None döner).
-fn retrieve_key(state: &State<'_, AppState>, provider: &str) -> Option<String> {
+///
+/// Plaintext key `Zeroizing<String>` ile sarmalı — fonksiyondan dışarı
+/// çıktığında veya drop edildiğinde memory'de sıfırlanır. Process memory
+/// dump'ında plaintext key kalmaz.
+fn retrieve_key(state: &State<'_, AppState>, provider: &str) -> Option<Zeroizing<String>> {
     if provider == "ollama" {
         return None;
     }
     let secrets = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
         state.storage.pool().clone(),
     )));
-    secrets
-        .retrieve("ai_provider", provider)
-        .ok()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+    let bytes = secrets.retrieve("ai_provider", provider).ok()?;
+    // bytes: Zeroizing<Vec<u8>>. UTF-8 invalid ise None döndür — provider
+    // sadece ASCII/UTF-8 key kabul eder; bozuk byte zaten kullanılmaz.
+    let s = std::str::from_utf8(&bytes).ok()?.to_owned();
+    Some(Zeroizing::new(s))
 }

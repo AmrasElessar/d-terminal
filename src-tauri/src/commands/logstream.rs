@@ -36,6 +36,30 @@ impl Default for LogStreams {
     }
 }
 
+/// İzin verilen log uzantıları — saldırgan `id_rsa`, `SAM`, `credentials.json`
+/// gibi dosyaları stream edip channel üzerinden exfiltrate edemesin.
+const ALLOWED_LOG_EXTS: &[&str] = &["log", "txt", "out", "err", "json", "ndjson", "csv"];
+
+fn validate_log_path(path: &std::path::Path) -> AppResult<()> {
+    // UNC path reddet — saldırı yüzeyi hiç açılmasın.
+    let s = path.to_string_lossy();
+    if s.starts_with(r"\\") || s.starts_with("//") {
+        return Err(AppError::InvalidArg("UNC path not allowed".into()));
+    }
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !ALLOWED_LOG_EXTS.iter().any(|a| *a == ext) {
+        return Err(AppError::InvalidArg(format!(
+            "log extension not allowed: .{ext} (allowed: {})",
+            ALLOWED_LOG_EXTS.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 /// Yeni bir log stream başlat. `tail` true ise sadece yeni satırlar gönderir
 /// (mevcut içerik atlanır), false ise tüm dosya başından okunur.
 #[tauri::command]
@@ -47,6 +71,7 @@ pub fn log_stream_open(
     on_line: Channel<String>,
 ) -> AppResult<()> {
     let path_buf = PathBuf::from(&path);
+    validate_log_path(&path_buf)?;
     if !path_buf.exists() {
         return Err(AppError::InvalidArg(format!("file not found: {path}")));
     }

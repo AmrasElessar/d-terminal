@@ -63,9 +63,12 @@ function applyChromeVars() {
   root.style.setProperty('--ui-blur', `${settings.state.blur}px`);
 }
 
-/** WebView2 DevTools toggle (Tauri 2 debug feature ile çalışır; tip kütüphanesinde
- * `openDevtools` yok ama runtime mevcut). */
+/** WebView2 DevTools toggle — yalnızca dev build'de aktif.
+ * Release Cargo.toml'da `tauri/devtools` feature kapalı; üretimde bu fonksiyon
+ * hiçbir şey yapmaz (DevTools üzerinden frontend state/secret manipülasyonunu
+ * önlemek için). Geliştirici dev modunda `cargo tauri dev` ile çalışırken erişir. */
 async function toggleDevTools() {
+  if (!import.meta.env.DEV) return;
   try {
     const w = await import('@tauri-apps/api/webview');
     const view = w.getCurrentWebview() as unknown as {
@@ -204,7 +207,7 @@ onMounted(async () => {
   keybindings.register('session.save', openSessionSave);
   keybindings.register('session.load', openSessionLoad);
   keybindings.register('dfetch.run', () => panes.openPane('welcome', t('pane.type.welcome')));
-  keybindings.register('app.devTools', toggleDevTools);
+  if (import.meta.env.DEV) keybindings.register('app.devTools', toggleDevTools);
   // Tab kısayolları (browser standardı)
   keybindings.register('tab.new',   () => panes.newTab());
   keybindings.register('tab.close', () => panes.closeTab(panes.activeTabId));

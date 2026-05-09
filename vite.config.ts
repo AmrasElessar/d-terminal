@@ -60,6 +60,9 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'src-tauri', 'sidecar', 'dist-ssr', '.idea', '.git', '.cache'],
     environment: 'jsdom',
-    passWithNoTests: true,
+    // CI'da test bulunamazsa fail — daha önce true idi, sıfır frontend testi
+    // ile CI yeşil tik veriyordu (yanılsama). En az bir test mevcut artık
+    // (utils/redact.test.ts), bu yüzden gate açılıyor.
+    passWithNoTests: false,
   },
 });

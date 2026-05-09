@@ -39,6 +39,12 @@ fn run_git_diff(path: &str) -> GitStat {
     if path.is_empty() || !std::path::Path::new(path).exists() {
         return GitStat::default();
     }
+    // UNC path reddedilir — \\attacker\share\.git\config saldırısını engeller
+    // (rogue config core.fsmonitor/core.editor üzerinden RCE — CVE-2022-24765
+    // sınıfı zafiyet ailesi).
+    if path.starts_with(r"\\") || path.starts_with("//") {
+        return GitStat::default();
+    }
 
     // git diff --shortstat HEAD — staged + unstaged + untracked HARİÇ
     // Untracked dosyaları da dahil etmek için ayrı `git status --short` lazım,
@@ -50,6 +56,23 @@ fn run_git_diff(path: &str) -> GitStat {
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::null());
+    // Güvenlik sertleştirmesi (CVE-2022-24765 ailesine karşı):
+    //   - GIT_TERMINAL_PROMPT=0  : credential prompt blocked (zaten stdin null)
+    //   - GIT_CONFIG_NOSYSTEM=1  : /etc/gitconfig bypass — yan-binary substitution kapanır
+    //   - GIT_CONFIG_GLOBAL=NUL  : ~/.gitconfig override (rogue user-level config)
+    //   - safe.directory=*       : "dubious ownership" sorununu sessiz çöz
+    //   - core.fsmonitor=        : rogue fsmonitor binary çalıştırılmasını engelle
+    //   - core.sshCommand=       : rogue ssh komutu çağrılmasın
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.env("GIT_CONFIG_NOSYSTEM", "1");
+    cmd.env("GIT_CONFIG_GLOBAL", "NUL");
+    cmd.env("GIT_CONFIG_COUNT", "3");
+    cmd.env("GIT_CONFIG_KEY_0", "safe.directory");
+    cmd.env("GIT_CONFIG_VALUE_0", "*");
+    cmd.env("GIT_CONFIG_KEY_1", "core.fsmonitor");
+    cmd.env("GIT_CONFIG_VALUE_1", "");
+    cmd.env("GIT_CONFIG_KEY_2", "core.sshCommand");
+    cmd.env("GIT_CONFIG_VALUE_2", "");
 
     let output = match cmd.output() {
         Ok(o) => o,

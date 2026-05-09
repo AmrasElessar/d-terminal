@@ -28,11 +28,16 @@ pub fn themes_list(app: tauri::AppHandle) -> AppResult<Vec<ThemeFile>> {
     Ok(out)
 }
 
+/// Kullanıcı teması dosya boyutu üst sınırı. Tipik tema JSON'u 5-20 KB; 256 KB
+/// abartılı ama defansif. Saldırgan 1 GB tema yazıp diski dolduramasın (DoS).
+const MAX_THEME_BYTES: usize = 256 * 1024;
+
 #[tauri::command]
 pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
     let dir = user_themes_dir()?;
     std::fs::create_dir_all(&dir)?;
-    // Path traversal koruması
+    // Path traversal koruması — alphanumeric + - + _ dışındaki her şey
+    // sıyrılır; `..`, `/`, `\` reddedilir.
     let safe = name
         .chars()
         .filter(|c| c.is_alphanumeric() || matches!(*c, '-' | '_'))
@@ -40,6 +45,18 @@ pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
     if safe.is_empty() {
         return Err(AppError::InvalidArg("theme name".into()));
     }
+    // Boyut sınırı
+    if content.len() > MAX_THEME_BYTES {
+        return Err(AppError::InvalidArg(format!(
+            "theme too large: {} bytes (max {MAX_THEME_BYTES})",
+            content.len()
+        )));
+    }
+    // Şema doğrulaması — bozuk JSON yazılırsa downstream parse panik atabilir.
+    // Tema struct'ı frontend'de validate ediliyor, biz minimum: parseable JSON.
+    serde_json::from_str::<serde_json::Value>(&content)
+        .map_err(|e| AppError::InvalidArg(format!("theme content not valid JSON: {e}")))?;
+
     let path = dir.join(format!("{safe}.json"));
     std::fs::write(&path, content)?;
     Ok(path.to_string_lossy().into_owned())

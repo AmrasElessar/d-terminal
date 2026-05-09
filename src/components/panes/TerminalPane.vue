@@ -740,6 +740,17 @@ onMounted(async () => {
   // (WebLinksAddon http URL'leri yakalar; bu onu tamamlar)
   term.registerLinkProvider(createSmartLinkProvider(term, {
     onPath: (p) => {
+      // Güvenlik: PTY çıktısı saldırgan tarafından üretilebilir. Smart link
+      // tıklaması ile UNC share'lerden binary çalıştırma vektörünü kapat:
+      //   - UNC path (`\\host\share\...`) reddet (remote payload'a karşı)
+      //   - Executable uzantılar reddet (kullanıcı zaten paste edip çalıştırabilir
+      //     ama tek-tık RCE olmasın). Dizin / metin uzantılarına izin ver.
+      const isUnc = /^\\\\/.test(p) || /^\/\//.test(p);
+      const exec = /\.(exe|bat|cmd|com|scr|lnk|ps1|psm1|vbs|wsf|msi|jar|pif)$/i.test(p);
+      if (isUnc || exec) {
+        navigator.clipboard.writeText(p).then(() => toasts.info(t('terminal.pathCopied'), 1500));
+        return;
+      }
       shellOpen(p).catch(() => {
         navigator.clipboard.writeText(p).then(() => toasts.info(t('terminal.pathCopied'), 1500));
       });

@@ -25,12 +25,26 @@ pub fn ai_key_masked(state: State<'_, AppState>, provider: String) -> AppResult<
     )));
     match store.retrieve("ai_provider", &provider) {
         Ok(plain) => {
-            let s = String::from_utf8_lossy(&plain);
-            let len = s.len();
+            // plain: Zeroizing<Vec<u8>>. UTF-8 multi-byte içeren key (kullanıcı
+            // yanlışlıkla emoji yapıştırırsa) byte-slice ile panic atabilir;
+            // bu yüzden char tabanlı mask'liyoruz.
+            let key_str = match std::str::from_utf8(&plain) {
+                Ok(s) => s,
+                // UTF-8 değilse tüm karakterleri • ile maskele (uzunluk byte'a
+                // değil, lossy karakter sayısına dayalı — yine de güvenli).
+                Err(_) => {
+                    let len = String::from_utf8_lossy(&plain).chars().count();
+                    return Ok(Some("•".repeat(len)));
+                }
+            };
+            let chars: Vec<char> = key_str.chars().collect();
+            let len = chars.len();
             if len <= 8 {
                 Ok(Some("•".repeat(len)))
             } else {
-                Ok(Some(format!("{}…{}", &s[..3], &s[len - 4..])))
+                let head: String = chars.iter().take(3).collect();
+                let tail: String = chars.iter().skip(len - 4).collect();
+                Ok(Some(format!("{head}…{tail}")))
             }
         }
         Err(AppError::Secret(msg)) if msg.contains("not found") => Ok(None),

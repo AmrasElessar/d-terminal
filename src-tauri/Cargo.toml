@@ -16,7 +16,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
+# DevTools sadece debug build'lerde — release'de WebView2 inspector kapalı
+# (XSS post-compromise inceleme/manipülasyon yüzeyini kapatır).
+tauri = { version = "2" }
 tauri-plugin-shell = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
