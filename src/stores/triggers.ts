@@ -11,6 +11,7 @@ import { useToastsStore } from '@/stores/toasts';
 import { useSnippetsStore } from '@/stores/snippets';
 import { usePanesStore } from '@/stores/panes';
 import { createLogger } from '@/utils/logger';
+import { i18n } from '@/main';
 
 const STORAGE_KEY = 'triggers.list';
 const log = createLogger('triggers');
@@ -144,7 +145,8 @@ export const useTriggersStore = defineStore('triggers', () => {
           panes.openPane('aiChat', 'AI Chat');
         }
         const toasts = useToastsStore();
-        toasts.info(`⟦${t.name}⟧ → AI prompt panoya kopyalandı`, 2500);
+        const tFn = i18n.global.t;
+        toasts.info(tFn('triggers.action.aiCopied', { name: t.name }), 2500);
         break;
       }
       case 'runSnippet': {

@@ -38,7 +38,9 @@ export class CustomProvider implements AIProvider {
     const settings = useSettingsStore();
     const endpoint = settings.state.aiCustomEndpoint?.trim();
     if (!endpoint) {
-      throw new Error('Custom AI endpoint Settings\'te girilmedi');
+      // Error code formatı (frontend'de i18n'e mapping). Türkçe literal
+      // İngilizce locale'de görünmesin diye ham string yerine kod fırlatıyoruz.
+      throw new Error('noEndpoint');
     }
     return streamChat('custom', messages, { ...options, endpoint });
   }

@@ -27,7 +27,9 @@ const booted = ref(false);
   --color-magenta: #b47aea;
   --color-cyan: #00b4d8;
   --color-white: #e2e8f0;
-  --color-dim: #5a6478;
+  /* WCAG AA: --color-bg(#0a0e1a, L=0.0058) zemininde 4.5:1 ratio için
+     dim açık tonu #7a8290 (L=0.213) → 5.0:1. Önceki #5a6478 → 3.97:1 fail. */
+  --color-dim: #7a8290;
   --color-line: color-mix(in srgb, var(--color-fg) 5%, transparent);
   /* Semantik renk overlay'leri — child component'lerde rgba(...) tekrar
      etmesin diye merkezi tanım. Tema değişince otomatik adapte olur
@@ -83,6 +85,36 @@ button {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
+}
+
+/* WCAG 2.4.7 (Focus Visible): klavye-only kullanıcı (Tab navigation) için
+   açık fokus iz. Mouse tıklamasında görünmez (`:focus-visible` semantiği).
+   Tüm interaktif elementler bu kuralı miras alır; component'ler kendi
+   focus stilini override edebilir. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+button:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* WCAG 2.3.3 (Animation from Interactions) — kullanıcı OS-seviyesinde
+   "reduce motion" tercih ediyorsa tüm animasyon/transition'ı sıfıra yakın
+   indir. Epileptik tetikleyici riski + cihaz pil/perf hassasiyeti.
+   Splash typewriter, toast slide-in, AI streaming spinner, kamera flash,
+   statusBarPulse vs. tek satırda uyumlu hale gelir. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::selection { background: var(--color-selection); }

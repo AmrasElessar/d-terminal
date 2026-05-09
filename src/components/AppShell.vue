@@ -9,7 +9,7 @@ import { useSnippetsStore } from '@/stores/snippets';
 import { useTriggersStore } from '@/stores/triggers';
 import { useProfilesStore } from '@/stores/profiles';
 import { keybindings } from '@/keybindings/registry';
-import { fallbackChain } from '@/fonts';
+import { fallbackChain, ensureFontLoaded } from '@/fonts';
 import { api } from '@/api/tauri';
 import { createLogger } from '@/utils/logger';
 import { useModals } from '@/composables/useModals';
@@ -49,11 +49,17 @@ const modals = useModals();
  *  Settings'te "Yönetici olarak başlat" durum bilgisi için kullanılır. */
 const isElevated = ref(false);
 
-/** Aktif font + boyut'u CSS değişkenlerine yansıt — UI ile xterm aynı görünür. */
+/** Aktif font + boyut'u CSS değişkenlerine yansıt — UI ile xterm aynı görünür.
+ *  Lazy-load: kullanıcının seçtiği font bundle'da eager değilse arka planda
+ *  fetch edilir; bu sırada fallback chain (`Noto Sans Mono`, `Cascadia`,
+ *  `Consolas`, ...) devreye girer ve UI çökmez. */
 function applyFontVars() {
   const root = document.documentElement;
-  root.style.setProperty('--font-family', fallbackChain(settings.state.fontFamily));
+  const family = settings.state.fontFamily;
+  root.style.setProperty('--font-family', fallbackChain(family));
   root.style.setProperty('--font-size', `${settings.state.fontSize}px`);
+  // fire-and-forget — yüklenince CSS otomatik etkin olur (font-face inject).
+  void ensureFontLoaded(family);
 }
 
 /** Pencere arka plan opaklığı + blur — Tauri window transparent ile birlikte çalışır. */
@@ -178,15 +184,20 @@ onMounted(async () => {
     await getCurrentWindow().onResized(() => syncMaximized());
   } catch { /* dev mode'da bazı listener'lar erken hata verebilir */ }
 
+  // Settings + theme zorunlu sıralı (locale/theme uygulanmalı sonraki adımlar).
   await settings.load();
   locale.value = settings.state.language;
   await themeStore.load();
   themeStore.setActive(settings.state.themeName);
-  await ai.refresh();
-  await snippets.load();
-  await triggers.load();
-  await profiles.load();
-  await panes.startListening();
+  // Geri kalan store'lar birbirinden bağımsız → paralel yükle (300-500ms kazanç).
+  // Her biri kendi hatasını yutar; biri patlasa diğerleri açılır.
+  await Promise.all([
+    ai.refresh().catch(() => {}),
+    snippets.load().catch(() => {}),
+    triggers.load().catch(() => {}),
+    profiles.load().catch(() => {}),
+    panes.startListening().catch(() => {}),
+  ]);
   // UAC elevation durumu — process lifetime boyunca sabit, tek seferlik fetch
   api.adminIsElevated().then((v) => { isElevated.value = v; }).catch(() => {});
 

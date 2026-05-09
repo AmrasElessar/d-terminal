@@ -69,6 +69,45 @@ pub trait ChatProvider: Send + Sync {
     ) -> Result<(), String>;
 }
 
+/// 429/503 için exponential backoff retry. `Retry-After` header'ı varsa
+/// ona uy; yoksa 1s/2s/4s artarak max 3 deneme. Build_request bir closure
+/// olduğu için her denemede yeni `RequestBuilder` üretilir (ownership reuse
+/// reqwest'in alışkanlığında değil).
+///
+/// Stream başlatma noktasında çağrılır — chunk akışı başladıktan sonra retry
+/// güvensiz (kullanıcı yarım yanıt görür); yalnızca initial response alana
+/// kadar.
+pub async fn send_with_retry<F>(mut build_request: F) -> Result<reqwest::Response, String>
+where
+    F: FnMut() -> reqwest::RequestBuilder,
+{
+    let max_attempts = 3;
+    let mut attempt = 0u32;
+    loop {
+        attempt += 1;
+        let resp = build_request()
+            .send()
+            .await
+            .map_err(|e| format!("network: {e}"))?;
+        let status = resp.status();
+        // 429 (rate limit) veya 503 (service unavailable) → backoff
+        if (status.as_u16() == 429 || status.as_u16() == 503) && attempt < max_attempts {
+            let retry_after = resp
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or_else(|| 1u64 << (attempt - 1)); // 1, 2, 4
+            let wait = std::time::Duration::from_secs(retry_after.min(30));
+            tracing::info!(status = %status, attempt, wait_ms = wait.as_millis() as u64, "AI rate-limit, retrying");
+            // resp drop edilir, soketler temizlenir.
+            tokio::time::sleep(wait).await;
+            continue;
+        }
+        return Ok(resp);
+    }
+}
+
 pub fn provider_for(id: &str) -> Option<Box<dyn ChatProvider>> {
     match id {
         "anthropic" => Some(Box::new(anthropic::Anthropic)),

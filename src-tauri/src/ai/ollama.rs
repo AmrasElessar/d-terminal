@@ -86,22 +86,22 @@ impl ChatProvider for Ollama {
             .build()
             .unwrap_or_default();
         let url = format!("{DEFAULT_BASE}/api/chat");
-        let resp = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("network: {e}"))?;
+        // Ollama yerel runtime — 429 nadir ama 503 (model load) yaygın.
+        let resp = super::send_with_retry(|| client.post(&url).json(&body)).await?;
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            tracing::warn!(provider = "ollama", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            tracing::warn!(provider = "ollama", status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
             return Err(format!("apiFailed:{status}"));
         }
-        // NDJSON: bytes stream, satır bazlı buffer
+        // NDJSON: bytes stream, satır bazlı buffer + IDLE timeout (60s/chunk)
         let mut stream = resp.bytes_stream();
         let mut buf = String::new();
-        while let Some(chunk) = stream.next().await {
+        loop {
+            let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
+                .await
+                .map_err(|_| "stream: idle timeout (60s)".to_string())?;
+            let Some(chunk) = next else { break };
             let chunk = chunk.map_err(|e| format!("stream: {e}"))?;
             buf.push_str(&String::from_utf8_lossy(&chunk));
             while let Some(idx) = buf.find('\n') {

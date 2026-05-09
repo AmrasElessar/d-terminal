@@ -292,34 +292,48 @@ impl ChatProvider for OpenAi {
             format!("{trimmed}/chat/completions")
         };
 
-        let body = json!({
+        // Body — temperature/max_tokens null gönderilmez (vLLM/llama.cpp bazı
+        // sürümlerinde 400 dönebilir; OpenAI cloud da temiz body'yi tercih eder).
+        let mut body = json!({
             "model": options.model,
             "messages": messages.iter().map(|m| json!({"role": m.role, "content": m.content})).collect::<Vec<_>>(),
             "stream": true,
-            "temperature": options.temperature,
-            "max_tokens": options.max_tokens,
         });
+        if let Some(t) = options.temperature {
+            body["temperature"] = json!(t);
+        }
+        if let Some(m) = options.max_tokens {
+            body["max_tokens"] = json!(m);
+        }
         // Connect timeout: yerel/uzak runtime kapalıysa UI freeze olmasın.
-        // Total timeout YOK — streaming uzun sürebilir.
+        // Total timeout YOK ama stream içinde IDLE timeout (60s) var.
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))
             .build()
             .unwrap_or_default();
-        let mut req = client.post(&endpoint).json(&body);
-        if let Some(k) = key {
-            req = req.header("Authorization", format!("Bearer {k}"));
-        }
-        let resp = req.send().await.map_err(|e| format!("network: {e}"))?;
+        // 429/503 için exponential backoff retry (max 3 deneme).
+        let resp = super::send_with_retry(|| {
+            let mut r = client.post(&endpoint).json(&body);
+            if let Some(k) = key {
+                r = r.header("Authorization", format!("Bearer {k}"));
+            }
+            r
+        })
+        .await?;
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
             // Body sadece Rust log'a — frontend'e status code yeter
             // (api key prefix/quota detay sızıntısını engeller).
-            tracing::warn!(provider = self.id, status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            tracing::warn!(provider = self.id, status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();
-        while let Some(ev) = stream.next().await {
+        loop {
+            let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
+                .await
+                .map_err(|_| "stream: idle timeout (60s)".to_string())?;
+            let Some(ev) = next else { break };
             let ev = ev.map_err(|e| format!("stream: {e}"))?;
             if ev.data == "[DONE]" || ev.data.is_empty() {
                 continue;

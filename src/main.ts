@@ -14,10 +14,12 @@ log.info('frontend bootstrap');
 export const i18n = createI18n({
   legacy: false,
   locale: pickInitialLocale(),
-  // Eksik çeviri anahtarları Türkçeye düşer — D-Terminal'in birincil dili
-  // Türkçe; çevrilmemiş bir stub dilinde key bulunamayınca İngilizce yerine
-  // Türkçe görünür.
-  fallbackLocale: 'tr',
+  // Industry-standard fallback: eksik anahtarda İngilizce. Türkçe konuşmayan
+  // bir kullanıcı (örn. Almanca/Fransızca stub) için 'tr'ye düşmek
+  // anlaşılmaz; 'en' tüm dünyaya en yakın ortak dildir. Türkçe yine de
+  // birincil dil olarak kalır (`pickInitialLocale` browser locale'inden
+  // 'tr' seçerse hep gösterilir).
+  fallbackLocale: 'en',
   messages,
   warnHtmlMessage: false,
   // Stub locale'ler için: eksik anahtar uyarılarını sustur (fallback yine

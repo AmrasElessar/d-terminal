@@ -20,6 +20,8 @@ useDialogA11y(dialogEl, () => props.open, { onEscape: () => emit('close') });
 const { t } = useI18n();
 const info = ref<SystemInfo | null>(null);
 const logPaths = ref<{ directory: string; current_file: string } | null>(null);
+/** Footer copyright yılı — manuel update gerektirmesin diye dinamik. */
+const currentYear = new Date().getFullYear();
 
 // Backend Cargo.toml sürümü canonical kabul edilir; backend'den gelmiyorsa
 // frontend package.json'daki APP_VERSION fallback (yeni sürüm bumped ama
@@ -100,7 +102,7 @@ void props.open;
 
       <section class="section">
         <h3>{{ t('about.license') }}</h3>
-        <p>MIT License — Copyright © 2026 Orhan Engin OKAY</p>
+        <p>MIT License — Copyright © {{ currentYear }} Orhan Engin OKAY</p>
       </section>
 
       <section class="section">

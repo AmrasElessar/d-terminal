@@ -140,7 +140,8 @@
       "rateLimited": "Rate limited, please wait",
       "networkFailed": "Network error: {message}",
       "modelMissing": "Model not found: {model}",
-      "ollamaNotRunning": "Cannot reach Ollama local server (default: localhost:11434)"
+      "ollamaNotRunning": "Cannot reach Ollama local server (default: localhost:11434)",
+      "noEndpoint": "Custom AI endpoint not configured in Settings"
     },
     "redact": {
       "notice": "{count} lines redacted (secrets detected)",
@@ -601,7 +602,8 @@
       "toast": "Show toast",
       "sendToAi": "Send to AI Chat",
       "runSnippet": "Run snippet (payload=snippet ID)",
-      "capture": "Log only"
+      "capture": "Log only",
+      "aiCopied": "⟦{name}⟧ → AI prompt copied to clipboard"
     }
   },
   "toast": {

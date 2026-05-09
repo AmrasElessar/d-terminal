@@ -1,39 +1,68 @@
 // Bundled developer mono fonts (self-hosted via @fontsource).
 // 17 popüler programcı fontu — Regular (400) + Bold (700).
+//
+// Lazy-load mimarisi (v0.9.4+):
+// Daha önce 17 font × 2 weight × 8-10 subset (latin/cyrillic/greek/...) tüm
+// .css dosyaları eager import ediliyordu → 328 woff/woff2, ~4.1 MB başlangıç
+// payload'ı (Frontend perf audit · K1). Kullanıcı tek font seçer, kalan 16
+// font asla yüklenmez ama bundle'a dahildir.
+//
+// Yeni model:
+//   - Yalnızca DEFAULT_FONT_FAMILY (JetBrains Mono) eager — kullanıcı ayarları
+//     yüklenene kadar UI doğru fontla render olsun (FOUT azaltma).
+//   - Diğer fontlar `ensureFontLoaded(family)` ile dinamik import edilir;
+//     Settings'ten seçildiğinde @vite tarafında ayrı chunk'a düşer.
+// Beklenen kazanç: ~3.5 MB initial bundle azalması, ilk açılış ~500ms hızlanır.
 
+// Eager: yalnızca default font (kullanıcı settings yüklenene kadar geçici font)
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/700.css';
-import '@fontsource/fira-code/400.css';
-import '@fontsource/fira-code/700.css';
-import '@fontsource/cascadia-code/400.css';
-import '@fontsource/cascadia-code/700.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/700.css';
-import '@fontsource/source-code-pro/400.css';
-import '@fontsource/source-code-pro/700.css';
-import '@fontsource/inconsolata/400.css';
-import '@fontsource/inconsolata/700.css';
-import '@fontsource/roboto-mono/400.css';
-import '@fontsource/roboto-mono/700.css';
-import '@fontsource/geist-mono/400.css';
-import '@fontsource/geist-mono/700.css';
-import '@fontsource/noto-sans-mono/400.css';
-import '@fontsource/noto-sans-mono/700.css';
-import '@fontsource/ubuntu-mono/400.css';
-import '@fontsource/ubuntu-mono/700.css';
-import '@fontsource/victor-mono/400.css';
-import '@fontsource/victor-mono/700.css';
-import '@fontsource/space-mono/400.css';
-import '@fontsource/space-mono/700.css';
-import '@fontsource/anonymous-pro/400.css';
-import '@fontsource/anonymous-pro/700.css';
-import '@fontsource/red-hat-mono/400.css';
-import '@fontsource/red-hat-mono/700.css';
-import '@fontsource/cousine/400.css';
-import '@fontsource/cousine/700.css';
-import '@fontsource/courier-prime/400.css';
-import '@fontsource/courier-prime/700.css';
-import '@fontsource/vt323/400.css'; // 700 yok — sadece tek weight
+
+/** Family adı → loader. Vite glob yerine açık tanım — type-safe ve tree-shake
+ *  garantili. Kullanıcı SettingsModal'da font seçince ilgili loader bir kez
+ *  çağrılır; sonraki seçimde cache'lenmiş import-resolution devreye girer. */
+const FONT_LOADERS: Record<string, () => Promise<unknown>> = {
+  'JetBrains Mono':   () => Promise.resolve(),  // zaten eager
+  'Fira Code':        () => Promise.all([import('@fontsource/fira-code/400.css'), import('@fontsource/fira-code/700.css')]),
+  'Cascadia Code':    () => Promise.all([import('@fontsource/cascadia-code/400.css'), import('@fontsource/cascadia-code/700.css')]),
+  'IBM Plex Mono':    () => Promise.all([import('@fontsource/ibm-plex-mono/400.css'), import('@fontsource/ibm-plex-mono/700.css')]),
+  'Source Code Pro':  () => Promise.all([import('@fontsource/source-code-pro/400.css'), import('@fontsource/source-code-pro/700.css')]),
+  'Inconsolata':      () => Promise.all([import('@fontsource/inconsolata/400.css'), import('@fontsource/inconsolata/700.css')]),
+  'Roboto Mono':      () => Promise.all([import('@fontsource/roboto-mono/400.css'), import('@fontsource/roboto-mono/700.css')]),
+  'Geist Mono':       () => Promise.all([import('@fontsource/geist-mono/400.css'), import('@fontsource/geist-mono/700.css')]),
+  'Noto Sans Mono':   () => Promise.all([import('@fontsource/noto-sans-mono/400.css'), import('@fontsource/noto-sans-mono/700.css')]),
+  'Ubuntu Mono':      () => Promise.all([import('@fontsource/ubuntu-mono/400.css'), import('@fontsource/ubuntu-mono/700.css')]),
+  'Victor Mono':      () => Promise.all([import('@fontsource/victor-mono/400.css'), import('@fontsource/victor-mono/700.css')]),
+  'Space Mono':       () => Promise.all([import('@fontsource/space-mono/400.css'), import('@fontsource/space-mono/700.css')]),
+  'Anonymous Pro':    () => Promise.all([import('@fontsource/anonymous-pro/400.css'), import('@fontsource/anonymous-pro/700.css')]),
+  'Red Hat Mono':     () => Promise.all([import('@fontsource/red-hat-mono/400.css'), import('@fontsource/red-hat-mono/700.css')]),
+  'Cousine':          () => Promise.all([import('@fontsource/cousine/400.css'), import('@fontsource/cousine/700.css')]),
+  'Courier Prime':    () => Promise.all([import('@fontsource/courier-prime/400.css'), import('@fontsource/courier-prime/700.css')]),
+  'VT323':            () => import('@fontsource/vt323/400.css'),  // 700 yok
+};
+
+const loadedFonts = new Set<string>(['JetBrains Mono']);
+
+/** İstenen family için font CSS'lerini bir kez yükler. Çağrı tekrar edilirse
+ *  no-op. SettingsModal font seçimi + AppShell mount sırasında çağrılır. */
+export async function ensureFontLoaded(family: string): Promise<void> {
+  if (loadedFonts.has(family)) return;
+  const loader = FONT_LOADERS[family];
+  if (!loader) {
+    // Kullanıcı bilinmeyen bir family girdi (sistem fontu) — fallback chain
+    // zaten devreye giriyor, yapılacak iş yok.
+    return;
+  }
+  try {
+    await loader();
+    loadedFonts.add(family);
+  } catch (e) {
+    // Network hatası vs.: sessiz geç, fallback chain devreye girer.
+    if (typeof console !== 'undefined') {
+      console.warn(`font load failed: ${family}`, e);
+    }
+  }
+}
 
 export interface BundledFont {
   family: string;

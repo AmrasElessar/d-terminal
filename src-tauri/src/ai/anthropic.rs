@@ -1,6 +1,6 @@
 // Anthropic Claude — Messages API, SSE streaming.
 
-use super::{AiModel, ChatMessage, ChatOptions, ChatProvider, ChunkSink};
+use super::{send_with_retry, AiModel, ChatMessage, ChatOptions, ChatProvider, ChunkSink};
 use async_trait::async_trait;
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
@@ -85,30 +85,38 @@ impl ChatProvider for Anthropic {
         }
 
         // Connect timeout: API erişilemezse UI freeze olmasın.
-        // Total timeout YOK — streaming chat uzun sürebilir.
+        // Total timeout YOK (streaming uzun sürebilir) ama her chunk arası
+        // IDLE timeout var: 60s yeni chunk gelmezse abort. Yarım kalmış
+        // HTTP/2 stream'in Tauri runtime thread'ini sonsuza kadar tutmasını
+        // engeller (rate-limited yanıt 60dk gecikse bile bizi takmaz).
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))
             .build()
             .unwrap_or_default();
-        let resp = client
-            .post(ENDPOINT)
-            .header("x-api-key", key)
-            .header("anthropic-version", VERSION)
-            .header("content-type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("network: {e}"))?;
+        // 429/503 için exponential backoff retry (max 3 deneme).
+        let resp = send_with_retry(|| {
+            client
+                .post(ENDPOINT)
+                .header("x-api-key", key)
+                .header("anthropic-version", VERSION)
+                .header("content-type", "application/json")
+                .json(&body)
+        })
+        .await?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            tracing::warn!(provider = "anthropic", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            tracing::warn!(provider = "anthropic", status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
             return Err(format!("apiFailed:{status}"));
         }
 
         let mut stream = resp.bytes_stream().eventsource();
-        while let Some(ev) = stream.next().await {
+        loop {
+            let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
+                .await
+                .map_err(|_| "stream: idle timeout (60s)".to_string())?;
+            let Some(ev) = next else { break };
             let ev = ev.map_err(|e| format!("stream: {e}"))?;
             if ev.data == "[DONE]" || ev.data.is_empty() {
                 continue;

@@ -107,34 +107,44 @@ impl ChatProvider for Gemini {
         mut on_chunk: ChunkSink,
     ) -> Result<(), String> {
         let key = key.ok_or_else(|| "noKey".to_string())?;
-        let body = json!({
+        // Body — null parametreler dışarıda tutulur (M3).
+        let mut body = json!({
             "model": options.model,
             "messages": messages.iter().map(|m| json!({"role": m.role, "content": m.content})).collect::<Vec<_>>(),
             "stream": true,
-            "temperature": options.temperature,
-            "max_tokens": options.max_tokens,
         });
+        if let Some(t) = options.temperature {
+            body["temperature"] = json!(t);
+        }
+        if let Some(m) = options.max_tokens {
+            body["max_tokens"] = json!(m);
+        }
         // Connect timeout: API erişilemezse UI freeze olmasın.
-        // Total timeout YOK — streaming chat uzun sürebilir.
+        // Total timeout YOK ama IDLE timeout (60s/chunk) var.
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))
             .build()
             .unwrap_or_default();
-        let resp = client
-            .post(ENDPOINT)
-            .header("Authorization", format!("Bearer {key}"))
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("network: {e}"))?;
+        // 429/503 için exponential backoff retry (max 3 deneme).
+        let resp = super::send_with_retry(|| {
+            client
+                .post(ENDPOINT)
+                .header("Authorization", format!("Bearer {key}"))
+                .json(&body)
+        })
+        .await?;
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            tracing::warn!(provider = "gemini", status = %status, body = %&txt[..txt.len().min(500)], "AI API error");
+            tracing::warn!(provider = "gemini", status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();
-        while let Some(ev) = stream.next().await {
+        loop {
+            let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
+                .await
+                .map_err(|_| "stream: idle timeout (60s)".to_string())?;
+            let Some(ev) = next else { break };
             let ev = ev.map_err(|e| format!("stream: {e}"))?;
             if ev.data == "[DONE]" || ev.data.is_empty() {
                 continue;

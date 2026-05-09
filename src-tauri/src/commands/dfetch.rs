@@ -101,7 +101,17 @@ pub struct HybridCores {
 }
 
 #[tauri::command]
-pub fn dfetch_get() -> SystemInfo {
+pub async fn dfetch_get() -> SystemInfo {
+    // sysinfo `System::new_all()` Windows'ta tüm process listesi + tüm CPU/disk/
+    // network state'ini bir kerede tarar (500+ proses olan makinede 50 MB+
+    // alloc, 100-300 ms CPU). Tauri main thread'i bloklanmasın diye
+    // spawn_blocking ile worker thread'e taşı (git_stat.rs ile aynı pattern).
+    tokio::task::spawn_blocking(dfetch_get_blocking)
+        .await
+        .unwrap_or_else(|_| dfetch_get_blocking())
+}
+
+fn dfetch_get_blocking() -> SystemInfo {
     let mut sys = System::new_all();
     sys.refresh_all();
     SystemInfo {
@@ -407,10 +417,42 @@ fn collect_gpus() -> Vec<GpuInfo> {
 fn detect_battery() -> Option<BatteryInfo> {
     // GPU ile aynı sebep: Tauri STA thread'inde MTA'ya geçemeyiz, fresh
     // thread'de yürüt.
-    std::thread::spawn(detect_battery_inner)
+    //
+    // Performans: dfetch_live saniyede bir çağrılır → her seferinde yeni thread
+    // + COM init + WMI query (~50-200ms). Cache layer ile 5sn TTL — battery
+    // değeri pratik olarak %1 kresedikçe değişir, 5sn yeterli güncellik.
+    // Cache miss'te yine fresh thread spawn ederiz (STA kısıtı kaldı).
+    use parking_lot::Mutex;
+    use std::sync::OnceLock;
+    use std::time::{Duration, Instant};
+
+    struct BatteryCache {
+        value: Option<BatteryInfo>,
+        last_fetch: Instant,
+    }
+    static CACHE: OnceLock<Mutex<BatteryCache>> = OnceLock::new();
+    const TTL: Duration = Duration::from_secs(5);
+
+    let cell = CACHE.get_or_init(|| {
+        Mutex::new(BatteryCache {
+            value: None,
+            last_fetch: Instant::now() - TTL * 2,
+        })
+    });
+    {
+        let guard = cell.lock();
+        if guard.last_fetch.elapsed() < TTL {
+            return guard.value.clone();
+        }
+    }
+    let fresh = std::thread::spawn(detect_battery_inner)
         .join()
         .ok()
-        .flatten()
+        .flatten();
+    let mut guard = cell.lock();
+    guard.value = fresh.clone();
+    guard.last_fetch = Instant::now();
+    fresh
 }
 
 #[cfg(target_os = "windows")]

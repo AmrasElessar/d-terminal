@@ -140,7 +140,8 @@
       "rateLimited": "Hız limiti aşıldı, biraz bekle",
       "networkFailed": "Ağ hatası: {message}",
       "modelMissing": "Model bulunamadı: {model}",
-      "ollamaNotRunning": "Ollama yerel sunucusuna ulaşılamadı (varsayılan: localhost:11434)"
+      "ollamaNotRunning": "Ollama yerel sunucusuna ulaşılamadı (varsayılan: localhost:11434)",
+      "noEndpoint": "Custom AI uç noktası Ayarlar'da girilmedi"
     },
     "redact": {
       "notice": "{count} satır gizlendi (secret tespit edildi)",
@@ -601,7 +602,8 @@
       "toast": "Bildirim göster (toast)",
       "sendToAi": "AI Chat'e gönder",
       "runSnippet": "Snippet çalıştır (payload=snippet ID)",
-      "capture": "Logla (sadece kayıt)"
+      "capture": "Logla (sadece kayıt)",
+      "aiCopied": "⟦{name}⟧ → AI prompt panoya kopyalandı"
     }
   },
   "toast": {
