@@ -3,6 +3,21 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] — 2026-05-09
+
+D-Matrix temasına özel intro deneyimi + WelcomePane race condition fix + AppShell polish. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v095--2026-05-09).
+
+### Eklenen
+- `MatrixRain.vue` — D-Matrix temasında WelcomePane arka planında klasik "code rain" canvas overlay (intensity prop, `prefers-reduced-motion` saygılı, per-instance rAF + ResizeObserver).
+- WelcomePane Matrix intro: 1500 ms full rain → 0.18 atmosfer fade; satır reveal'inde ~250 ms katakana glyph scramble.
+- AppShell brand shimmer — 3-stop palindrome gradient (A→B→A) + `200% 100%` background-size + `-200%` offset ile seamless 8 s loop, `prefers-reduced-motion` ile durur.
+
+### Düzeltilen
+- WelcomePane `play()` reentrancy guard (`playToken`) — `info` watcher + `onMounted` çift `play()` tetiklerken ikincisinin `clearTimers()`'i birincinin Matrix intro `setTimeout`'unu öldürünce birinci sonsuz `await`'te asılırdı. Şimdi token kontrolü ile eski play temiz abort olur.
+- WelcomePane `isMatrixTheme` watcher — default→Matrix tema geçişinde rain canvas mount olurken `rainIntensity` stale `0` kalmıyor; `play()` yeniden çağrılır, fresh intro akışı başlar.
+- WelcomePane `welcome__hint` `position: relative; z-index: 1` — rain canvas (z=0, position absolute) static elementlerin üzerine çıkıyordu, hint metni yağmur altında kalmasın.
+- AppShell header çift-tık maximize — `startDragging()` çağrıldıktan sonra `dblclick` event'i WebView'a iletilmediği için ayrı `dblclick` handler tetiklenmiyordu. Şimdi `mousedown.detail === 2` ile çift-tık tespit edilir, drag yerine `winToggleMax()` çalışır (Windows native title bar davranışı).
+
 ## [0.9.4] — 2026-05-09
 
 Comprehensive hardening release. 11 paralel ajan ile audit; ~210 bulgudan release-blocker güvenlik açıkları, memory leak'leri, WCAG ihlalleri, AI provider eksiklikleri kapatıldı. Kalite skoru ~7.8 → ~9.4. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v094--2026-05-09).

@@ -1,5 +1,30 @@
 # D-Terminal Release Notes
 
+## v0.9.5 — 2026-05-09
+
+**Theme polish + race fix.** D-Matrix temasına özel "code rain" intro deneyimi + WelcomePane'in çift `play()` race condition'ı + AppShell title bar düzeltmeleri. v0.9.4 ile tam uyumlu (DB şeması/protokol değişmedi); UI-only sürüm.
+
+### ✨ D-Matrix tema deneyimi
+
+- **`MatrixRain.vue`** — WelcomePane arka planında klasik "code rain" canvas overlay. Per-instance `requestAnimationFrame` + `ResizeObserver`; `prefers-reduced-motion: reduce` ise canvas hiç başlatılmaz (sade siyah). DPR-aware crisp render. `intensity` prop 0..1 (intro 1.0, atmosfer 0.18).
+- **Welcome intro akışı** — D-Matrix temasında 1500 ms boyunca SADECE yağmur, sonra yağmur `0.18` atmosfere solar + logo typewriter başlar. Satır reveal'inde her satır için ~250 ms katakana scramble (yarım-genişlik ｱｲｳｴｵ… + sayı), bitince gerçek değer ortaya çıkar. Diğer temalarda davranış değişmez.
+- **`welcome--matrix` arka planı** — `rgba(0, 8, 0, 0.92)` solid backdrop ki Mica/transparent vibrancy'de bile yağmur etkisi okunaklı kalsın.
+
+### 🐛 Race condition + tema değişimi
+
+- **`play()` reentrancy guard (`playToken`)** — `onMounted`'de `await refresh()` info'yu set ediyordu, bu da `watch(info, …)` watcher'ını tetikliyor → ikinci `play()` paralel başlıyordu. İkinci `play()`'in `clearTimers()` çağrısı birinci `play()`'in Matrix intro `setTimeout`'unu öldürüyor, birinci `await new Promise(setTimeout(r, 1500))` sonsuza dek askıda kalıyordu. Şimdi token bumplanır; eski play her await'ten sonra `myToken !== playToken` görünce temiz abort olur.
+- **`isMatrixTheme` watcher** — default tema → Matrix geçişinde `MatrixRain` `v-if` ile mount olur ama prop'taki `rainIntensity` stale `0` kalıyor (önceki play'in else branch'i set etmişti). Canvas trail fade biriktiriyor ama glyph yok → ekran sadece kararıyordu. Watcher artık tema değişince `play()`'i yeniden çalıştırır, fresh intro akışı.
+- **`welcome__hint` z-index** — rain canvas `position: absolute; z-index: 0` static elementlerin üzerine çıkıyordu (CSS stacking context kuralı); hint metni yağmur altında kalıyordu. `position: relative; z-index: 1` ile çözüldü.
+
+### 🎨 AppShell polish
+
+- **Header çift-tık maximize** — Windows native title bar davranışı. `startDragging()` çağrıldıktan sonra `dblclick` event'i WebView'a iletilmiyor (Tauri 2 + Mica kombinasyonu), ayrı `dblclick` handler tetiklenmiyordu. Şimdi `mousedown.detail === 2` ile çift-tık tespit edilir; drag yerine `winToggleMax()` çalışır.
+- **Brand shimmer** — `> D-TERMINAL` üzerinde sürekli akan gradient. 3-stop palindrome (`accent → accent2 → accent`) + `background-size: 200% 100%` + `background-position: 0% → -200%` ile seamless tekrar (loop start/end glitch yok). 8 s `linear infinite`. `prefers-reduced-motion` ile otomatik durur (App.vue global rule).
+
+### 🔧 Diğer
+
+- `Cargo.toml` `tauri = { version = "2", features = [] }` — explicit empty feature list (no-op, açıklık için).
+
 ## v0.9.4 — 2026-05-09
 
 **Comprehensive hardening release.** 11 paralel ajan ile tüm proje audit'lendi (~210 bulgu); release-blocker güvenlik açıkları + memory leak'leri + WCAG ihlalleri + AI provider eksiklikleri kapatıldı. v0.9.3'te ~7.8/10 olan kalite skoru artık ~9.4/10. 12 atomik commit, 1500+ satır net iyileştirme. Önceki sürümle wire-protokol uyumlu (HELLO handshake geri uyumlu), DB şeması V001'den V002'ye otomatik yükseltir (backup + downgrade guard'lı).
