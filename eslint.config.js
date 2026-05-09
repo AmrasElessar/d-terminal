@@ -53,7 +53,10 @@ export default [
       'no-unused-vars': 'off',
       'no-undef': 'off', // TS halleder
       'vue/multi-word-component-names': 'off',
-      'vue/no-v-html': 'warn',
+      // XSS riski — v-html kullanılan her yer manuel review gerektirir.
+      // 'warn' yerine 'error': prod build CI'sinde hatayla durur, kontrolsüz
+      // v-html eklenmesini önler. Mevcut kullanım yoksa break-the-build maliyeti yok.
+      'vue/no-v-html': 'error',
       'vue/require-default-prop': 'off',
       'vue/attributes-order': 'warn',
       'vue/html-self-closing': 'off',

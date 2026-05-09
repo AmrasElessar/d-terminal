@@ -1,0 +1,34 @@
+# Cross-platform line ending normalization. Build/CI Windows (LF tolerated)
+# ama dev'de Linux/macOS kontributorler git diff'inde CRLF gürültüsü görmesin.
+
+* text=auto eol=lf
+
+# Windows-specific shell script ve batch dosyalar — CRLF zorunlu
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.psd1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Binary dosyalar — diff/merge devre dışı
+*.exe   binary
+*.dll   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.db    binary
+*.lock  -diff
+
+# Diff hint'leri — tooling'in özel formatları
+*.json   diff=json
+*.md     diff=markdown
+*.rs     diff=rust
+*.ts     diff=typescript
+*.vue    diff=html

@@ -172,25 +172,25 @@ function maskedIface(n: NetIface): string {
 
 function buildRows(i: SystemInfo): Row[] {
   const rows: Row[] = [];
-  rows.push({ id: 'os', key: 'OS', value: i.os });
+  rows.push({ id: 'os', key: t('dfetch.os'), value: i.os });
   rows.push({
     id: 'host',
-    key: 'Host',
+    key: t('dfetch.host'),
     value: i.hostname,
     sensitive: true,
     masked: maskHost(i.hostname),
   });
-  rows.push({ id: 'kernel', key: 'Kernel', value: i.kernel });
-  rows.push({ id: 'uptime', key: 'Uptime', value: fmtUptime(i.uptime_secs) });
-  rows.push({ id: 'boot', key: 'Boot', value: fmtBoot(i.boot_time_unix) });
-  if (i.shell) rows.push({ id: 'shell', key: 'Shell', value: i.shell });
-  rows.push({ id: 'terminal', key: 'Terminal', value: i.terminal });
-  rows.push({ id: 'desktop', key: 'Desktop', value: i.desktop });
-  rows.push({ id: 'theme', key: 'Theme', value: i.theme });
+  rows.push({ id: 'kernel', key: t('dfetch.kernel'), value: i.kernel });
+  rows.push({ id: 'uptime', key: t('dfetch.uptime'), value: fmtUptime(i.uptime_secs) });
+  rows.push({ id: 'boot', key: t('dfetch.boot'), value: fmtBoot(i.boot_time_unix) });
+  if (i.shell) rows.push({ id: 'shell', key: t('dfetch.shell'), value: i.shell });
+  rows.push({ id: 'terminal', key: t('dfetch.terminal'), value: i.terminal });
+  rows.push({ id: 'desktop', key: t('dfetch.desktop'), value: i.desktop });
+  rows.push({ id: 'theme', key: t('dfetch.theme'), value: i.theme });
   if (i.screen) {
     rows.push({
       id: 'res',
-      key: 'Resolution',
+      key: t('dfetch.resolution'),
       value: `${i.screen.width}x${i.screen.height} @ ${i.screen.scale.toFixed(2)}x`,
     });
   }
@@ -209,28 +209,28 @@ function buildRows(i: SystemInfo): Row[] {
   }
   rows.push({
     id: 'cpu',
-    key: 'CPU',
+    key: t('dfetch.cpu'),
     value: `${i.cpu} · ${topology}`,
     pct: cpuPct,
   });
   for (let g = 0; g < i.gpus.length; g++) {
     const gpu = i.gpus[g]!;
     const vram = gpu.vram ? `, ${fmtBytes(gpu.vram)}` : '';
-    rows.push({ id: `gpu-${g}`, key: 'GPU', value: `${gpu.name}${vram}` });
+    rows.push({ id: `gpu-${g}`, key: t('dfetch.gpu'), value: `${gpu.name}${vram}` });
   }
   // RAM: live varsa onun kullanılan değerini al (dfetch_get'ten zaman geçti).
   const ramUsed = live.value?.ram_used ?? i.ram_used;
   const ramTotal = live.value?.ram_total ?? i.ram_total;
   rows.push({
     id: 'mem',
-    key: 'Memory',
+    key: t('dfetch.ram'),
     value: `${fmtBytes(ramUsed)} / ${fmtBytes(ramTotal)}`,
     pct: pctOf(ramUsed, ramTotal),
   });
   if (i.swap_total > 0) {
     rows.push({
       id: 'swap',
-      key: 'Swap',
+      key: t('dfetch.swap'),
       value: `${fmtBytes(i.swap_used)} / ${fmtBytes(i.swap_total)}`,
       pct: pctOf(i.swap_used, i.swap_total),
     });
@@ -239,7 +239,7 @@ function buildRows(i: SystemInfo): Row[] {
     const disk = i.disks[d]!;
     rows.push({
       id: `disk-${d}`,
-      key: 'Disk',
+      key: t('dfetch.disk'),
       value: fmtDisk(disk),
       pct: pctOf(disk.used, disk.total),
     });
@@ -259,7 +259,7 @@ function buildRows(i: SystemInfo): Row[] {
       const idx = i.local_ips.indexOf(iface);
       rows.push({
         id: `net-${idx}`,
-        key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
+        key: iface.family === 'v4' ? t('dfetch.ipv4') : t('dfetch.ipv6'),
         value: fmtIface(iface),
         sensitive: true,
         masked: maskedIface(iface),
@@ -274,7 +274,7 @@ function buildRows(i: SystemInfo): Row[] {
       const txText = tput && tput.tx_bps > 0 ? fmtBps(tput.tx_bps) : '—';
       rows.push({
         id: 'net-throughput',
-        key: 'Net I/O',
+        key: t('dfetch.netIo'),
         value: `↓ ${rxText}  ↑ ${txText}`,
       });
     }
@@ -283,7 +283,7 @@ function buildRows(i: SystemInfo): Row[] {
       // ardından gelir, expanded false ise atılır.
       rows.push({
         id: 'net-expander',
-        key: 'Net',
+        key: t('dfetch.net'),
         value: '',
         isNetExpander: true,
         netHiddenCount: others.length,
@@ -293,7 +293,7 @@ function buildRows(i: SystemInfo): Row[] {
           const idx = i.local_ips.indexOf(iface);
           rows.push({
             id: `net-${idx}`,
-            key: iface.family === 'v4' ? 'IPv4' : 'IPv6',
+            key: iface.family === 'v4' ? t('dfetch.ipv4') : t('dfetch.ipv6'),
             value: fmtIface(iface),
             sensitive: true,
             masked: maskedIface(iface),
@@ -314,15 +314,15 @@ function buildRows(i: SystemInfo): Row[] {
     }
     rows.push({
       id: 'bat',
-      key: 'Battery',
+      key: t('dfetch.battery'),
       value: val,
       // Pil için renk ters: %20 = kırmızı, %80 = yeşil. Şarj olurken renk yok.
       pct: battery.charging || battery.full ? undefined : battery.percent,
     });
   }
-  rows.push({ id: 'locale', key: 'Locale', value: i.locale });
-  rows.push({ id: 'tz', key: 'Timezone', value: i.timezone });
-  rows.push({ id: 'ver', key: 'Version', value: `D-Terminal v${i.d_terminal_version}` });
+  rows.push({ id: 'locale', key: t('dfetch.locale'), value: i.locale });
+  rows.push({ id: 'tz', key: t('dfetch.timezone'), value: i.timezone });
+  rows.push({ id: 'ver', key: t('dfetch.version'), value: `D-Terminal v${i.d_terminal_version}` });
   return rows;
 }
 

@@ -46,6 +46,7 @@
       "binaries/dterminal-pty-bridge"
     ],
     "copyright": "Copyright © 2026 Orhan Engin OKAY",
+    "publisher": "Orhan Engin OKAY",
     "category": "DeveloperTool",
     "shortDescription": "Agent-aware Windows terminal",
     "longDescription": "D-Terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler. Çoklu pane deneyimi + evrensel AI entegrasyonu, Windows'a native.",

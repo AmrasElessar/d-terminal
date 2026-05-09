@@ -1,0 +1,42 @@
+# cargo-about config — third-party license raporu üretimi.
+#
+# Kullanım:
+#   cargo install cargo-about
+#   cargo about generate -o ../docs/THIRD_PARTY_LICENSES.html
+#
+# MS Store submission'unda "Notes for certification" alanı için third-party
+# license listesi talep edilebilir; bu config beklenen license set'ini
+# tanımlar (rustls, reqwest, tokio, serde vs. — apache/MIT permissive).
+
+# Bilinmeyen license fail olsun — gözden kaçan yeni dep'i tespit etmek için.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+no-clearly-defined = true
+
+[targets]
+# Yalnızca Windows targets — D-Terminal Windows-only.
+"cfg(target_os = \"windows\")" = []
+
+# İzin verilen license'lar (SPDX). Yeni bir dep farklı license getirirse
+# build fail olur; manuel review + buraya ekleme gerekir.
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "0BSD",
+    "CC0-1.0",
+    "MPL-2.0",  # weak copyleft, MIT projesinde kullanılabilir (file-level)
+]
+
+# clarify: bilinmeyen ya da hatalı tanımlanmış license'ları manuel olarak
+# clarify et. Şu an boş — ihtiyaç oldukça eklenir.

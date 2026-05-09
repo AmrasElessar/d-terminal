@@ -40,8 +40,12 @@ jobs:
         run: pnpm build
 
   rust:
-    name: Rust core (Tauri)
+    name: Rust core (${{ matrix.target }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-pc-windows-msvc, aarch64-pc-windows-msvc]
     steps:
       - uses: actions/checkout@v4
 
@@ -49,11 +53,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          targets: ${{ matrix.target }}
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.target }}
 
       # Tauri build script frontendDist klasörünü ve externalBin path'lerini
       # doğrular; clippy/test için gerçek build'e gerek yok, dosya mevcut olmalı.
@@ -63,21 +69,41 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Set-Content -Path dist/index.html -Value '<!doctype html><html><head><meta charset="utf-8"><title>D-Terminal CI stub</title></head><body></body></html>'
           New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
-          # externalBin path doğrulaması için boş dosya yeterli (clippy/test
-          # binary'i çalıştırmaz, yalnız Tauri build script existence check yapar).
+          # Her iki target için sidecar stub bırak — Tauri externalBin
+          # existence check'i her arch için ayrı dosya bekler.
           New-Item -ItemType File -Force -Path src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe | Out-Null
+          New-Item -ItemType File -Force -Path src-tauri/binaries/dterminal-pty-bridge-aarch64-pc-windows-msvc.exe | Out-Null
 
       - name: Format check
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         working-directory: src-tauri
         run: cargo fmt --check
 
       - name: Clippy
         working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --target ${{ matrix.target }} -- -D warnings
 
+      # Test yalnızca x64'te — ARM64 cross-compile testleri Windows runner'da
+      # çalıştırılamaz (binary native ARM64'te koşar, x64 host'ta exec'lenmez).
       - name: Test
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         working-directory: src-tauri
         run: cargo test
+
+  audit:
+    name: Security audit (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      # RustSec advisory veritabanına karşı Cargo.lock'taki tüm crate'leri
+      # tara. CI'da ayrı bir job — fail olsa diğer job'ları engellemesin.
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
 
   sidecar:
     name: Sidecar (Node)
