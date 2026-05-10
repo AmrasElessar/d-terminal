@@ -82,7 +82,7 @@ jobs:
             ForEach-Object { "$($_.FullName) ($([math]::Round($_.Length/1KB, 2)) KB)" }
 
       - name: Upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             src-tauri/target/${{ matrix.rust_target }}/release/bundle/msi/*.msi
@@ -157,7 +157,7 @@ jobs:
           cat latest.json
 
       - name: Upload latest.json to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: out/latest.json
           fail_on_unmatched_files: true
@@ -200,7 +200,7 @@ jobs:
           echo "> README badge'lerini güncellemek için yukarıdaki SHA-256'ları kullan." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload hashes.txt to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/hashes.txt
           fail_on_unmatched_files: false
