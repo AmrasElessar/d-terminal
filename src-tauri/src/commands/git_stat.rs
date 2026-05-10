@@ -1,19 +1,29 @@
 // Git diff shortstat — pane'in working directory'sinde uncommitted değişiklikleri
 // say. Title bar'da "Δ +23 -8" chip'i için kullanılır.
 //
-// `git diff --shortstat HEAD` parse edilir. HEAD'e karşı diff: index + working
-// tree (staged + unstaged), ama henüz commit edilmemiş her şey dahil.
+// İki kaynak birleştirilir:
+//   1. `git diff --shortstat HEAD` — tracked dosyaların staged + unstaged farkı
+//   2. `git ls-files --others --exclude-standard` — untracked (yeni) dosyalar;
+//      her dosyanın satır sayısı `added`'a eklenir, dosya sayısı `files`'a.
 //
-// Output formatı (örnek):
-//   " 3 files changed, 47 insertions(+), 12 deletions(-)"
-//   " 1 file changed, 8 deletions(-)"
-//   " 2 files changed, 15 insertions(+)"
+// Bu birleşim: kullanıcı yeni dosya ekleyince de chip görünür. Tracked-only
+// `git diff --shortstat` untracked'ı kaçırırdı → "kod değişimi var ama chip
+// görünmüyor" bug'ı (commit önce raporlanmış).
 //
 // Repo değilse veya değişiklik yoksa GitStat { 0, 0, 0 } döner — null değil
 // ki frontend tutarlı state tutsun.
 
 use serde::Serialize;
+use std::path::Path;
 use std::process::Command;
+
+/// Untracked dosya başına okunan max byte (DoS guard — 100 MB log dosyasını
+/// her 5 saniyede taramayalım). Üstü truncate edilir; line count tahminen
+/// alt sınır olur ama chip "var" mesajı için yeterli.
+const MAX_UNTRACKED_FILE_BYTES: u64 = 1 * 1024 * 1024;
+/// Untracked dosya tarama tavanı — `node_modules` gibi git-ignore'a alınmamış
+/// patolojik dizinlerde polling'i kilitlememesi için sert üst sınır.
+const MAX_UNTRACKED_FILES: usize = 500;
 
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct GitStat {
@@ -88,7 +98,66 @@ fn run_git_diff(path: &str) -> GitStat {
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
-    parse_shortstat(&text)
+    let mut stat = parse_shortstat(&text);
+
+    // Untracked dosyalar — `git diff --shortstat` bunları görmez. Yeni eklenmiş
+    // dosyaların satır sayısını added'a ekleriz, dosya sayısını files'a.
+    let untracked = collect_untracked(path);
+    stat.files = stat.files.saturating_add(untracked.file_count);
+    stat.added = stat.added.saturating_add(untracked.line_count);
+
+    stat
+}
+
+#[derive(Default)]
+struct UntrackedSummary {
+    file_count: u32,
+    line_count: u32,
+}
+
+fn collect_untracked(repo_path: &str) -> UntrackedSummary {
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", repo_path, "ls-files", "--others", "--exclude-standard"]);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.env("GIT_CONFIG_NOSYSTEM", "1");
+    cmd.env("GIT_CONFIG_GLOBAL", "NUL");
+    cmd.env("GIT_CONFIG_COUNT", "1");
+    cmd.env("GIT_CONFIG_KEY_0", "safe.directory");
+    cmd.env("GIT_CONFIG_VALUE_0", "*");
+
+    let output = match cmd.output() {
+        Ok(o) if o.status.success() => o,
+        _ => return UntrackedSummary::default(),
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut summary = UntrackedSummary::default();
+    let repo = Path::new(repo_path);
+    for line in text.lines().take(MAX_UNTRACKED_FILES) {
+        let rel = line.trim();
+        if rel.is_empty() {
+            continue;
+        }
+        summary.file_count = summary.file_count.saturating_add(1);
+        let abs = repo.join(rel);
+        if let Ok(meta) = std::fs::metadata(&abs) {
+            // Binary heuristic: 1 MB üstü dosyaları satır olarak saymayız —
+            // muhtemelen log/binary, kod değişikliği değil.
+            let len = meta.len();
+            if len == 0 || len > MAX_UNTRACKED_FILE_BYTES {
+                continue;
+            }
+        } else {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(&abs) {
+            let lines = content.lines().count() as u32;
+            summary.line_count = summary.line_count.saturating_add(lines);
+        }
+    }
+    summary
 }
 
 /// "3 files changed, 47 insertions(+), 12 deletions(-)" format'ını parse eder.

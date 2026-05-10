@@ -29,7 +29,9 @@ interface PaneState {
 
 const stateByPane = new Map<string, PaneState>();
 
-const POLL_INTERVAL_MS = 10_000;
+// 5sn — kullanıcı edit yapıyor, chip 10sn gecikmeli güncelleniyordu, hızlı
+// feedback için yarıya indirildi. git diff yerel repo'da typically <50ms.
+const POLL_INTERVAL_MS = 5_000;
 
 function getOrCreateState(paneId: string): PaneState {
   let s = stateByPane.get(paneId);

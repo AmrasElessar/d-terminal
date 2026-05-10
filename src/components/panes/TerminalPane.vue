@@ -777,8 +777,17 @@ onMounted(async () => {
   }
   await spawn();
   // Git diff tracking — OSC 7 ile cwd geldikçe `setPaneCwd` çağrılır;
-  // poller arka planda 10sn'de bir refresh eder. TerminalPane zaten yalnızca
+  // poller arka planda 5sn'de bir refresh eder. TerminalPane zaten yalnızca
   // PTY'li tipler için mount edilir (powershell/cmd/wsl), ek koşula gerek yok.
+  //
+  // Initial fallback: profile.cwd varsa onunla başla — ilk prompt'tan önce
+  // (OSC 7 emit edilmeden) chip görünür. PowerShell init script çalışınca
+  // OSC 7 ile güncellenir, aynı path ise no-op (setPaneCwd cwd === newCwd
+  // check'i var). Profile cwd boşsa OSC 7'yi bekle.
+  const profile = profiles.find(props.leaf.profileId ?? '');
+  if (profile?.cwd && profile.cwd.length > 0) {
+    setPaneCwd(props.leaf.id, profile.cwd);
+  }
   startGitStatPolling(props.leaf.id);
 });
 
