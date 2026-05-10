@@ -251,7 +251,10 @@ fn coalesce_pty_events(events: Vec<PtyEvent>) -> Vec<PtyEvent> {
             // can_merge true → ev Stdout olmalı; bug yüzünden değilse panic
             // yerine pass-through (defansif). Üretimde tracing ile farkına
             // varılır, kullanıcı deneyimi crash yerine küçük bir merge kaybı.
-            if let PtyEvent::Stdout { data: mut new_data, .. } = ev {
+            if let PtyEvent::Stdout {
+                data: mut new_data, ..
+            } = ev
+            {
                 if let Some(PtyEvent::Stdout {
                     data: prev_data, ..
                 }) = out.last_mut()

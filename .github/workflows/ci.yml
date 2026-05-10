@@ -15,8 +15,9 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: 9
+        # Sürüm package.json `packageManager` field'ından okunur (pnpm@9.15.0).
+        # `version` parametresi de eklenirse v6 action ERR_PNPM_BAD_PM_VERSION
+        # ile fail eder ("Multiple versions of pnpm specified").
 
       - name: Setup Node
         uses: actions/setup-node@v6

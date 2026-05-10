@@ -20,7 +20,7 @@ use std::process::Command;
 /// Untracked dosya başına okunan max byte (DoS guard — 100 MB log dosyasını
 /// her 5 saniyede taramayalım). Üstü truncate edilir; line count tahminen
 /// alt sınır olur ama chip "var" mesajı için yeterli.
-const MAX_UNTRACKED_FILE_BYTES: u64 = 1 * 1024 * 1024;
+const MAX_UNTRACKED_FILE_BYTES: u64 = 1024 * 1024;
 /// Untracked dosya tarama tavanı — `node_modules` gibi git-ignore'a alınmamış
 /// patolojik dizinlerde polling'i kilitlememesi için sert üst sınır.
 const MAX_UNTRACKED_FILES: usize = 500;
@@ -117,7 +117,13 @@ struct UntrackedSummary {
 
 fn collect_untracked(repo_path: &str) -> UntrackedSummary {
     let mut cmd = Command::new("git");
-    cmd.args(["-C", repo_path, "ls-files", "--others", "--exclude-standard"]);
+    cmd.args([
+        "-C",
+        repo_path,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+    ]);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::null());
