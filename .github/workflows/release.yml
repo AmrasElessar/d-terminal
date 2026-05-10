@@ -37,7 +37,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 9
+          # package.json `packageManager: pnpm@9.15.0` ile EŞİT pin —
+          # action-setup v6 packageManager auto-detect yapmıyor; version'suz
+          # bırakılırsa latest pnpm 10.x kurulur ve Node 20 ile node:sqlite
+          # ERR_UNKNOWN_BUILTIN_MODULE hatası verir. Eşit olduğu sürece
+          # "Multiple versions of pnpm specified" lint tetiklenmez.
+          version: 9.15.0
 
       - name: Setup Node
         uses: actions/setup-node@v6
