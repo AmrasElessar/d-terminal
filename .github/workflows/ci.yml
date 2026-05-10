@@ -15,9 +15,13 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        # Sürüm package.json `packageManager` field'ından okunur (pnpm@9.15.0).
-        # `version` parametresi de eklenirse v6 action ERR_PNPM_BAD_PM_VERSION
-        # ile fail eder ("Multiple versions of pnpm specified").
+        with:
+          # packageManager (package.json) ile EŞİT pin — action-setup v6
+          # packageManager'ı default okumuyor; version'suz bırakılırsa latest
+          # pnpm 10.x kurulur ve Node 20 ile node:sqlite hatası verir.
+          # Eşit (9.15.0 == pnpm@9.15.0) olduğu sürece "Multiple versions"
+          # hatası tetiklenmez.
+          version: 9.15.0
 
       - name: Setup Node
         uses: actions/setup-node@v6
