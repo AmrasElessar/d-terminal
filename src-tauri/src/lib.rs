@@ -248,18 +248,22 @@ fn coalesce_pty_events(events: Vec<PtyEvent>) -> Vec<PtyEvent> {
             _ => false,
         };
         if can_merge {
-            // can_merge true → ev mutlaka Stdout, full destructure güvenli
-            let mut new_data = match ev {
-                PtyEvent::Stdout { data, .. } => data,
-                _ => unreachable!("can_merge implies Stdout"),
-            };
-            if let Some(PtyEvent::Stdout {
-                data: prev_data, ..
-            }) = out.last_mut()
-            {
-                prev_data.append(&mut new_data);
+            // can_merge true → ev Stdout olmalı; bug yüzünden değilse panic
+            // yerine pass-through (defansif). Üretimde tracing ile farkına
+            // varılır, kullanıcı deneyimi crash yerine küçük bir merge kaybı.
+            if let PtyEvent::Stdout { data: mut new_data, .. } = ev {
+                if let Some(PtyEvent::Stdout {
+                    data: prev_data, ..
+                }) = out.last_mut()
+                {
+                    prev_data.append(&mut new_data);
+                }
+                continue;
+            } else {
+                tracing::error!("coalesce: can_merge=true but ev is not Stdout — bug");
+                out.push(ev);
+                continue;
             }
-            continue;
         }
         out.push(ev);
     }

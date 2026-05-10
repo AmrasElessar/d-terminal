@@ -621,25 +621,39 @@ pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> 
         return Err("UNC path not allowed".into());
     }
 
-    // Allowed root listesi — çoğu canonical değil çünkü dosya henüz yok;
-    // ancak parent canonical olabilir. Önce parent'ı resolve ediyoruz.
     let parent = p
         .parent()
         .ok_or_else(|| "path has no parent dir".to_string())?;
-    // create_dir_all parent yoksa oluştur — yine de allowed root altında olmalı.
     let allowed_roots: Vec<std::path::PathBuf> = [
         dirs::picture_dir(),
         dirs::desktop_dir(),
         dirs::download_dir(),
         dirs::document_dir(),
-        // Uygulama snapshot klasörü — auto-save akışı için.
         dirs::data_dir().map(|d| d.join("D-Terminal").join("snapshots")),
     ]
     .into_iter()
     .flatten()
     .collect();
 
-    // create_dir_all sonra canonicalize edebiliriz; ama önce başlangıç check.
+    // Path traversal segmentlerini reddet (lexicographic) — mkdir'den ÖNCE.
+    // Aksi halde saldırgan `..` segmentleri ile allowed-root dışında dizin
+    // yaratabilir; canonicalize sonrası reddedilse bile mkdir side-effect kalır.
+    for comp in p.components() {
+        if matches!(comp, std::path::Component::ParentDir) {
+            return Err("path traversal segment '..' not allowed".into());
+        }
+    }
+    // Logical prefix-match — parent henüz var olmayabilir ama mantıksal olarak
+    // izinli kök altında olmalı. Canonical kontrol mkdir sonrası tekrar yapılır.
+    let lexical_allowed = allowed_roots.iter().any(|root| parent.starts_with(root));
+    if !lexical_allowed {
+        return Err(
+            "path outside allowed roots (Pictures/Desktop/Documents/Downloads/AppData)".into(),
+        );
+    }
+
+    // Lexical check geçti; şimdi mkdir + canonicalize ile symlink/junction
+    // bypass'larını da kapat (defense-in-depth).
     let _ = std::fs::create_dir_all(parent);
     let canon_parent = parent
         .canonicalize()

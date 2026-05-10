@@ -162,6 +162,20 @@ export const usePanesStore = defineStore('panes', () => {
     } catch {
       /* a.g. */
     }
+    // Git stat polling state — TerminalPane onBeforeUnmount kendisi temizler
+    // ama hızlı pane open/close sıralarında interval multiply yaşamamak için
+    // store cleanup'a defansif çağrı (idempotent).
+    try {
+      void clearGitStatStateLazy(leafId);
+    } catch {
+      /* a.g. */
+    }
+  }
+
+  // Lazy import — circular dep riski olmasın (composable panes'i import etmiyor)
+  async function clearGitStatStateLazy(leafId: string) {
+    const mod = await import('@/composables/useGitStat');
+    mod.clearGitStatState(leafId);
   }
 
   async function closeTab(id: string) {

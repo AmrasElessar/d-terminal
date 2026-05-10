@@ -1,8 +1,12 @@
 version: 2
 # Dependabot — package güncellemelerini otomatik PR'la.
 # CVE alarmları gerçek zamanlı; sürüm güncellemeleri haftalık batch.
-# Audit H2: outdated deps (pinia 2→3, vite 6→8, vitest 2→4, eslint 9→10,
-# typescript 5→6) için PR akışı; manuel review + merge.
+#
+# Strateji:
+#   - patch + minor → tek "dependencies" grup PR'ı (auto-merge'e uygun)
+#   - major → ayrı "major" grup PR'ı (manuel review + breaking change kontrolü)
+#   - sidecar npm de major bloke — node-pty 1→2 gibi kritik bumps için manuel
+#   - actions weekly (security patch'leri için aylık çok yavaş)
 
 updates:
   # Frontend (pnpm)
@@ -15,16 +19,18 @@ updates:
       timezone: Europe/Istanbul
     open-pull-requests-limit: 5
     labels: [dependencies, frontend]
-    # Major sürüm yükseltmeleri elle review — breaking change risk yüksek.
-    # Patch + minor otomatik eligible.
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    groups:
+      dependencies:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      major:
+        patterns: ["*"]
+        update-types: ["major"]
     commit-message:
       prefix: "deps(npm)"
       include: scope
 
-  # Sidecar (Node)
+  # Sidecar (Node) — major bloke; node-pty / pkg breaking changes manuel
   - package-ecosystem: npm
     directory: /sidecar
     schedule:
@@ -32,6 +38,13 @@ updates:
       day: monday
     open-pull-requests-limit: 3
     labels: [dependencies, sidecar]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      sidecar-dependencies:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
     commit-message:
       prefix: "deps(sidecar)"
 
@@ -43,17 +56,25 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     labels: [dependencies, rust]
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    groups:
+      cargo-dependencies:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      cargo-major:
+        patterns: ["*"]
+        update-types: ["major"]
     commit-message:
       prefix: "deps(cargo)"
 
-  # GitHub Actions
+  # GitHub Actions — weekly (security patch'ler için aylık çok yavaş)
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+      day: monday
     labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ["*"]
     commit-message:
       prefix: "deps(actions)"

@@ -10,7 +10,10 @@ const PATTERNS: RegExp[] = [
   /(?:password|passwd|token|api[_-]?key|secret)\s*[:=]\s*["']?([^\s"']+)/gi,
   /\bAKIA[0-9A-Z]{16}\b/g,                                       // AWS access key
   /\bxox[baprs]-[a-zA-Z0-9-]+\b/g,                                // Slack tokens
-  /\b[A-Za-z0-9+/=]{40,}\b/g,                                    // long base64-ish blobs (best-effort)
+  // 60+ char base64-ish blob — 40 yanlış pozitif (git SHA, normal Path
+  // string'leri, hash'ler). 60 karakter eşiği gerçek secret'lara daha yakın
+  // (JWT typical 100+, OAuth refresh token 60+, çoğu API blob 64+).
+  /\b[A-Za-z0-9+/=]{60,}\b/g,
 ];
 
 export interface RedactionResult {

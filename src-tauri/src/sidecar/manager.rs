@@ -74,10 +74,11 @@ struct Inner {
 /// ve OOM riski doğardı (`cat huge.log` gibi senaryolarda 100 MB/sn enqueue).
 /// `sync_channel(N)` ile sıkışınca sender bloklanır ya da `try_send` Drop yolu
 /// devreye girer; reader thread doğal olarak yavaşlar (TCP backpressure'a
-/// benzer). 4096 yeterince büyük (lifecycle event'leri yutulmaz) ama kayda
-/// değer bir bellek üst sınırı koyar (~64 KB sentinel ortalama × 4096 ≈ 256 MB
-/// worst-case, pratikte coalescing ile çok altında).
-const EVENT_QUEUE_CAPACITY: usize = 4096;
+/// benzer). 16384 — coalescing window'da burst tolerans (~1-2 GB worst-case
+/// ama pratikte coalescing 60 event/sn'e düşürdüğü için 4-8 saniye buffer).
+/// Lifecycle event'lerinin (`SidecarUp/Down/Exit/Error`) drop riski bu boyutta
+/// pratik olarak sıfırdır.
+const EVENT_QUEUE_CAPACITY: usize = 16384;
 
 impl SidecarManager {
     pub fn new(sidecar_path: std::path::PathBuf) -> Arc<Self> {

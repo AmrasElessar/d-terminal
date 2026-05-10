@@ -76,11 +76,23 @@ pub async fn ai_chat_stream(
 /// Çalışan bir AI stream'i iptal eder. `stream_id` `ai_chat_stream`'i
 /// başlatırken frontend'in ürettiği unique sayı (Date.now() + counter).
 /// Stream zaten bittiyse no-op (entry map'te yok).
+///
+/// Race güvenliği: `ai_chat_stream` başarılı tamamlandığında entry'yi
+/// `ai_aborts.remove()` ile siler — bu fonksiyon aynı anda çağrılırsa lock
+/// senkronize olduğu için sadece biri tx alır. tx.send() başarısızsa
+/// (receiver drop edildi) zaten chat tamamlanmış demektir, no-op.
 #[tauri::command]
 pub fn ai_abort_stream(state: State<'_, AppState>, stream_id: u64) {
-    if let Some(tx) = state.ai_aborts.lock().remove(&stream_id) {
-        // send hata dönerse (receiver zaten drop) — yine de OK.
-        let _ = tx.send(());
+    let maybe_tx = state.ai_aborts.lock().remove(&stream_id);
+    if let Some(tx) = maybe_tx {
+        // is_closed → chat zaten Sender drop edildi (tamamlandı/cancel oldu).
+        if tx.is_closed() {
+            tracing::debug!(stream_id, "abort no-op — receiver already closed");
+            return;
+        }
+        if tx.send(()).is_err() {
+            tracing::debug!(stream_id, "abort send failed — chat finished concurrently");
+        }
     }
 }
 

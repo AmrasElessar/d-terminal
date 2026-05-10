@@ -74,6 +74,8 @@ export const useTriggersStore = defineStore('triggers', () => {
   function remove(id: string) {
     triggers.value = triggers.value.filter((t) => t.id !== id);
     lastFiredAt.delete(id);
+    // compiled regex cache computed → triggers.value değişince yeniden
+    // hesaplanır, silinen id otomatik düşer. lastFiredAt manuel cleanup.
   }
 
   function update(id: string, patch: Partial<Trigger>) {

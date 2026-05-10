@@ -64,5 +64,25 @@ export default defineConfig({
     // ile CI yeşil tik veriyordu (yanılsama). En az bir test mevcut artık
     // (utils/redact.test.ts), bu yüzden gate açılıyor.
     passWithNoTests: false,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.{ts,vue}'],
+      exclude: [
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/**/*.d.ts',
+        'src/locales/**',
+        'src/main.ts',
+        'src/env.d.ts',
+      ],
+      // Mevcut frontend coverage'ı düşük (~10%); bu eşik gerçekçi taban
+      // çizgisi. 1.0 yolunda store/composable test'leri eklendikçe yükseltilir.
+      thresholds: {
+        lines: 10,
+        functions: 10,
+        branches: 50,
+        statements: 10,
+      },
+    },
   },
 });

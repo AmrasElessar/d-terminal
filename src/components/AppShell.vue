@@ -222,11 +222,13 @@ onMounted(async () => {
   // Geri kalan store'lar birbirinden bağımsız → paralel yükle (300-500ms kazanç).
   // Her biri kendi hatasını yutar; biri patlasa diğerleri açılır.
   await Promise.all([
-    ai.refresh().catch(() => {}),
-    snippets.load().catch(() => {}),
-    triggers.load().catch(() => {}),
-    profiles.load().catch(() => {}),
-    panes.startListening().catch(() => {}),
+    ai.refresh().catch((e) => log.warn('ai.refresh failed', { error: String(e) })),
+    snippets.load().catch((e) => log.warn('snippets.load failed', { error: String(e) })),
+    triggers.load().catch((e) => log.warn('triggers.load failed', { error: String(e) })),
+    profiles.load().catch((e) => log.warn('profiles.load failed', { error: String(e) })),
+    // PTY event listener kritik — silent yutmamak için error log; toast yok
+    // (boot-time, kullanıcı henüz UI'ı görmedi), dev/log'da görünür.
+    panes.startListening().catch((e) => log.error('panes.startListening failed', { error: String(e) })),
   ]);
   // UAC elevation durumu — process lifetime boyunca sabit, tek seferlik fetch
   api.adminIsElevated().then((v) => { isElevated.value = v; }).catch(() => {});

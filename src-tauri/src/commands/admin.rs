@@ -102,10 +102,35 @@ pub fn admin_restart_elevated(_app: tauri::AppHandle) -> AppResult<()> {
 #[cfg(target_os = "windows")]
 #[tauri::command]
 pub fn admin_open_dev_settings() -> AppResult<()> {
-    std::process::Command::new("cmd")
-        .args(["/c", "start", "ms-settings:developers"])
-        .spawn()
-        .map_err(|e| AppError::Internal(format!("open settings: {e}")))?;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    // ShellExecuteW direct çağrı — `cmd /c start` shell aracısı kaldırıldı
+    // (cmd.exe parser'ı ms-settings: handler kapalıysa beklenmedik fallback
+    // yapabilir, M1). URI literal sabit; kullanıcı parametre veremez.
+    let uri: Vec<u16> = std::ffi::OsStr::new("ms-settings:developers")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let verb: Vec<u16> = "open\0".encode_utf16().collect();
+    unsafe {
+        let hinst = ShellExecuteW(
+            None,
+            PCWSTR(verb.as_ptr()),
+            PCWSTR(uri.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOWNORMAL,
+        );
+        let code = hinst.0 as isize;
+        if code <= 32 {
+            return Err(AppError::Internal(format!(
+                "ShellExecuteW ms-settings failed (code {code})"
+            )));
+        }
+    }
     Ok(())
 }
 

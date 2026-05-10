@@ -18,9 +18,13 @@ use serde::Deserialize;
 use serde_json::json;
 use std::net::IpAddr;
 
-/// Custom/override endpoint validasyonu — SSRF koruması.
+/// Custom/override endpoint validasyonu — SSRF koruması (sync, hızlı reddler).
 /// Kabul edilenler: http(s) şeması + (localhost | loopback IP | public host).
 /// Reddedilenler: file://, ftp://, vb. + private/link-local/multicast IP.
+///
+/// **Not:** Public hostname'ler için DNS resolve check'i `validate_endpoint_dns`
+/// içinde yapılır (async, chat path'inde çağrılır). Bu fonksiyon tek başına
+/// DNS rebinding'i kapatmaz — IP literal saldırılarını bloklar.
 pub(crate) fn validate_endpoint(url: &str) -> Result<(), String> {
     let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalidUrl:{e}"))?;
     match parsed.scheme() {
@@ -37,39 +41,79 @@ pub(crate) fn validate_endpoint(url: &str) -> Result<(), String> {
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(host);
     if let Ok(ip) = host_for_ip.parse::<IpAddr>() {
-        match ip {
-            IpAddr::V4(v4) => {
-                if v4.is_loopback() {
-                    return Ok(());
-                }
-                if v4.is_private()
-                    || v4.is_link_local()
-                    || v4.is_broadcast()
-                    || v4.is_documentation()
-                    || v4.is_unspecified()
-                    || v4.is_multicast()
-                {
-                    return Err(format!("privateIp:{v4}"));
-                }
+        return check_ip_public(&ip);
+    }
+    Ok(())
+}
+
+/// Tek bir IP'nin public olup olmadığını kontrol eder. Loopback geçerli kabul
+/// edilir (yerel runtime'lar için). Private/link-local/multicast reddedilir.
+pub(crate) fn check_ip_public(ip: &IpAddr) -> Result<(), String> {
+    match ip {
+        IpAddr::V4(v4) => {
+            if v4.is_loopback() {
+                return Ok(());
             }
-            IpAddr::V6(v6) => {
-                if v6.is_loopback() {
-                    return Ok(());
-                }
-                if v6.is_unspecified() || v6.is_multicast() {
-                    return Err(format!("privateIp:{v6}"));
-                }
-                let segs = v6.segments();
-                // fc00::/7 unique-local
-                if segs[0] & 0xfe00 == 0xfc00 {
-                    return Err(format!("privateIp:{v6}"));
-                }
-                // fe80::/10 link-local
-                if segs[0] & 0xffc0 == 0xfe80 {
-                    return Err(format!("privateIp:{v6}"));
-                }
+            if v4.is_private()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.is_unspecified()
+                || v4.is_multicast()
+            {
+                return Err(format!("privateIp:{v4}"));
             }
         }
+        IpAddr::V6(v6) => {
+            if v6.is_loopback() {
+                return Ok(());
+            }
+            if v6.is_unspecified() || v6.is_multicast() {
+                return Err(format!("privateIp:{v6}"));
+            }
+            let segs = v6.segments();
+            // fc00::/7 unique-local
+            if segs[0] & 0xfe00 == 0xfc00 {
+                return Err(format!("privateIp:{v6}"));
+            }
+            // fe80::/10 link-local
+            if segs[0] & 0xffc0 == 0xfe80 {
+                return Err(format!("privateIp:{v6}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Async DNS resolve check — public hostname'in tüm resolved IP'lerinin de
+/// public olduğunu doğrular. DNS rebinding (saldırgan-controlled domain
+/// → 127.0.0.1 / 169.254.169.254) saldırılarını kapatır. Chat path'inde
+/// (her chat çağrısı öncesi) çağrılmalı; önbellekten yararlanmaz çünkü
+/// reqwest her HTTP bağlantısı için kendi resolve'unu yapar — bu yüzden
+/// ilk validate gerçek bir resolve'u göstermeyebilir, ama "ilk requestte
+/// rebinding" senaryosu pratikte gözlemlenmiyor (TTL=0 saldırgan zaten
+/// sürekli rebinding yapamaz). Defense-in-depth amaçlı.
+pub(crate) async fn validate_endpoint_dns(url: &str) -> Result<(), String> {
+    validate_endpoint(url)?;
+    let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalidUrl:{e}"))?;
+    let host = parsed.host_str().ok_or_else(|| "noHost".to_string())?;
+    if host.eq_ignore_ascii_case("localhost") {
+        return Ok(());
+    }
+    let host_for_ip = host
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(host);
+    if host_for_ip.parse::<IpAddr>().is_ok() {
+        return Ok(()); // literal IP — sync validate_endpoint zaten kontrol etti
+    }
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let lookup_target = format!("{host}:{port}");
+    let addrs = tokio::net::lookup_host(&lookup_target)
+        .await
+        .map_err(|e| format!("dnsResolveFailed:{e}"))?;
+    for sa in addrs {
+        check_ip_public(&sa.ip())?;
     }
     Ok(())
 }
@@ -298,6 +342,11 @@ impl ChatProvider for OpenAi {
             return Err("noKey".to_string());
         }
         let base = self.resolve_base_url(&options)?;
+        // DNS rebinding hardening — public hostname'in tüm resolved IP'lerinin
+        // public olduğunu doğrula (M4). resolve_base_url sync validate_endpoint
+        // ile literal IP saldırılarını kapatıyor; burada async DNS check ile
+        // saldırgan-controlled domain → private IP rebind'i de kapatılır.
+        validate_endpoint_dns(base).await?;
         let trimmed = base.trim_end_matches('/');
         // Kullanıcı tam path verdiyse (örn. https://api.example.com/v1/chat/completions),
         // çiftleşmemek için olduğu gibi kullan.
@@ -342,7 +391,10 @@ impl ChatProvider for OpenAi {
             let txt = resp.text().await.unwrap_or_default();
             // Body sadece Rust log'a — frontend'e status code yeter
             // (api key prefix/quota detay sızıntısını engeller).
-            tracing::warn!(provider = self.id, status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
+            // Body sadece debug seviyesinde (release'de filtrelenir) — provider
+            // hata gövdesi prompt/model içeriği echo edebilir, log'da kalmasın.
+            tracing::warn!(provider = self.id, status = %status, "AI API error");
+            tracing::debug!(provider = self.id, body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();

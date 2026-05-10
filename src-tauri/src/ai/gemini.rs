@@ -150,7 +150,8 @@ impl ChatProvider for Gemini {
         if !resp.status().is_success() {
             let status = resp.status();
             let txt = resp.text().await.unwrap_or_default();
-            tracing::warn!(provider = "gemini", status = %status, body = %&txt[..txt.len().min(80)], "AI API error");
+            tracing::warn!(provider = "gemini", status = %status, "AI API error");
+            tracing::debug!(provider = "gemini", body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();
