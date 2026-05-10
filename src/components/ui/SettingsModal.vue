@@ -563,6 +563,14 @@ void props.open;
         </div>
 
         <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.privacySection') }}</h3>
+        <label class="field row">
+          <input v-model="settings.state.suppressConsoles" type="checkbox" />
+          <span>{{ t('settings.general.suppressConsoles') }}</span>
+        </label>
+        <small class="note">{{ t('settings.general.suppressConsolesHint') }}</small>
+
+        <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.configFile') }}</h3>
         <p class="note">{{ t('settings.general.configFileHint') }}</p>
         <p v-if="configPath" class="config-path"><code>{{ configPath }}</code></p>

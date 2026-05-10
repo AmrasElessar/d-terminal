@@ -13,9 +13,13 @@
 // Repo değilse veya değişiklik yoksa GitStat { 0, 0, 0 } döner — null değil
 // ki frontend tutarlı state tutsun.
 
+use crate::process_jail::ProcessJail;
+use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
+use std::sync::Arc;
+use tauri::State;
 
 /// Untracked dosya başına okunan max byte (DoS guard — 100 MB log dosyasını
 /// her 5 saniyede taramayalım). Üstü truncate edilir; line count tahminen
@@ -36,15 +40,18 @@ pub struct GitStat {
 }
 
 #[tauri::command]
-pub async fn git_diff_shortstat(path: String) -> GitStat {
+pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> Result<GitStat, ()> {
+    let jail = state.jail.clone();
     // tokio task üzerinde spawn — git binary'si büyük repolarda 100ms+ sürebilir,
     // Tauri main thread'i bloklamasın
-    tokio::task::spawn_blocking(move || run_git_diff(&path))
-        .await
-        .unwrap_or_default()
+    Ok(
+        tokio::task::spawn_blocking(move || run_git_diff(&jail, &path))
+            .await
+            .unwrap_or_default(),
+    )
 }
 
-fn run_git_diff(path: &str) -> GitStat {
+fn run_git_diff(jail: &Arc<ProcessJail>, path: &str) -> GitStat {
     // Önce path'in geçerli olduğunu doğrula
     if path.is_empty() || !std::path::Path::new(path).exists() {
         return GitStat::default();
@@ -66,6 +73,8 @@ fn run_git_diff(path: &str) -> GitStat {
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::null());
+    // ProcessJail: CREATE_NO_WINDOW — git binary console flash etmesin.
+    jail.configure_command(&mut cmd);
     // Güvenlik sertleştirmesi (CVE-2022-24765 ailesine karşı):
     //   - GIT_TERMINAL_PROMPT=0  : credential prompt blocked (zaten stdin null)
     //   - GIT_CONFIG_NOSYSTEM=1  : /etc/gitconfig bypass — yan-binary substitution kapanır
@@ -102,7 +111,7 @@ fn run_git_diff(path: &str) -> GitStat {
 
     // Untracked dosyalar — `git diff --shortstat` bunları görmez. Yeni eklenmiş
     // dosyaların satır sayısını added'a ekleriz, dosya sayısını files'a.
-    let untracked = collect_untracked(path);
+    let untracked = collect_untracked(jail, path);
     stat.files = stat.files.saturating_add(untracked.file_count);
     stat.added = stat.added.saturating_add(untracked.line_count);
 
@@ -115,7 +124,7 @@ struct UntrackedSummary {
     line_count: u32,
 }
 
-fn collect_untracked(repo_path: &str) -> UntrackedSummary {
+fn collect_untracked(jail: &Arc<ProcessJail>, repo_path: &str) -> UntrackedSummary {
     let mut cmd = Command::new("git");
     cmd.args([
         "-C",
@@ -127,6 +136,8 @@ fn collect_untracked(repo_path: &str) -> UntrackedSummary {
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::null());
+    // ProcessJail: CREATE_NO_WINDOW.
+    jail.configure_command(&mut cmd);
     cmd.env("GIT_TERMINAL_PROMPT", "0");
     cmd.env("GIT_CONFIG_NOSYSTEM", "1");
     cmd.env("GIT_CONFIG_GLOBAL", "NUL");

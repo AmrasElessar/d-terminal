@@ -62,6 +62,13 @@ export interface SettingsState {
    *  bellek tüketir; 5000 satır ≈ 800 KB/pane. Default 5000 — modern terminal
    *  pratiği (önceki 10000 çok pane'li kullanımda 16+ MB/pencere). */
   scrollback: number;
+  /** Child process console window suppression. D-Terminal'in spawn ettiği
+   *  ardışık komutlar (sidecar, git_stat'ın `git`, vs.) Windows'ta default
+   *  olarak yeni conhost.exe açar → ekranda DOS pencere flash'ları.
+   *  Default true (suppress); geliştirici external GUI tool spawn etmek
+   *  isterse false yapabilir. Backend ProcessJail.set_suppress_consoles
+   *  ile runtime'da uygulanır — uygulama yeniden başlatma gerekmez. */
+  suppressConsoles: boolean;
 }
 
 const DEFAULTS: SettingsState = {
@@ -87,6 +94,7 @@ const DEFAULTS: SettingsState = {
   autoSplitOnAgent: false,
   updateMode: 'notify',
   scrollback: 5000,
+  suppressConsoles: true,
 };
 
 const KEY_PREFIX = 'ui.';
@@ -143,6 +151,23 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
   attachAutoPersist();
+
+  // ProcessJail runtime sync — suppressConsoles toggle'ı backend jail'a anında
+  // uygulanır (yeniden başlatma yok). settings_set persist watch'undan ayrı,
+  // jail process_set_suppress_consoles command'ı ayrıca çağırılır.
+  watch(
+    () => state.value.suppressConsoles,
+    async (next) => {
+      if (!loaded.value) return;
+      try {
+        await api.processSetSuppressConsoles(next);
+      } catch (e) {
+        // Jail call fail — settings yine kayıt edilir; sonraki app start'ta
+        // boot'ta okunup uygulanır.
+        console.warn('processSetSuppressConsoles failed:', e);
+      }
+    },
+  );
 
   const isReady = computed(() => loaded.value);
 

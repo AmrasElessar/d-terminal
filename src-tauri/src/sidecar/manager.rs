@@ -7,6 +7,7 @@
 // - Heartbeat: PING gönderir, PONG ile sidecar'ın ayakta olduğunu doğrular
 
 use crate::error::{AppError, AppResult};
+use crate::process_jail::ProcessJail;
 use crate::sidecar::protocol::{
     decode_cbor, encode_cbor, ExitPayload, Frame, MsgType, ResizePayload, SpawnPayload,
 };
@@ -52,6 +53,9 @@ pub struct SidecarManager {
     events_rx: Mutex<Option<Receiver<PtyEvent>>>,
     events_tx: SyncSender<PtyEvent>,
     sidecar_path: std::path::PathBuf,
+    /// Spawn edilen sidecar process'i bu Job Object jail'ine atanır.
+    /// CREATE_NO_WINDOW + KILL_ON_JOB_CLOSE garantisi.
+    jail: Arc<ProcessJail>,
 }
 
 struct Inner {
@@ -81,7 +85,7 @@ struct Inner {
 const EVENT_QUEUE_CAPACITY: usize = 16384;
 
 impl SidecarManager {
-    pub fn new(sidecar_path: std::path::PathBuf) -> Arc<Self> {
+    pub fn new(sidecar_path: std::path::PathBuf, jail: Arc<ProcessJail>) -> Arc<Self> {
         let (tx, rx) = sync_channel(EVENT_QUEUE_CAPACITY);
         Arc::new(Self {
             inner: Mutex::new(Inner {
@@ -95,6 +99,7 @@ impl SidecarManager {
             events_rx: Mutex::new(Some(rx)),
             events_tx: tx,
             sidecar_path,
+            jail,
         })
     }
 
@@ -116,21 +121,26 @@ impl SidecarManager {
         } else {
             Command::new(&self.sidecar_path)
         };
-        // Windows: pkg-bundled sidecar default console subsystem ile derlenir;
-        // CREATE_NO_WINDOW olmadan Windows ona ayrı bir console penceresi açar.
-        // Kullanıcı o pencereyi kapatınca sidecar ölür → "stdout closed".
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
+        // ProcessJail uygula: CREATE_NO_WINDOW + (Windows) Job Object membership.
+        // Eski manuel CREATE_NO_WINDOW satırı kaldırıldı — jail tek noktadan
+        // yönetiyor, kullanıcı Settings'ten suppress'i kapatabilir.
+        self.jail.configure_command(&mut cmd);
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| AppError::Sidecar(format!("spawn failed: {e}")))?;
+        // Job'a assign — D-Terminal crash'inde sidecar otomatik temizlenir.
+        // Hata durumunda warn'la geç: spawn zaten başarılı, kill-on-close
+        // garantisi yoksa heartbeat timeout (15s) yine zombie'yi yakalar.
+        match self.jail.assign(&child) {
+            Ok(true) => tracing::debug!("sidecar assigned to job"),
+            Ok(false) => tracing::debug!("sidecar spawn: job not configured (suppress off?)"),
+            Err(e) => {
+                tracing::warn!(error = %e, "sidecar job assign failed; kill-on-close skipped")
+            }
+        }
 
         let stdin = child
             .stdin

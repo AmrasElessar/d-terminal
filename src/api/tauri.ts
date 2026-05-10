@@ -142,4 +142,10 @@ export const api = {
     invoke<void>('log_stream_open', { id, path, tail, onLine: channel }),
   logStreamClose: (id: string) =>
     invoke<void>('log_stream_close', { id }),
+
+  // ProcessJail — child console window suppression + Job Object kill-on-close
+  processSetSuppressConsoles: (val: boolean) =>
+    invoke<void>('process_set_suppress_consoles', { val }),
+  processSuppressConsoles: () => invoke<boolean>('process_suppress_consoles'),
+  processJailActive: () => invoke<boolean>('process_jail_active'),
 };

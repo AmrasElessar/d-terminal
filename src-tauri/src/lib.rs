@@ -4,12 +4,14 @@ pub mod ai;
 pub mod commands;
 pub mod error;
 pub mod logger;
+pub mod process_jail;
 pub mod secrets;
 pub mod session;
 pub mod sidecar;
 pub mod state;
 pub mod storage;
 
+use crate::process_jail::ProcessJail;
 use crate::sidecar::{PtyEvent, SidecarManager};
 use crate::state::AppState;
 use crate::storage::Storage;
@@ -62,8 +64,21 @@ pub fn run() {
             let db_path = data_dir.join("dterminal.db");
             let storage = Storage::open(db_path).expect("storage open");
 
+            // ProcessJail — spawn edilen tüm child'ları (sidecar, git_stat'ın
+            // git'i vb.) tek Job Object'e toplar, console window flash'larını
+            // engeller. Settings'ten okunan kullanıcı tercihi default true;
+            // değer yoksa veya parse fail olursa true (en güvenli).
+            let suppress = storage
+                .settings
+                .get("ui.suppressConsoles")
+                .ok()
+                .flatten()
+                .and_then(|v| serde_json::from_str::<bool>(&v).ok())
+                .unwrap_or(true);
+            let jail = ProcessJail::new(suppress);
+
             let sidecar_path = resolve_sidecar_path(app.handle());
-            let sidecar = SidecarManager::new(sidecar_path);
+            let sidecar = SidecarManager::new(sidecar_path, jail.clone());
 
             // Sidecar event'lerini Tauri event olarak emit et — IPC coalescing
             // ile. Yoğun stdout akışında (npm install, cargo build, cat
@@ -99,7 +114,7 @@ pub fn run() {
                 });
             }
 
-            app.manage(AppState::new(storage, sidecar));
+            app.manage(AppState::new(storage, sidecar, jail));
             app.manage(logger::LogPaths::new(log_dir.clone()));
             app.manage(commands::logstream::LogStreams::new());
             app.manage(commands::dfetch::DfetchLiveState::new());
@@ -211,6 +226,10 @@ pub fn run() {
             commands::logstream::log_stream_close,
             // Window
             commands::window::window_set_vibrancy,
+            // ProcessJail (child console suppression + Job Object lifecycle)
+            commands::process::process_set_suppress_consoles,
+            commands::process::process_suppress_consoles,
+            commands::process::process_jail_active,
         ])
         .build(tauri::generate_context!())
         .expect("D-Terminal Tauri runtime failed to start")
