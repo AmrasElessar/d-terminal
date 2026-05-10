@@ -1,5 +1,74 @@
 # D-Terminal Release Notes
 
+## v0.9.6 — 2026-05-10
+
+**Audit follow-up + kullanıcı raporlu bug fix + yeni `ProcessJail` özelliği.** v0.9.5 release marathon'undan sonra 5 paralel ajan ile post-release audit yapıldı; Tauri 2.11.0 ACL bypass + Tokio mpsc underflow patch'leri merge edildi, kalan medium bulgular kapatıldı. Kullanıcı raporlu "git diff +/- chip kod değişimi varken görünmüyor" bug'ı çözüldü (untracked dosyalar). Yeni özellik: tüm child process'leri toplayan Windows Job Object jail'i — DOS pencere flash'ları kapanır + parent crash'inde child'lar otomatik temizlenir. v0.9.5 ile wire-uyumlu (DB şeması/protokol değişmedi).
+
+### 🛡 ProcessJail — child console suppression + kill-on-close
+
+D-Terminal'in spawn ettiği komutlar (sidecar, `git_stat`'ın `git`, gelecekte daha fazlası) Windows'ta default olarak yeni `conhost.exe` açıyordu — ekrandaki "DOS pencere flash'ları" kullanıcı tarafından raporlandı. Aynı zamanda eski mimari'de zombi sidecar riski vardı: D-Terminal abrupt kapatılırsa sidecar 15s heartbeat timeout'a kadar yaşardı.
+
+`ProcessJail` (`src-tauri/src/process_jail.rs`) bu iki problemi tek mimari ile çözüyor:
+
+- **Console suppression** — `configure_command(&mut Command)` helper'ı her spawn'da `CREATE_NO_WINDOW` flag'ini set eder. Sidecar ve `git_stat`'ın iki spawn site'ı (run_git_diff + collect_untracked) entegre.
+- **Job Object kill-on-close** — `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` flag'i ile yaratılan anonymous Job. `assign(child)` ile spawn'lar Job'a kayıt edilir. Parent process abrupt kapanırsa Windows tüm üyeleri otomatik terminate eder.
+- **Runtime toggle** — Settings → Genel → "Gizlilik & Performans" altında `Suppress child console windows` checkbox'ı. `process_set_suppress_consoles` Tauri command'ı `AtomicBool` flip eder, restart gerekmez.
+- **Graceful degradation** — Job creation fail olursa (Win32 quota exhaustion gibi rare durumda) `configure_command` yine `CREATE_NO_WINDOW` ekler; assign no-op döner. Heartbeat timeout (15s) yine zombie'leri yakalar.
+- **Cross-platform** — `#[cfg(not(windows))]` no-op fallback. macOS/Linux'ta zaten console window kavramı yok.
+
+9 yeni unit test eklendi (3 Windows-only: gerçek `cmd.exe` spawn + Job assignment + race senaryosu). Toplam Rust test sayısı: 81 → **90**.
+
+### 🐛 Git diff +/- chip — "kod değişimi varken chip görünmüyor"
+
+Pane title bar'daki git diff `+N -M` chip'inde "yeni dosya ekledim ama chip 0/0'da takılı" raporu. İki kök neden:
+
+1. **Untracked dosyalar sayılmıyordu** — `git diff --shortstat HEAD` sadece tracked (committed/staged) dosyaları görür. `git ls-files --others --exclude-standard` ile yeni dosyalar listelenir, her birinin satır sayısı `added`'a, dosya sayısı `files`'a eklenir. DoS guard: max 500 dosya, dosya başına 1 MB cap (binary/log dosyaları sayılmaz).
+2. **Initial cwd race** — `setPaneCwd` sadece OSC 7 sequence ile çağrılıyordu; kullanıcı ilk prompt'a Enter basana kadar cwd boş, polling no-op. `TerminalPane` spawn sonrası `profile.cwd` ile initial fallback yapar; sonraki OSC 7 aynı path ise no-op (cwd === newCwd guard zaten var), değişikse override.
+3. **Polling 10s → 5s** — yerel `git diff` <50ms; daha hızlı feedback.
+
+### 🔒 Güvenlik — post-v0.9.5 audit follow-up
+
+5 paralel ajan tarama'sından kalan medium bulgular + kritik dependency patch'leri:
+
+- **`tauri 2.11.0 → 2.11.1`** (Dependabot PR#6) — "fix(tauri): enforce ACL for remote origins even without AppManifest" CWE-862 patch'i.
+- **`tokio 1.52.1 → 1.52.3`** (PR#5) — mpsc underflow + RwLock soundness CWE-191/662.
+- **`tauri-build 2.6.0 → 2.6.1`** (PR#9) — paired tauri patch.
+- **`dfetch_save_snapshot` path traversal (M2)** — `create_dir_all` allowed-root check'ten ÖNCE; saldırgan `Pictures/../Startup/evil` ile dizin yaratamaz. Lexical `..` segment reddi + canonical defense-in-depth.
+- **`admin_open_dev_settings` (M1)** — `cmd /c start` shell aracısı kaldırıldı; `ShellExecuteW` direct çağrı + URI literal sabit. Future-proof: argüman parametreli yapılırsa enjeksiyon vektörü kapatıldı.
+- **`validate_endpoint_dns` (M4)** — yeni async DNS resolve check; OpenAI provider chat path'inde her chat öncesi `tokio::net::lookup_host` ile resolved IP'leri private/loopback/link-local kontrolünden geçirir. DNS rebinding (saldırgan-controlled domain → 127.0.0.1 / 169.254.169.254 IMDS) kapatıldı.
+- **AI abort race** — `oneshot::Sender::is_closed()` check + race log; chat tamamlanırken abort gelirse sessiz no-op.
+- **AI HTTP body log azaltma** — 4 provider (openai/anthropic/gemini/ollama) hata gövdeleri `tracing::warn` → `tracing::debug` (release log'da prompt/model echo sızıntısı kapatıldı, CWE-532).
+- **`redact.ts` regex eşiği 40 → 60 char** — git SHA / hash false-positive'leri azaltıldı, gerçek secret eşikleri (JWT 100+, OAuth 60+) korundu.
+
+### 🛠 Reliability + DX
+
+- **`unreachable!()` → `tracing::error!`** (lib.rs `coalesce_pty_events` 2 yer) — PTY merge bug'ı UI crash yerine küçük merge kaybı + trace log.
+- **Sidecar event queue 4096 → 16384** — coalescing window'da burst tolerans, lifecycle event drop riski pratik sıfır.
+- **AppShell startup catch'ler silent yutmuyor** — `panes.startListening` kritik olduğu için error seviyesi log.
+- **`panes.cleanupPaneState` → `clearGitStatState` defansif lazy-import** — interval multiply riski.
+- **`packageManager: pnpm@9.15.0` pin** — CI/dev pnpm tutarsızlığı (`pnpm/action-setup@v6` ile uyumlu explicit version).
+- **Vitest coverage config** — v8 provider + threshold (10/10/50/10 baseline; 1.0 yolunda yükseltilecek).
+- **Dependabot grouping** — `dependencies` (patch+minor) ve `major` ayrı grup; sidecar major bloke; actions weekly.
+
+### 📚 Dokümantasyon
+
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1 (Türkçe).
+- **`SECURITY.md`** — tehdit modeli + GitHub Security Advisory bildirim akışı + cryptographic trust notları (DPAPI legacy v1.0'da kaldırılır, updater minisign rollover key v1.0'da).
+
+### 🔧 CI
+
+- `pnpm/action-setup@v6` `version: 9.15.0` explicit pin (eşit `packageManager` ile çakışmasın).
+- `cargo fmt --check` + `cargo clippy -- -D warnings` her commit'te zorunlu gate.
+- Rust testleri: 81 → **90** (9 yeni ProcessJail testi).
+
+### Bilinen Sınırlar
+
+- **PR#11 vue 3.5.34 patch** — lockfile conflict ile açık kaldı; bu release'in lockfile'ında patch zaten yakalanmış (caret range), dependabot rebase tetiklenince merge olur.
+- **DPAPI NULL-entropy fallback** v1.0'a kadar açık (legacy v0.9.3 öncesi blob compat).
+- **CSP `style-src 'unsafe-inline'`** — Vue 3 SFC scoped CSS gerektirir; v1.0'da SRI hash veya nonce.
+
+---
+
 ## v0.9.5 — 2026-05-09
 
 **Theme polish + race fix.** D-Matrix temasına özel "code rain" intro deneyimi + WelcomePane'in çift `play()` race condition'ı + AppShell title bar düzeltmeleri. v0.9.4 ile tam uyumlu (DB şeması/protokol değişmedi); UI-only sürüm.

@@ -3,6 +3,44 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] — 2026-05-10
+
+5 paralel agent ile post-v0.9.5 audit + kullanıcı raporlu bug fix'leri + yeni `ProcessJail` özelliği. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v096--2026-05-10).
+
+### Eklenen
+- **`ProcessJail`** — D-Terminal'in spawn ettiği tüm child process'leri Windows Job Object altında topluyor: (1) console window flash'ları kapanır (CREATE_NO_WINDOW tek noktadan), (2) parent crash'inde tüm child'lar `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` ile otomatik temizlenir, (3) Settings → "Gizlilik & Performans" altında runtime toggle.
+- `commands/process.rs` — `process_set_suppress_consoles`, `process_suppress_consoles`, `process_jail_active`.
+- `git diff` chip untracked dosya desteği — `git ls-files --others --exclude-standard` ile yeni dosyaların satır sayısı `added`'a, dosya sayısı `files`'a eklenir (DoS guard: max 500 dosya, dosya başına 1 MB).
+- `validate_endpoint_dns` — public hostname'in tüm resolved IP'lerini private/loopback/link-local kontrolünden geçirir (DNS rebinding hardening, M4).
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, Türkçe) + `SECURITY.md` (tehdit modeli + GitHub Security Advisory akışı + cryptographic trust notları).
+- Vitest coverage config (v8 provider + threshold).
+- `package.json` `packageManager: pnpm@9.15.0` pin.
+- Dependabot grouping (dependencies / major + sidecar major bloke + actions weekly).
+- 9 yeni Rust test (ProcessJail) + git_stat untracked path kontrol testleri (toplam 81 → 90).
+
+### Düzeltilen
+- **Pane title bar git diff +/- chip "kod değişimi var ama görünmüyor"** — iki kök neden: (a) `git diff --shortstat HEAD` untracked dosyaları kaçırıyordu, (b) `setPaneCwd` sadece OSC 7 ile çağrılıyordu — ilk prompt'tan önce cwd boştu, polling no-op'tu. Spawn sonrası `profile.cwd` initial fallback eklendi.
+- `dfetch_save_snapshot` path traversal — `create_dir_all`'dan önce lexical `..` segment reddi + allowed-root prefix check (M2). Saldırgan persist primitive engellendi.
+- `admin_open_dev_settings` `cmd /c start` shell aracısı kaldırıldı — `ShellExecuteW` direct çağrı + URI literal sabit (M1).
+- AI abort race — `oneshot::Sender::is_closed()` check + race log; chat tamamlanırken abort gelirse no-op.
+- `lib.rs coalesce_pty_events` 2× `unreachable!()` panik riski → `tracing::error!` + pass-through fallback (UI crash yerine küçük merge kaybı).
+- AI provider 4xx/5xx hata gövdeleri `tracing::warn` → `tracing::debug` (4 dosya: openai/anthropic/gemini/ollama) — release log'da prompt/model echo sızıntısı.
+- `redact.ts` base64 regex `40+` → `60+` char eşik (git SHA / hash false-positive azaltıldı).
+- Sidecar event queue 4096 → 16384 (coalescing window'da burst tolerans).
+- AppShell startup `catch(() => {})` silent yutma → `log.warn`/`error` (panes.startListening kritik olduğu için error seviyesi).
+- `panes.cleanupPaneState` → `clearGitStatState` defansif lazy-import çağrı.
+- Polling interval 10s → 5s (daha hızlı feedback).
+
+### Güvenlik
+- Dependency patch'leri merge edildi: tauri 2.11.0 → 2.11.1 (ACL bypass), tokio 1.52.1 → 1.52.3 (mpsc underflow + RwLock soundness), tauri-build 2.6.0 → 2.6.1, + 8 npm/actions patch.
+- Dependabot grouping ile patch+minor tek "dependencies" grup PR'ı, major ayrı; sidecar major bloke; actions monthly → weekly.
+- Yeni `validate_endpoint_dns` async DNS rebind hardening — public hostname IMDS rebinding kapatıldı.
+- ProcessJail kill-on-close ile zombi sidecar riski tarihte kaldı (eskiden 15s heartbeat timeout'a kadar yaşardı).
+
+### CI
+- `pnpm/action-setup@v6` `version: 9.15.0` explicit pin (`packageManager` ile eşit, "Multiple versions" lint kapanır).
+- `cargo fmt --check` + `cargo clippy -D warnings` her commit'te.
+
 ## [0.9.5] — 2026-05-09
 
 D-Matrix temasına özel intro deneyimi + WelcomePane race condition fix + AppShell polish. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v095--2026-05-09).
