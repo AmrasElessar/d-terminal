@@ -6,6 +6,15 @@
 //
 // Wire protokolü için bkz. ADR-0001
 // (docs/adr/0001-pty-sidecar-ipc-protocol.md).
+//
+// Process isolation (v0.9.6+): Bu sidecar process'i Tauri tarafında
+// `ProcessJail` Job Object'ine assign edilir (`AssignProcessToJobObject`).
+// `JOB_OBJECT_LIMIT_BREAKAWAY_OK` flag'i SET DEĞİL — yani node-pty.spawn
+// ile başlatılan grandchild PTY shell'ler (PowerShell, cmd, wsl) Windows
+// kernel tarafından OTOMATIK olarak aynı Job'a inherit edilir. Sonuç:
+// D-Terminal abrupt kapanırsa (taskkill /f, kernel panic) kullanıcının
+// shell session'ları + onların child'ları (npm, git, vs.) kernel
+// tarafından garantili temizlenir. Detay: ADR-0006.
 
 'use strict';
 

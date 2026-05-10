@@ -148,8 +148,12 @@ function toggleAgentWatch() {
 }
 
 /** Git diff +/- chip — sadece terminal pane'lerinde (PTY var) ve repo
- *  içindeyken görünür. OSC 7 ile cwd alındıktan sonra populate olur. */
-const gitStat = gitStatRef(props.leaf.id);
+ *  içindeyken görünür. OSC 7 ile cwd alındıktan sonra populate olur.
+ *
+ *  computed leaf.id'ye reactive — pane remount sonrası (split kapatma)
+ *  yeni state'e bağlanır. Eski mimaride const olarak ilk mount'ta fix
+ *  oluyordu, remount'ta stale chip riski vardı. */
+const gitStat = computed(() => gitStatRef(props.leaf.id).value);
 const showGitStat = computed(
   () => gitStat.value.is_repo && (gitStat.value.added > 0 || gitStat.value.removed > 0),
 );

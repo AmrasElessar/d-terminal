@@ -25,13 +25,18 @@ interface PaneState {
   cwd: string;
   ref: Ref<PaneGitStat>;
   timer: number | undefined;
+  /** Aktif polling interval (ms). Adaptive — repo değilse SLOW, repo+değişiklik
+   *  varsa FAST. Çok pane'li senaryolarda git binary spawn rate'ini düşürür. */
+  intervalMs: number;
 }
 
 const stateByPane = new Map<string, PaneState>();
 
-// 5sn — kullanıcı edit yapıyor, chip 10sn gecikmeli güncelleniyordu, hızlı
-// feedback için yarıya indirildi. git diff yerel repo'da typically <50ms.
-const POLL_INTERVAL_MS = 5_000;
+// FAST — kullanıcı aktif edit yapıyor (repo + değişiklik var); chip hızlı güncellensin
+const FAST_POLL_MS = 5_000;
+// SLOW — pane git repo değil veya temiz; gereksiz git binary spawn'ı azalt.
+// 50 pane × 12/dk yerine 50 pane × 2/dk = 100/dk subprocess (thread pool friendly).
+const SLOW_POLL_MS = 30_000;
 
 function getOrCreateState(paneId: string): PaneState {
   let s = stateByPane.get(paneId);
@@ -40,6 +45,7 @@ function getOrCreateState(paneId: string): PaneState {
       cwd: '',
       ref: ref<PaneGitStat>({ files: 0, added: 0, removed: 0, is_repo: false }),
       timer: undefined,
+      intervalMs: FAST_POLL_MS,
     };
     stateByPane.set(paneId, s);
   }
@@ -57,6 +63,16 @@ async function refreshOne(paneId: string) {
   try {
     const result = await api.gitDiffShortstat(s.cwd);
     s.ref.value = result;
+    // Adaptive interval — repo değilse SLOW, repo ise FAST. Aktif polling
+    // varsa interval değiştiğinde timer'ı yeniden kur.
+    const desired = result.is_repo ? FAST_POLL_MS : SLOW_POLL_MS;
+    if (s.timer !== undefined && s.intervalMs !== desired) {
+      window.clearInterval(s.timer);
+      s.intervalMs = desired;
+      s.timer = window.setInterval(() => {
+        void refreshOne(paneId);
+      }, desired);
+    }
   } catch {
     /* git çağrısı başarısız → mevcut değeri koru */
   }
@@ -71,13 +87,15 @@ export function setPaneCwd(paneId: string, newCwd: string) {
   void refreshOne(paneId);
 }
 
-/** Polling başlat — TerminalPane mount'ta. */
+/** Polling başlat — TerminalPane mount'ta. Default FAST interval ile başlar;
+ *  ilk refresh sonucu repo değilse otomatik SLOW'a düşer. */
 export function startGitStatPolling(paneId: string) {
   const s = getOrCreateState(paneId);
   if (s.timer !== undefined) return;
+  s.intervalMs = FAST_POLL_MS;
   s.timer = window.setInterval(() => {
     void refreshOne(paneId);
-  }, POLL_INTERVAL_MS);
+  }, s.intervalMs);
 }
 
 /** Manuel refresh — agent end event'inde anlık update için. */

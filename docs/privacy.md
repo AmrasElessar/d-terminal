@@ -1,7 +1,7 @@
 # D-Terminal — Privacy Policy / Gizlilik Politikası
 
-> **Last updated / Son güncelleme:** 2026-05-08
-> **Applies to / Geçerli sürüm:** D-Terminal v0.9.3 ve üzeri / and later
+> **Last updated / Son güncelleme:** 2026-05-10
+> **Applies to / Geçerli sürüm:** D-Terminal v0.9.6 ve üzeri / and later
 
 ---
 
@@ -57,6 +57,16 @@ Uygulama açılışında **GitHub'a** (`api.github.com/repos/AmrasElessar/d-term
 DFetch özelliği sistemden CPU, RAM, disk, ekran, locale, IP gibi bilgileri **yerel olarak** okur. **KVKK/GDPR maskeleme** varsayılan olarak aktiftir: hostname ve IP gizli, 👁 ikonuyla aç/kapa.
 
 Bu bilgi **hiçbir yere gönderilmez** — sadece sen görürsün, isteğe bağlı olarak panele kopyalarsın.
+
+### 4.1 Process Isolation (v0.9.6+)
+
+D-Terminal Windows Job Object ile spawn ettiği tüm child process'leri (sidecar, `git_stat`'ın `git` çağrıları) izole eder:
+
+- **Console suppression** — child process console pencereleri gizlenir (DOS flash'ları kullanıcı görüş alanından çıkar)
+- **Otomatik temizlik** — D-Terminal abrupt kapanırsa (taskkill, kernel panic, OS shutdown) tüm child process'ler `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` ile kernel tarafından otomatik terminate edilir; orphan process kalmaz
+- **Toggle**: Settings → Gizlilik & Performans → "Suppress child console windows"
+
+Bu mekanizma gizliliğe katkı sağlar: istemli olmayan console pencerelerinin stdout/stderr akışı (örn. yanlışlıkla görünen credential prompt'ları) sınırlandırılır.
 
 ### 5. Çocukların gizliliği
 

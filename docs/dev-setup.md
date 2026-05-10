@@ -6,7 +6,7 @@ D-Terminal'i yerelde derleyip çalıştırmak için gerekenler.
 
 - **Windows 10 1809+** veya **Windows 11** (ConPTY + WebView2)
 - **Node.js 20+**
-- **pnpm 9+** (`npm install -g pnpm`)
+- **pnpm 9.15.0** (package.json `packageManager` alanı ile pin'lenmiş; `corepack enable` veya manuel: `npm install -g pnpm@9.15.0`)
 - **Rust stable** (rustup ile)
 - **WebView2 Runtime** (Win11'de yerleşik; Win10'da otomatik kurulur)
 - **Visual Studio Build Tools 2019+** (C++ workload — Tauri/Rust derleme için)

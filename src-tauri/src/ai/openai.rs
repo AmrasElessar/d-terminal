@@ -109,10 +109,18 @@ pub(crate) async fn validate_endpoint_dns(url: &str) -> Result<(), String> {
     }
     let port = parsed.port_or_known_default().unwrap_or(443);
     let lookup_target = format!("{host}:{port}");
-    let addrs = tokio::net::lookup_host(&lookup_target)
-        .await
-        .map_err(|e| format!("dnsResolveFailed:{e}"))?;
-    for sa in addrs {
+    // 5s timeout — DNS blackhole / blocked resolver durumunda chat çağrısı
+    // sonsuz hang etmesin. Normal DNS round-trip 50-200ms; 5s hatalı network
+    // için bile yeterli buffer. Timeout fail = chat fail (saldırgan resolver
+    // hijack senaryosu da reddedilir).
+    let lookup = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::net::lookup_host(&lookup_target),
+    )
+    .await
+    .map_err(|_| "dnsResolveTimeout".to_string())?
+    .map_err(|e| format!("dnsResolveFailed:{e}"))?;
+    for sa in lookup {
         check_ip_public(&sa.ip())?;
     }
     Ok(())

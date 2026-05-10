@@ -24,6 +24,18 @@ D-Terminal'e ilgilendiğin için teşekkürler! Bu proje **kişisel bir Windows 
 
 ---
 
+## 🛠️ Teknik Gereksinimler
+
+| Tool | Sürüm | Notlar |
+|---|---|---|
+| **Node.js** | 20+ | LTS önerilir |
+| **pnpm** | **9.15.0** (kesin pin) | `package.json` `packageManager` ile sabit. Kurulum: `corepack enable` veya `npm install -g pnpm@9.15.0`. CI bunu doğrulayacak — başka sürümle PR fail olur. |
+| **Rust** | stable | rustup default toolchain |
+
+> 🔧 Detaylı kurulum: [`docs/dev-setup.md`](./docs/dev-setup.md)
+
+---
+
 ## 🌍 Dil Paketi Eklemek
 
 `src/locales/` altında **31'den fazla boş stub** dil dosyası hazır bekliyor (`de.json`, `es.json`, `fr.json`, `ja.json`, `zh-CN.json`, `ar.json`, `ru.json`, …). Her stub sadece `_meta` header'ı içerir; çevrilmemiş anahtarlar otomatik olarak **Türkçeye düşer** (`fallbackLocale: 'tr'`).

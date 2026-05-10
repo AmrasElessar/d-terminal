@@ -64,10 +64,15 @@ const configPath = ref<string>('');
 
 // --- Admin (UAC elevation) ---
 const isElevated = ref(false);
+// ProcessJail aktif mi? Job Object yaratıldıysa kill-on-close + console
+// suppression garanti; aksi halde sadece spawn-time CREATE_NO_WINDOW
+// fallback (heartbeat timeout zombi guard'ı).
+const processJailActive = ref(false);
 
 onMounted(async () => {
   try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
   try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
+  try { processJailActive.value = await api.processJailActive(); } catch { /* default false */ }
   // Settings modal açıldığında dil seçici listesi için raw _meta'yı lazy yükle.
   // Modal kapalıyken bu chunk yüklenmez (initial bundle ~100-150 KB hafifler).
   void loadLocaleMeta();
@@ -569,6 +574,12 @@ void props.open;
           <span>{{ t('settings.general.suppressConsoles') }}</span>
         </label>
         <small class="note">{{ t('settings.general.suppressConsolesHint') }}</small>
+        <p v-if="processJailActive" class="note small-note">
+          ✓ {{ t('settings.general.jailActiveHint') }}
+        </p>
+        <p v-else class="note small-note">
+          ⚠ {{ t('settings.general.jailInactiveHint') }}
+        </p>
 
         <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.configFile') }}</h3>

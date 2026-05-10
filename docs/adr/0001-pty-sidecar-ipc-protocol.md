@@ -1,8 +1,16 @@
 # ADR-0001: PTY Sidecar IPC Protokolü
 
-**Status**: Accepted
+**Status**: Accepted (heartbeat zombie-detection v0.9.6'da [ADR-0006](./0006-process-jail-job-object.md) tarafından supersede edildi — fallback olarak kalır)
 **Date**: 2026-05-02
 **Author**: Orhan Engin OKAY
+
+> **v0.9.6 güncellemesi:** Sidecar artık Windows Job Object'e
+> (`ProcessJail`) `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` flag'i ile assign
+> ediliyor. Parent crash'inde sidecar + grandchild PTY shell'ler kernel
+> tarafından **garantili** temizlenir. Aşağıdaki "5s heartbeat / 15s
+> timeout" mekanizması artık primary değil, **graceful degradation
+> fallback'i** olarak çalışır (Job creation fail veya non-Windows
+> platform). Detay: [ADR-0006](./0006-process-jail-job-object.md).
 
 ## Context
 

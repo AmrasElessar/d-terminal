@@ -3,6 +3,36 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] — 2026-05-10
+
+Post-v0.9.6 follow-up audit (4 paralel agent) bulgularının toplu düzeltmesi + ProcessJail dokümantasyonu + DX iyileştirmeleri. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v097--2026-05-10).
+
+### Eklenen
+- **ADR-0006: ProcessJail (Windows Job Object) Mimarisi** — yeni mimari kararının resmi dokümantasyonu (alternatives + trade-offs + risk azaltma).
+- **`process_jail_active` Tauri command + Settings UI badge** — kullanıcıya kill-on-close korumasının aktif olup olmadığı görsel geri bildirim ile bildirilir.
+- **`.github/workflows/cache-cleanup.yml`** — haftalık (Pazar 02:00 UTC) LRU cache sweep; 7 günden eski Actions cache'leri otomatik siler. Repo cache 10 GB soft limit aşıldığında manuel temizlik gerekmiyor.
+- **`src/locales/parity.test.ts`** — i18n parity vitest: TR ↔ EN key tree intersection. Yeni anahtarlar eklenirken iki dilde de tanımlı olduğu CI'da gate edilir.
+- **adaptive git stat polling** — pane git repo değilse 30s, repo+değişiklik varsa 5s. 50 pane senaryosunda subprocess rate ~%80 azalır.
+- **`docs/privacy.md` Process Isolation section (v0.9.6+)** — KVKK/GDPR perspektifinden Job Object child cleanup açıklaması.
+- **`CONTRIBUTING.md` Teknik Gereksinimler bölümü** — pnpm@9.15.0 exact pin, corepack/manuel kurulum talimatı.
+- **`.github/PULL_REQUEST_TEMPLATE.md` ProcessJail reminder** — yeni `Command::new` eklendiğinde `state.jail.configure_command()` çağrısının unutulmaması için checklist item.
+
+### Düzeltilen
+- **PaneTitleBar `showGitStat` computed leaf.id reactive** — pane remount sonrası (split kapatma) eski state'e bağlı kalıyor, fresh ref'e dinleyemiyordu. Computed leaf.id'ye bağlı oldu.
+- **Settings double-watch race** — `suppressConsoles` toggle backend `processSetSuppressConsoles` invoke fail olursa state rollback edilir; "DB false ama jail true" tutarsızlığı engellendi.
+- **`release.yml` glob pattern `**/*.msi`** — softprops/action-gh-release@v3 glob davranışı değişti; Tauri 2 bundle output dizin yapısı gelecekte değişirse asset upload fail olmaması için recursive `**` pattern kullanıldı.
+- **`validate_endpoint_dns` 5s timeout** — DNS blackhole / hijack edilmiş resolver'da chat çağrısı sonsuz hang etmez; `tokio::time::timeout` ile sınırlandırıldı.
+- **`clearGitStatStateLazy` dedupe** — hızlı close-open senaryolarında aynı leafId için pending Promise paylaşılır; çift import + çift clear engellenir.
+- **`docs/adr/0001-pty-sidecar-ipc-protocol.md`** — ADR-0006 ile supersede edildiği belirtildi (heartbeat artık fallback).
+- **`README.md`** — v0.9.x serisinde "ProcessJail console suppression" + "git diff untracked desteği" özellikleri vurgulandı.
+- **`docs/dev-setup.md`** — pnpm version `9+` → `9.15.0` exact pin.
+- **CHANGELOG `[Unreleased]`** açıklayıcı yorum (v0.9.x history nedeni).
+- **`sidecar/pty-bridge.js`** — Job Object grandchild inheritance design intent header comment.
+
+### Güvenlik
+- DNS rebind hardening + timeout (5s) → `validate_endpoint_dns` infinite hang riski kapatıldı.
+- Settings race condition fix → backend/frontend jail state divergence engellendi.
+
 ## [0.9.6] — 2026-05-10
 
 5 paralel agent ile post-v0.9.5 audit + kullanıcı raporlu bug fix'leri + yeni `ProcessJail` özelliği. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v096--2026-05-10).
@@ -132,6 +162,10 @@ Comprehensive hardening release. 11 paralel ajan ile audit; ~210 bulgudan releas
 - Çoklu ajan auditi sonucu kapatılan release-blocker güvenlik açıkları (XSS→RCE, path traversal, prompt injection, secret leak, key exfiltration). Bkz. RELEASE_NOTES.md ayrıntıları.
 
 ## [Unreleased]
+
+<!-- v0.9.6 yayınlandı 2026-05-10. Bu bölüm v0.9.x'in erken (v0.1-v0.9.0)
+     unreleased history'sini koruyor. Yeni feature'lar burada değil,
+     yukarıdaki versionlu section'larda. v0.9.7'den sonra bu bölüm temizlenebilir. -->
 
 ### Eklenen — Backend (Rust / Tauri)
 - ADR-0001 PTY sidecar manager: spawn/multiplex/heartbeat/event emit

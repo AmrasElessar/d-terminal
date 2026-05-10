@@ -19,6 +19,7 @@
 - [ ] (Dil) `{parametre}` ve `{'{{0}}'}` şablonlarına dokunmadım / placeholders untouched
 - [ ] (Tema) `pnpm test --filter themes` (veya manuel kontrast / kontrol) / theme contrast checked
 - [ ] (Bug fix) Test yazdım veya yeniden üretim adımlarını PR açıklamasına ekledim / wrote a test or attached repro
+- [ ] (Rust) Yeni `Command::new(...)` eklediysen `state.jail.configure_command(&mut cmd)` çağrısı yaptın / If you added a new `Command::new(...)`, did you call `state.jail.configure_command(&mut cmd)`? ([ADR-0006](../docs/adr/0006-process-jail-job-object.md))
 
 ## İlgili Issue / Related Issue
 

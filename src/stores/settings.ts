@@ -155,16 +155,26 @@ export const useSettingsStore = defineStore('settings', () => {
   // ProcessJail runtime sync — suppressConsoles toggle'ı backend jail'a anında
   // uygulanır (yeniden başlatma yok). settings_set persist watch'undan ayrı,
   // jail process_set_suppress_consoles command'ı ayrıca çağırılır.
+  //
+  // Race senaryosu: backend invoke fail olursa state rollback edilir, böylece
+  // DB'de "false" ama backend "true" tutarsızlığı oluşmaz. UI değer flip eder
+  // → generic persist watch yeni değeri DB'ye yazar (re-sync). Toast yok,
+  // sessiz rollback (kullanıcı checkbox'ın geri döndüğünü görür).
+  let syncing = false;
   watch(
     () => state.value.suppressConsoles,
-    async (next) => {
+    async (next, prev) => {
       if (!loaded.value) return;
+      if (syncing) return; // rollback sırasında tekrar tetiklenmesin
       try {
         await api.processSetSuppressConsoles(next);
       } catch (e) {
-        // Jail call fail — settings yine kayıt edilir; sonraki app start'ta
-        // boot'ta okunup uygulanır.
-        console.warn('processSetSuppressConsoles failed:', e);
+        console.warn('processSetSuppressConsoles failed, rolling back:', e);
+        syncing = true;
+        state.value.suppressConsoles = prev as boolean;
+        // microtask sonrası flag'i temizle — generic persist watch eski değeri
+        // tekrar DB'ye yazsın, sonraki manuel toggle çalışsın.
+        Promise.resolve().then(() => { syncing = false; });
       }
     },
   );

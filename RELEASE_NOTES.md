@@ -1,5 +1,52 @@
 # D-Terminal Release Notes
 
+## v0.9.7 — 2026-05-10
+
+**Post-v0.9.6 follow-up audit + ProcessJail dokümantasyonu.** Aynı gün release marathon'unun ikinci raundunda 4 paralel agent ile post-release tarama yapıldı; 5 KRİTİK + 8 ÖNEMLİ bulgu kapatıldı. Yeni feature yok — kalite + dayanıklılık release'i. v0.9.6 ile wire-uyumlu (DB şeması/protokol değişmedi).
+
+### 🛡 Güvenlik & dayanıklılık fix'leri
+
+- **`validate_endpoint_dns` 5s timeout** — DNS blackhole veya hijack edilmiş resolver senaryolarında AI chat çağrısının sonsuz hang etmesi riski kapatıldı (`tokio::time::timeout`).
+- **Settings double-watch race** — `suppressConsoles` toggle backend invoke fail olursa state rollback ediliyor. "DB false ama jail true" tutarsızlığı engellendi.
+- **`PaneTitleBar showGitStat` computed leaf.id reactive** — pane remount sonrası eski state'e bağlı kalıyordu; computed dependency düzeltildi, stale chip riski kapandı.
+- **`release.yml` glob pattern recursive `**/*.msi`** — `softprops/action-gh-release@v3` glob davranışı v2'den farklı; Tauri 2 bundle output dizin yapısı değişirse asset upload sessiz fail olmasın.
+- **`clearGitStatStateLazy` dedupe** — hızlı close-open senaryolarında pending Promise paylaşılır; çift import + çift clear engellenir.
+
+### 🪟 ProcessJail dokümantasyonu
+
+- **ADR-0006**: yeni mimari kararının resmi dokümantasyonu — Context, Decision, Consequences (olumlu/tradeoff/risk azaltma), Alternatives (per-spawn CREATE_NO_WINDOW only, AppContainer, process group, Tauri sidecar plugin), Referanslar.
+- **ADR-0001 supersede note**: heartbeat zombie-detection ADR-0006 tarafından supersede edildi (artık fallback).
+- **Settings UI Job Active badge**: `process_jail_active` Tauri command + UI'da "✓ Process koruması aktif (Job Object kill-on-close)" rozeti — kullanıcıya görsel geri bildirim.
+- **`sidecar/pty-bridge.js` header**: grandchild inheritance design intent (PowerShell/cmd/wsl + child'ları kernel tarafından otomatik Job'a alır).
+
+### ⚡ Performans
+
+- **Adaptive git stat polling** — pane git repo değilse 30s, repo+değişiklik varsa 5s. 50 pane senaryosunda subprocess rate ~%80 azalır (10/saniye → 2/saniye).
+- **`suppressConsolesHint` kısaltıldı** — 300+ char → ~150 char; "Job Object kill-on-close" jargon'u sade tarif edildi.
+
+### 🔧 DX
+
+- **`.github/workflows/cache-cleanup.yml`** — Pazar 02:00 UTC haftalık cron + manual dispatch. 7 günden eski Actions cache'leri otomatik silinir; 10 GB soft limit'e karşı kalıcı çözüm.
+- **`src/locales/parity.test.ts`** — TR ↔ EN i18n parity vitest. Yeni anahtarlar iki dilde de tanımlı olmalı; CI'da gate.
+- **`docs/dev-setup.md`** + **`CONTRIBUTING.md`** — pnpm@9.15.0 exact pin (corepack veya manuel kurulum). CI bunu doğrulayacak.
+- **`docs/privacy.md`** — v0.9.6+ Process Isolation section (KVKK/GDPR perspektifinden child cleanup).
+- **`.github/PULL_REQUEST_TEMPLATE.md`** — yeni `Command::new` ekleyenler için `state.jail.configure_command()` reminder checklist item.
+- **CHANGELOG `[Unreleased]`** açıklayıcı yorum (v0.9.x erken history nedeni).
+
+### 📊 Metrikler
+
+- Test sayısı: **90 Rust + 65 Vitest** (yeni i18n parity test, +1).
+- ADR sayısı: 5 → **6** (ProcessJail).
+- Doc dosyaları: 7 → **8** (ADR-0006).
+- pnpm version pin: 3 yerde tutarlı (package.json, ci.yml, release.yml).
+
+### Bilinen Sınırlar
+
+- README'de "🛡️ Güvenlik Tarama Sonuçları" section'ı hâlâ v0.9.3 hashes ile (line 469); v0.9.7 release sonrası `hashes.txt` asset'inden manuel update gerekir.
+- 31 stub locale'de yeni anahtarlar (`privacySection`, `suppressConsoles`, `suppressConsolesHint`, `jailActiveHint`, `jailInactiveHint`) yok — fallback TR'ye düşüyor.
+
+---
+
 ## v0.9.6 — 2026-05-10
 
 **Audit follow-up + kullanıcı raporlu bug fix + yeni `ProcessJail` özelliği.** v0.9.5 release marathon'undan sonra 5 paralel ajan ile post-release audit yapıldı; Tauri 2.11.0 ACL bypass + Tokio mpsc underflow patch'leri merge edildi, kalan medium bulgular kapatıldı. Kullanıcı raporlu "git diff +/- chip kod değişimi varken görünmüyor" bug'ı çözüldü (untracked dosyalar). Yeni özellik: tüm child process'leri toplayan Windows Job Object jail'i — DOS pencere flash'ları kapanır + parent crash'inde child'lar otomatik temizlenir. v0.9.5 ile wire-uyumlu (DB şeması/protokol değişmedi).

@@ -72,14 +72,15 @@ It is a **personal-use** D Brand project under the **MIT license**. Builds ship 
 
 ## 🆕 Yenilikler — v0.9.x serisi
 
-> v0.1.1'den v0.9.6'ye geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
+> v0.1.1'den v0.9.7'ye geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
 
 - 🪟 **Frameless pencere** — özel başlık çubuğu, popover komut paleti, native min/max/close (Tauri 2 capabilities izinleri ile)
 - 🤖 **AI Agent Watch** — pane başına AI tool-kullanım gözlemcisi, OSC 9999 protokolü, canlı maliyet rozeti, "waiting / running / interrupted" durumları, Claude Code paralel batch parser, otomatik split + heuristik tespit
 - 🔄 **Merkezi güncelleme sistemi** — 3 mod (silent / passive / full UI), ARM/x64 dual-arch updater'da entegre
 - 🎯 **ARM64 + x64 çift mimari** — Surface Pro X, Snapdragon laptop'lar dahil tam destek
 - 📊 **Canlı DFetch** — gerçek zamanlı sistem istatistikleri (CPU/RAM/disk), broadcast UX, snapshot, tema uyumlu overlay
-- 🔢 **Pane başına git diff +/- chip** — pane başlığında değişen satır sayısı (OSC 7 cwd + `git shortstat`)
+- 🔢 **Pane başına git diff +/- chip** — pane başlığında tracked + untracked dosya değişen satır sayısı (OSC 7 cwd + `git shortstat` + `git ls-files`)
+- 🪟 **Pencere flash'ları kapatıldı** — Windows Job Object ile tüm child process'ler tek noktadan denetleniyor; parent crash'inde otomatik temizlenir, console flash'ları gizlenir (Settings → Gizlilik & Performans toggle)
 - 🤖 **5 yerel AI runtime** + esnek özel endpoint sağlayıcısı (OpenAI-uyumlu)
 - 🏠 **Home dir başlangıç + welcome banner** — D-T logosu, sürüm rozeti, TR locale paneli
 - 📋 **Çok satırlı yapıştırma** — bracketed paste modu + satır sayısı toast'u
@@ -406,12 +407,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### En çok kullanılan / Most common (v0.9.6)
+### En çok kullanılan / Most common (v0.9.7)
 
 | Senin için / For you | İndir / Download |
 |---|---|
-| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.6_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.6_x64_tr-TR.msi) |
-| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.6_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.6_arm64_tr-TR.msi) |
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.7_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.7_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.7_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.7_arm64_tr-TR.msi) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
 > `Ayarlar / Settings → Sistem / System → Hakkında / About → Sistem türü / System type`
@@ -423,10 +424,10 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.9.6_x64_en-US.msi` | x86_64 | English MSI installer |
-| `D-Terminal_0.9.6_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.9.6_arm64_en-US.msi` | aarch64 | ARM64 English |
-| `D-Terminal_0.9.6_arm64-setup.exe` | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.9.7_x64_en-US.msi` | x86_64 | English MSI installer |
+| `D-Terminal_0.9.7_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
+| `D-Terminal_0.9.7_arm64_en-US.msi` | aarch64 | ARM64 English |
+| `D-Terminal_0.9.7_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.

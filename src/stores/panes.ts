@@ -172,10 +172,23 @@ export const usePanesStore = defineStore('panes', () => {
     }
   }
 
-  // Lazy import — circular dep riski olmasın (composable panes'i import etmiyor)
+  // Lazy import — circular dep riski olmasın (composable panes'i import etmiyor).
+  // Dedupe: aynı leafId için ilk çağrı bitmeden ikinci kez tetiklenirse
+  // pending Promise paylaşılır → çift import + çift clear engellenir.
+  const cleanupInFlight = new Map<string, Promise<void>>();
   async function clearGitStatStateLazy(leafId: string) {
-    const mod = await import('@/composables/useGitStat');
-    mod.clearGitStatState(leafId);
+    const existing = cleanupInFlight.get(leafId);
+    if (existing) return existing;
+    const promise = (async () => {
+      try {
+        const mod = await import('@/composables/useGitStat');
+        mod.clearGitStatState(leafId);
+      } finally {
+        cleanupInFlight.delete(leafId);
+      }
+    })();
+    cleanupInFlight.set(leafId, promise);
+    return promise;
   }
 
   async function closeTab(id: string) {
