@@ -239,13 +239,26 @@
       "autoSplitOnAgentHint": "When an AI agent (OSC 9999 start event or detected from Claude Code output) begins, automatically split the pane to the right with a read-only Agent view. Mac terminal-style multi-agent layout. Default off.",
       "updateSection": "Auto Update",
       "updateMode": "Update behavior",
-      "updateModeHint": "What should D-Terminal do when a new version is published? Checked at startup and every 24h. ARM and x64 builds are picked automatically.",
+      "updateModeHint": "What should D-Terminal do when a new version is published? Check frequency is configured below. ARM and x64 builds are picked automatically.",
       "updateModeOff": "Off (do not check)",
       "updateModeNotify": "Notify only — user starts manually",
       "updateModeDownloadWait": "Download silently — ask to install on quit",
       "updateModeAuto": "Auto download + install (no prompt)",
+      "updateCheckFrequency": "Check frequency",
+      "updateCheckFrequencyHint": "How often D-Terminal should look for new versions. \"Every launch\" hits GitHub once each time the app starts — best for dev releases. Longer intervals save bandwidth when releases are infrequent.",
+      "updateFreq": {
+        "startup": "Every launch (no debounce)",
+        "h1": "Hourly",
+        "h6": "Every 6 hours",
+        "h12": "Every 12 hours",
+        "h24": "Daily (24 hours)"
+      },
       "updateCheckNow": "Check now",
-      "updateChecking": "Checking…"
+      "updateChecking": "Checking…",
+      "autoStartSection": "Launch on Boot",
+      "autoStartOnBoot": "Start D-Terminal when Windows boots",
+      "autoStartOnBootHint": "Adds a registry entry under HKCU\\…\\Run so D-Terminal opens automatically after you sign in. Toggle off any time to remove the entry. Removing D-Terminal from \"Startup apps\" in Windows Settings also clears this state.",
+      "autoStartFailed": "Could not change auto-start setting"
     },
     "appearance": {
       "theme": "Theme",

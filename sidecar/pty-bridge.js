@@ -321,23 +321,52 @@ function runMain() {
   // Heartbeat (iki yönlü):
   //  - Tauri 5s'de bir PING gönderir, sidecar PONG döner (dispatch'te).
   //  - Sidecar 5s'de bir PING gönderir, Tauri PONG döner (manager.rs).
-  //  - Sidecar son Tauri PING/PONG'unu izler. 15s sessizlikte Tauri ölmüş
-  //    say ve exit et — yoksa zombi PTY'ler arkada çalışmaya devam eder.
+  //  - Sidecar son Tauri PING/PONG'unu izler. Sessizlik uzun sürerse
+  //    UYARI ver — ama PTY'leri ÖLDÜRME. Uzun süren bir job (build, dump,
+  //    veri taşıma) varken false-positive timeout kullanıcının işini
+  //    yakar; Tauri gerçekten ölmüşse stdout EPIPE yine bizi temizler ve
+  //    Windows'ta Job Object kill-on-close orphan riskini kapatır.
+  //
+  // System sleep/suspend: setInterval host uyurken donar; uyanışta
+  // `Date.now() - lastTauriContact` aşırı büyür → yanlışlıkla Tauri "ölü"
+  // sayılır. `lastTick` ile tick'ler arası gerçek aralığı ölç, eşiği
+  // aşarsa uyandık say ve watchdog'u sıfırla.
   let lastTauriContact = Date.now();
+  let lastTick = Date.now();
+  let peerTimeoutLogged = false;
   const HEARTBEAT_MS = 5000;
-  const PEER_TIMEOUT_MS = 15000;
+  const PEER_TIMEOUT_MS = 30000; // 15 → 30s: GC/IO duraklamalarına tolerans
+  const SLEEP_DETECT_MS = 15000;
 
   const heartbeat = setInterval(() => {
+    const now = Date.now();
+    const sinceLastTick = now - lastTick;
+    lastTick = now;
+    if (sinceLastTick > SLEEP_DETECT_MS) {
+      log(`detected sleep/suspend (${sinceLastTick}ms tick gap) — resetting peer watchdog`);
+      lastTauriContact = now;
+      peerTimeoutLogged = false;
+    }
     try {
       writeFrame(MsgType.PING, 0n, Buffer.alloc(0));
     } catch (e) {
       log(`heartbeat write failed: ${e.message}`);
-      // stdout kapalıysa Tauri zaten yok — shutdown
+      // stdout kapalıysa Tauri zaten yok — shutdown (EPIPE da aynı yola gelir)
       shutdown('stdout write failed');
       return;
     }
-    if (Date.now() - lastTauriContact > PEER_TIMEOUT_MS) {
-      shutdown('peer (Tauri) heartbeat timeout');
+    const silenceMs = now - lastTauriContact;
+    if (silenceMs > PEER_TIMEOUT_MS) {
+      if (!peerTimeoutLogged) {
+        log(`peer (Tauri) silent for ${silenceMs}ms — NOT exiting; PTYs preserved (stdout EPIPE handler bekliyor)`);
+        peerTimeoutLogged = true;
+      }
+      // shutdown(...) ÇAĞIRMA — PTY'leri öldürür, kullanıcı işini kaybeder.
+      // Tauri gerçekten ölü ise stdout.on('error', EPIPE) yolu zaten shutdown
+      // edecek; ayrıca app exit'inde ProcessJail kill-on-close devreye girer.
+    } else if (peerTimeoutLogged) {
+      log('peer (Tauri) recovered after silence');
+      peerTimeoutLogged = false;
     }
   }, HEARTBEAT_MS);
 

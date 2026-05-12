@@ -35,6 +35,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // Auto-start: Settings UI'dan kullanıcı toggle ile açıp kapatır.
+        // Windows registry HKCU\...\Run kullanır. macOS LaunchAgent default.
+        // Args: None → standard launch (eklenecek launch arg yok).
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

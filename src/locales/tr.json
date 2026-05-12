@@ -239,13 +239,26 @@
       "autoSplitOnAgentHint": "AI agent (OSC 9999 start event veya Claude Code output'undan tespit) başladığında panel sağa bölünür ve agent'ın çıktısını canlı izleyen salt-okunur bir görüntü açılır. Mac terminal tarzı çoklu-agent görünümü. Default kapalı.",
       "updateSection": "Otomatik Güncelleme",
       "updateMode": "Güncelleme davranışı",
-      "updateModeHint": "Yeni sürüm yayınlandığında D-Terminal nasıl davransın? Açılışta + 24 saatte bir kontrol edilir. ARM ve x64 için doğru paket otomatik seçilir.",
+      "updateModeHint": "Yeni sürüm yayınlandığında D-Terminal nasıl davransın? Kontrol sıklığı aşağıdan ayarlanır. ARM ve x64 için doğru paket otomatik seçilir.",
       "updateModeOff": "Kapalı (hiç kontrol etme)",
       "updateModeNotify": "Sadece bildir — kullanıcı manuel başlatır",
       "updateModeDownloadWait": "Sessizce indir — kapatınca kurulum sor",
       "updateModeAuto": "Otomatik indir + kur (sormadan)",
+      "updateCheckFrequency": "Kontrol sıklığı",
+      "updateCheckFrequencyHint": "D-Terminal yeni sürümleri ne sıklıkta arasın. \"Her açılışta\" uygulama her başladığında GitHub'a bir kez bakar — dev release'ler için ideal. Uzun aralıklar nadir release durumunda bant genişliğinden tasarruf eder.",
+      "updateFreq": {
+        "startup": "Her açılışta (debounce yok)",
+        "h1": "Saatte 1",
+        "h6": "6 saatte 1",
+        "h12": "12 saatte 1",
+        "h24": "Günde 1 (24 saat)"
+      },
       "updateCheckNow": "Şimdi kontrol et",
-      "updateChecking": "Kontrol ediliyor…"
+      "updateChecking": "Kontrol ediliyor…",
+      "autoStartSection": "Açılışta Otomatik Başlat",
+      "autoStartOnBoot": "Windows başlarken D-Terminal'i başlat",
+      "autoStartOnBootHint": "HKCU\\…\\Run registry anahtarına D-Terminal entry'si ekler — oturum açtıktan sonra otomatik açılır. Kapatınca entry silinir. Windows Ayarlar → \"Başlangıç uygulamaları\"ndan D-Terminal kaldırılırsa bu ayar da temizlenir.",
+      "autoStartFailed": "Otomatik başlatma ayarı değiştirilemedi"
     },
     "appearance": {
       "theme": "Tema",

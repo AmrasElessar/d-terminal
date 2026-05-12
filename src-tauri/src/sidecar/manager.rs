@@ -531,28 +531,72 @@ fn spawn_heartbeat_thread(
     let weak_for_err = weak.clone();
     let result = thread::Builder::new()
         .name("dterm-sidecar-heartbeat".into())
-        .spawn(move || loop {
-            thread::sleep(Duration::from_secs(5));
-            let Some(mgr) = weak.upgrade() else { break };
-            // PONG son 15 saniyede gelmediyse sidecar dead say
-            let last = mgr.inner.lock().last_pong;
-            if last.elapsed() > Duration::from_secs(15) {
-                try_send_lifecycle(
-                    &mgr.events_tx,
-                    PtyEvent::SidecarDown {
-                        reason: "heartbeat timeout".into(),
-                    },
-                );
-                mgr.shutdown();
-                break;
+        .spawn(move || {
+            // System sleep/suspend (Windows uyku, lid close) sırasında bu thread
+            // de sidecar Node process'i de donar. Uyanışta PONG son 30s+ önce
+            // gelmiş görünür → sidecar yanlışlıkla "ölü" sayılır. Çözüm:
+            //  (1) loop iterasyonları arası gerçek elapsed'i ölç → sleep/suspend
+            //      tespit edilirse watchdog'u sıfırla, peer'a taze PING ile yanıt
+            //      fırsatı ver.
+            //  (2) Gerçek timeout durumunda BİLE `mgr.shutdown()` çağırma — bu
+            //      sidecar'ı ve tüm PTY pane'lerini öldürürdü (uzun süren bir job
+            //      çalışıyorsa felaket). Sadece SidecarDown event'i emit et;
+            //      gerçekten ölü ise zaten reader thread EOF veya `write_frame`
+            //      EPIPE yolu state'i temizler. Hung-but-alive durumda user
+            //      manuel müdahale eder, veri kaybı olmaz.
+            // Timeout eşiği 15s → 30s yükseltildi: GC/disk-IO kaynaklı geçici
+            // duraklamalarda false-positive riskini düşürür.
+            const PEER_TIMEOUT: Duration = Duration::from_secs(30);
+            const SLEEP_DETECT: Duration = Duration::from_secs(15);
+            let mut last_loop = Instant::now();
+            let mut down_emitted = false;
+            loop {
+                thread::sleep(Duration::from_secs(5));
+                let Some(mgr) = weak.upgrade() else { break };
+
+                let actual_elapsed = last_loop.elapsed();
+                last_loop = Instant::now();
+                if actual_elapsed > SLEEP_DETECT {
+                    tracing::info!(
+                        actual_ms = actual_elapsed.as_millis() as u64,
+                        "heartbeat detected system sleep/suspend — resetting peer watchdog"
+                    );
+                    mgr.inner.lock().last_pong = Instant::now();
+                } else {
+                    let last = mgr.inner.lock().last_pong;
+                    if last.elapsed() > PEER_TIMEOUT {
+                        if !down_emitted {
+                            tracing::warn!(
+                                last_pong_ms = last.elapsed().as_millis() as u64,
+                                "heartbeat: peer silent past timeout — emitting SidecarDown (non-destructive)"
+                            );
+                            try_send_lifecycle(
+                                &mgr.events_tx,
+                                PtyEvent::SidecarDown {
+                                    reason: "heartbeat timeout".into(),
+                                },
+                            );
+                            down_emitted = true;
+                        }
+                        // mgr.shutdown() ÇAĞIRMA — pane state'i, child handle,
+                        // thread'leri ayakta tut. Peer geri dönerse SidecarUp ile
+                        // recovery sinyali ver; gerçekten ölmüşse write/reader
+                        // path'leri doğal temizlik yapar.
+                    } else if down_emitted {
+                        // Peer recovered (e.g. uzun GC pause bitti) — UI'ı bilgilendir.
+                        tracing::info!("heartbeat: peer recovered after silence — emitting SidecarUp");
+                        try_send_lifecycle(&mgr.events_tx, PtyEvent::SidecarUp);
+                        down_emitted = false;
+                    }
+                }
+                // Heartbeat frame doğrudan stdin'e — ara Vec alloc yok.
+                let frame = Frame::control(MsgType::Ping);
+                let mut guard = stdin.lock();
+                if frame.encode(&mut *guard).is_err() {
+                    break;
+                }
+                let _ = guard.flush();
             }
-            // Heartbeat frame doğrudan stdin'e — ara Vec alloc yok.
-            let frame = Frame::control(MsgType::Ping);
-            let mut guard = stdin.lock();
-            if frame.encode(&mut *guard).is_err() {
-                break;
-            }
-            let _ = guard.flush();
         });
     match result {
         Ok(h) => Some(h),

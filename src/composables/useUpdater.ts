@@ -12,13 +12,21 @@
 
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore, type UpdateCheckFrequency } from '@/stores/settings';
 import { useToastsStore } from '@/stores/toasts';
 import { i18n } from '@/main';
 
 const LAST_CHECK_KEY = 'updater.lastCheckAt';
 const READY_UPDATE_KEY = 'updater.readyVersion';
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+/** Settings.updateCheckFrequency → milisaniye eşleme. `startup` = 0 (debounce yok,
+ *  her açılışta check). Diğerleri lastCheckAt baz alır. */
+const FREQUENCY_TO_MS: Record<UpdateCheckFrequency, number> = {
+  startup: 0,
+  '1h': 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '12h': 12 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+};
 
 let cachedUpdate: Update | null = null;
 let inProgress = false;
@@ -159,12 +167,17 @@ async function installCached(update: Update): Promise<boolean> {
   }
 }
 
-/** Açılışta otomatik check — 24h debounce + mode kontrolü.
- *  Rust loglarını kirletmemek için silent=true. */
+/** Açılışta otomatik check — settings.updateCheckFrequency'e göre debounce.
+ *  `startup` ise debounce yok (her açılışta check). Diğerlerinde
+ *  lastCheckAt + minimum interval kontrolü. Rust loglarını kirletmemek için
+ *  silent=true. */
 export async function autoCheckOnStartup() {
   const settings = useSettingsStore();
   if (settings.state.updateMode === 'off') return;
-  const sinceLast = Date.now() - lastCheckAt();
-  if (sinceLast < CHECK_INTERVAL_MS) return;
+  const freq = settings.state.updateCheckFrequency;
+  if (freq !== 'startup') {
+    const sinceLast = Date.now() - lastCheckAt();
+    if (sinceLast < FREQUENCY_TO_MS[freq]) return;
+  }
   await checkForUpdate(true);
 }

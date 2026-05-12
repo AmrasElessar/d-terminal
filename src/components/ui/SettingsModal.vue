@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { enable as autostartEnable, disable as autostartDisable, isEnabled as autostartIsEnabled } from '@tauri-apps/plugin-autostart';
 import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '@/stores/settings';
 import { useThemeStore } from '@/stores/theme';
@@ -77,6 +78,10 @@ onMounted(async () => {
   try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
   try { processJailActive.value = await api.processJailActive(); } catch { /* default false */ }
   try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch { /* default false */ }
+  // Autostart durumunu backend (registry) ile hizala — kullanıcı manuel olarak
+  // registry'yi düzenlemiş olabilir veya başka bir D-Terminal kurulumu mevcut
+  // entry yazmış olabilir. Backend tek doğru kaynak.
+  await syncAutostartFromBackend();
   // Settings modal açıldığında dil seçici listesi için raw _meta'yı lazy yükle.
   // Modal kapalıyken bu chunk yüklenmez (initial bundle ~100-150 KB hafifler).
   void loadLocaleMeta();
@@ -128,7 +133,53 @@ function updateModeLabel(mode: 'off' | 'notify' | 'download-wait' | 'auto'): str
   return t(UPDATE_MODE_KEYS[mode]);
 }
 
+const UPDATE_FREQUENCY_KEYS: Record<import('@/stores/settings').UpdateCheckFrequency, string> = {
+  startup: 'settings.general.updateFreq.startup',
+  '1h': 'settings.general.updateFreq.h1',
+  '6h': 'settings.general.updateFreq.h6',
+  '12h': 'settings.general.updateFreq.h12',
+  '24h': 'settings.general.updateFreq.h24',
+};
+function updateFrequencyLabel(freq: import('@/stores/settings').UpdateCheckFrequency): string {
+  return t(UPDATE_FREQUENCY_KEYS[freq]);
+}
+
 const updateChecking = ref(false);
+
+// Auto-start sync — backend registry state'i ile settings.state.autoStartOnBoot
+// arasında köprü. Toggle değişince plugin enable/disable çağrılır; backend
+// reject ederse state geri döner (Settings DB tutarsızlığını engelle). Sticky
+// hata bildirimi yok — toast yeterli.
+const autostartSyncing = ref(false);
+async function syncAutostartFromBackend() {
+  try {
+    const actual = await autostartIsEnabled();
+    if (actual !== settings.state.autoStartOnBoot) {
+      // İlk açılışta backend gerçeği tek doğru kaynak — UI'yı backend'le hizala.
+      autostartSyncing.value = true;
+      settings.state.autoStartOnBoot = actual;
+      Promise.resolve().then(() => { autostartSyncing.value = false; });
+    }
+  } catch (e) {
+    console.warn('autostart isEnabled failed:', e);
+  }
+}
+watch(
+  () => settings.state.autoStartOnBoot,
+  async (next, prev) => {
+    if (autostartSyncing.value) return;
+    try {
+      if (next) await autostartEnable();
+      else await autostartDisable();
+    } catch (e) {
+      console.warn('autostart toggle failed, rolling back:', e);
+      autostartSyncing.value = true;
+      settings.state.autoStartOnBoot = prev as boolean;
+      Promise.resolve().then(() => { autostartSyncing.value = false; });
+      toasts.error(t('settings.general.autoStartFailed'));
+    }
+  },
+);
 async function checkUpdateNow() {
   updateChecking.value = true;
   try {
@@ -545,6 +596,26 @@ void props.open;
             <span>{{ updateModeLabel(mode) }}</span>
           </label>
         </div>
+
+        <h4 class="subhead small">{{ t('settings.general.updateCheckFrequency') }}</h4>
+        <small class="note">{{ t('settings.general.updateCheckFrequencyHint') }}</small>
+        <div class="update-modes">
+          <label
+            v-for="freq in (['startup', '1h', '6h', '12h', '24h'] as const)"
+            :key="freq"
+            class="field row update-mode"
+            :class="{ 'is-disabled': settings.state.updateMode === 'off' }"
+          >
+            <input
+              v-model="settings.state.updateCheckFrequency"
+              type="radio"
+              :value="freq"
+              :disabled="settings.state.updateMode === 'off'"
+            />
+            <span>{{ updateFrequencyLabel(freq) }}</span>
+          </label>
+        </div>
+
         <div class="config-actions">
           <button
             type="button"
@@ -555,6 +626,14 @@ void props.open;
             ↻ {{ updateChecking ? t('settings.general.updateChecking') : t('settings.general.updateCheckNow') }}
           </button>
         </div>
+
+        <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.autoStartSection') }}</h3>
+        <label class="field row">
+          <input v-model="settings.state.autoStartOnBoot" type="checkbox" />
+          <span>{{ t('settings.general.autoStartOnBoot') }}</span>
+        </label>
+        <small class="note">{{ t('settings.general.autoStartOnBootHint') }}</small>
 
         <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.adminSection') }}</h3>

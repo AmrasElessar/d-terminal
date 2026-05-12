@@ -7,6 +7,9 @@ import { api } from '@/api/tauri';
 export type StartupMode = 'welcome' | 'lastSession' | 'empty';
 /** xterm.js render backend. `auto` → WebGL dene, başarısızsa canvas, o da olmazsa DOM. */
 export type RendererMode = 'auto' | 'webgl' | 'canvas' | 'dom';
+/** Updater check sıklığı. `startup` = her uygulama açılışında check (debounce yok).
+ *  Diğerleri lastCheckAt'i baz alan minimum interval. */
+export type UpdateCheckFrequency = 'startup' | '1h' | '6h' | '12h' | '24h';
 
 export interface SettingsState {
   /** ISO dil kodu (`tr`, `en`, `de`, `pt-BR`, ...). Topluluk bir dil paketi
@@ -58,6 +61,14 @@ export interface SettingsState {
    *  - auto: indir + quit'te otomatik kur (sormadan).
    *  - off: hiç check etme. */
   updateMode: 'off' | 'notify' | 'download-wait' | 'auto';
+  /** Updater check sıklığı — `startup` her uygulama açılışında, diğerleri minimum
+   *  interval (lastCheckAt baz alır). v0.9.x serisi sık release çıkardığı için
+   *  default 'startup' — kullanıcı bildirimi kaçırmasın; isteyen 24h'a alabilir. */
+  updateCheckFrequency: UpdateCheckFrequency;
+  /** Windows boot'unda D-Terminal otomatik başlasın mı (HKCU\...\Run).
+   *  Backend tauri-plugin-autostart ile registry yazımı yapar; UI sadece
+   *  state'i tutar ve watch ile plugin enable/disable çağırır. */
+  autoStartOnBoot: boolean;
   /** xterm scrollback satır sayısı. Pane başına ~80 char × 2 byte (UTF-16)
    *  bellek tüketir; 5000 satır ≈ 800 KB/pane. Default 5000 — modern terminal
    *  pratiği (önceki 10000 çok pane'li kullanımda 16+ MB/pencere). */
@@ -93,6 +104,8 @@ const DEFAULTS: SettingsState = {
   dfetchPollIntervalMs: 1500,
   autoSplitOnAgent: false,
   updateMode: 'notify',
+  updateCheckFrequency: 'startup',
+  autoStartOnBoot: false,
   scrollback: 5000,
   suppressConsoles: true,
 };
