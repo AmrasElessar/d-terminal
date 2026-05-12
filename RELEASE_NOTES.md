@@ -1,5 +1,38 @@
 # D-Terminal Release Notes
 
+## v0.9.9 — 2026-05-12
+
+**Settings UX iyileştirmeleri + heartbeat dayanıklılığı.** v0.9.6→v0.9.9 aynı haftanın dördüncü release'i; bu sefer kalite/dayanıklılık değil **kullanıcının doğrudan dokunduğu ayarlar** odak. v0.9.8 ile wire-uyumlu (protokol değişmedi, downgrade güvenli).
+
+### 🚀 Yeni feature'lar
+
+- **🪟 Auto-start on Boot** — Settings → "Açılışta Otomatik Başlat" toggle. Windows'ta `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry entry'si ekler/siler; macOS LaunchAgent default. `tauri-plugin-autostart@2.5.1` (Rust) + `@tauri-apps/plugin-autostart@^2` (JS) ile. Backend `isEnabled()` tek doğru kaynak: kullanıcı manuel registry düzenlemiş veya başka D-Terminal kurulumu mevcut entry yazmış olabilir → UI ilk açılışta backend ile hizalanır. Toggle fail olursa state rollback + toast (sticky değil).
+- **⏱ Update Check Frequency** — yeni release'leri ne sıklıkta arayacağı kullanıcı seçimi. `Her açılışta (debounce yok)` / `Saatte 1` / `6 saatte 1` / `12 saatte 1` / `Günde 1`. Default `startup`: v0.9.x serisi sık release çıkardığı için her açılışta GitHub'a bakar; isteyen 24h'a alabilir. `updateMode='off'` ise frequency grubu disabled (görsel feedback). `useUpdater.autoCheckOnStartup` debounce'u eski sabit `CHECK_INTERVAL_MS` yerine settings'e bağlandı.
+
+### 🛡 Dayanıklılık (heartbeat non-destructive)
+
+- **Timeout'ta `shutdown()` ÇAĞRILMIYOR** — peer sessizlik tespit edilse bile PTY pane'leri öldürülmez. Sadece `SidecarDown` event emit (UI badge bildirimi); peer recover ederse `SidecarUp`. Önceki davranış: 15s sessizlikte sidecar veya Tauri "ölü" sayılır, tüm PTY pane'leri kapanır → uzun süren job (build, dump, veri taşıma) çalışıyorsa felaket. Yeni davranış: gerçekten ölü ise reader EOF veya stdout EPIPE yolu doğal temizlik yapar; hung-but-alive durumda user manuel müdahale eder, **veri kaybı yok**.
+- **Sleep/suspend tespiti** — laptop uyku, lid close, RDP disconnect sırasında `setInterval` ve `thread::sleep` donar; uyanışta `Date.now() - lastTauriContact` aşırı büyür → yanlışlıkla "ölü" sayılırdı. `lastTick` ile gerçek tick aralığı ölçülür, **15s+ gap → sleep var sayılır, watchdog sıfırlanır**. Hem sidecar (Node) hem Tauri (Rust) tarafında uygulandı.
+- **`PEER_TIMEOUT_MS` 15s → 30s** — GC/disk-IO geçici duraklamalarına tolerans; false-positive `SidecarDown` event'lerini düşürür.
+
+### 🔧 Fix
+
+- **`@tauri-apps/plugin-autostart` JS paketi `package.json` eksiği** — feature commit `c896b36`'da Rust dep + UI import vardı ama JS paketi `package.json`'a eklenmemişti (kullanıcı feedback'i: "gene yarım kaldı"). v0.9.9'a girmeden önce paket eklendi + `pnpm-lock.yaml` güncellendi. Runtime'da `Failed to fetch dynamically imported module` hatası riski kapatıldı.
+
+### 📊 Metrikler
+
+- Test sayısı: **90 Rust + 71 Vitest** (değişmedi; yeni feature'lar mevcut testleri kırmadı).
+- Yeni Tauri plugin sayısı: 6 → **7** (autostart).
+- Yeni settings alanı: 2 (`autoStartOnBoot`, `updateCheckFrequency`).
+- v0.9.6→v0.9.9 aynı haftada **4 release** — release marathon devam ediyor.
+
+### Bilinen Sınırlar
+
+- 31 stub locale'de yeni anahtarlar (`updateCheckFrequency*`, `updateFreq.*`, `autoStartSection`, `autoStartOnBoot*`, `autoStartFailed`) yok — fallback TR'ye düşüyor.
+- Autostart toggle backend rollback yaparsa kullanıcı toast görür ama settings DB'sine yazılan değer geri alınmaz değil — `autostartSyncing` flag'i ile watch loop reentrancy korunur.
+
+---
+
 ## v0.9.7 — 2026-05-10
 
 **Post-v0.9.6 follow-up audit + ProcessJail dokümantasyonu.** Aynı gün release marathon'unun ikinci raundunda 4 paralel agent ile post-release tarama yapıldı; 5 KRİTİK + 8 ÖNEMLİ bulgu kapatıldı. Yeni feature yok — kalite + dayanıklılık release'i. v0.9.6 ile wire-uyumlu (DB şeması/protokol değişmedi).

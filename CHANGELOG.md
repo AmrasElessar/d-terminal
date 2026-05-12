@@ -3,6 +3,23 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] — 2026-05-12
+
+Settings UX iyileştirmeleri + heartbeat dayanıklılığı. v0.9.8 ile wire-uyumlu (protokol değişmedi). v0.9.6→v0.9.9 aynı haftanın dördüncü release'i — feature batch tek pakette.
+
+### Eklenen
+- **Auto-start on Boot** — `tauri-plugin-autostart` (Rust v2.5.1 + JS ^2.0.0) ile Windows `HKCU\…\Run` registry entry yönetimi; macOS LaunchAgent fallback. Settings → "Launch on Boot" toggle, backend `isEnabled()` tek doğru kaynak (kullanıcı manuel registry düzenlemiş olabilir). Toggle backend fail olursa state rollback + toast.
+- **Update Check Frequency** ayarı — `startup | 1h | 6h | 12h | 24h` radio grup. Default `startup`: v0.9.x serisi sık release çıkardığı için her açılışta GitHub'a bakar (kullanıcı bildirimi kaçırmasın). `useUpdater.autoCheckOnStartup` debounce'u settings'e bağlandı. `updateMode='off'` ise frequency disabled görünür.
+- **`UpdateCheckFrequency`** + **`autoStartOnBoot`** alanları `SettingsState`'e eklendi; locale anahtarları `tr/en` (`updateCheckFrequency`, `updateCheckFrequencyHint`, `updateFreq.*`, `autoStartSection`, `autoStartOnBoot`, `autoStartOnBootHint`, `autoStartFailed`).
+
+### Değiştirilen
+- **Heartbeat non-destructive timeout** — peer (Tauri/sidecar) sessizlik tespit edildiğinde **`shutdown()` ÇAĞRILMIYOR**. Sadece `SidecarDown` event emit edilir (UI badge); peer recover ederse `SidecarUp`. Uzun süren job (build, dump, veri taşıma) çalışırken false-positive timeout kullanıcının işini yakmaz. Gerçekten ölü ise reader EOF / stdout EPIPE doğal temizlik yapar + ProcessJail kill-on-close orphan riskini kapatır.
+- **Heartbeat sleep/suspend tespiti** — laptop uyku/lid close sırasında `setInterval` ve `thread::sleep` donar; uyanışta `lastTauriContact` aşırı eskimiş görünür. `lastTick` ile gerçek tick gap ölçülür, **15s+ tick gap → sleep var sayılır, watchdog sıfırlanır**. Hem sidecar (`pty-bridge.js`) hem Tauri (`manager.rs`) tarafında uygulandı.
+- **`PEER_TIMEOUT_MS` 15s → 30s** — GC/disk-IO geçici duraklamalarında false-positive riskini düşürür.
+
+### Düzeltilen
+- **`@tauri-apps/plugin-autostart` JS paketi `package.json`'a eksik** — `SettingsModal.vue` import ediyordu ama dep listesinde yoktu (commit `c896b36` öncesi runtime error riski). v0.9.9'a girmeden önce paket eklendi + pnpm-lock güncellendi.
+
 ## [0.9.8] — 2026-05-12
 
 Post-v0.9.7 audit (5 paralel agent) bulgularının toplu fix paketi. HIGH/MEDIUM aksiyon kalemleri tek release'de bağlandı.
