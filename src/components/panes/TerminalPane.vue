@@ -191,6 +191,10 @@ let serialize: SerializeAddon | null = null;
 let webgl: WebglAddon | null = null;
 let canvas: CanvasAddon | null = null;
 let unlistenStdout: UnlistenFn | null = null;
+// PTY stdout RAF coalescing cleanup handle — pane hızlı close/reopen veya PTY
+// restart sırasında orphan flush callback'i önlemek için listenStdout başında
+// ve onBeforeUnmount'ta cancelAnimationFrame ile temizlenir.
+let stdoutRafId: number | null = null;
 
 // --- Search overlay state ---
 const searchOpen = ref(false);
@@ -296,19 +300,50 @@ async function listenStdout(ptyId: string) {
     unlistenStdout();
     unlistenStdout = null;
   }
+  // Eski RAF'ı iptal et — PTY restart/reattach'de eski closure'un scheduled
+  // flush'ı yeni listener'ın pending buffer'ına yazmasın (orphan-RAF temizliği).
+  if (stdoutRafId !== null) {
+    cancelAnimationFrame(stdoutRafId);
+    stdoutRafId = null;
+  }
+  // RAF coalescing (v0.9.8 perf fix): backend lib.rs zaten 16ms event
+  // coalescing yapıyor (Perf O3) ama frontend her event başına bir
+  // `term.write()` çağırınca WebGL renderer + DOM repaint her event'te
+  // tetikleniyordu. 1000+ event/sn senaryolarında (yarn install, cat
+  // huge.log) GPU bounce hissedilir oluyor. Şimdi pending bytes RAF
+  // callback'inde tek term.write ile birleştirilir → 1 frame ≈ 16ms
+  // gecikme (interaktif yazımda fark edilmez, byte loss yok).
+  // Closure-local pending state; rafId outer scope'ta — cleanup için.
+  let pendingChunks: Uint8Array[] = [];
+  let pendingLen = 0;
+  const flush = () => {
+    stdoutRafId = null;
+    if (pendingChunks.length === 0 || !term) return;
+    const merged = new Uint8Array(pendingLen);
+    let off = 0;
+    for (const c of pendingChunks) {
+      merged.set(c, off);
+      off += c.length;
+    }
+    pendingChunks = [];
+    pendingLen = 0;
+    // xterm yazımı: ANSI/OSC parse + render (OSC 133 handler tetiklenir)
+    term.write(merged);
+    // Block tracker + trigger matching merged buffer üzerinde tek seferde
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(merged);
+    blockTracker.onOutput(text);
+    feedTriggers(text);
+  };
   unlistenStdout = await listen<PtyEvent>('pty://stdout', (e) => {
     if (e.payload.kind !== 'stdout') return;
     if (e.payload.pane_id !== ptyId) return;
     if (!term) return;
     const bytes = new Uint8Array(e.payload.data);
-    // xterm yazımı: ANSI/OSC parse + render (OSC 133 handler tetiklenir)
-    term.write(bytes);
-    // Block tracker — output topla (görsel olarak xterm zaten render ediyor;
-    // burada metadata için saklarız, AI'a gönderme/copy block için kullanılır).
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-    blockTracker.onOutput(text);
-    // Trigger matching — line-buffered, ANSI strip
-    feedTriggers(text);
+    pendingChunks.push(bytes);
+    pendingLen += bytes.length;
+    if (stdoutRafId === null) {
+      stdoutRafId = requestAnimationFrame(flush);
+    }
   });
 }
 
@@ -807,6 +842,10 @@ onBeforeUnmount(() => {
     resizeIpcTimer = 0;
   }
   if (unlistenStdout) unlistenStdout();
+  if (stdoutRafId !== null) {
+    cancelAnimationFrame(stdoutRafId);
+    stdoutRafId = null;
+  }
   unregisterBlockTracker(props.leaf.id);
   clearAgentDetectorState(props.leaf.id);
   clearGitStatState(props.leaf.id);

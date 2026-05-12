@@ -3,6 +3,28 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.8] — 2026-05-12
+
+Post-v0.9.7 audit (5 paralel agent) bulgularının toplu fix paketi. HIGH/MEDIUM aksiyon kalemleri tek release'de bağlandı.
+
+### Eklenen
+- **ADR-0007: CSP Allowlist Scope** — `tauri.conf.json` CSP'sindeki localhost portlarının (dev HMR + AI runtime) **kasıtlı tasarım** olduğunu belgeleyen ADR. Future audit'ler için referans + sonraki adımlar (AI portları için Rust-only proxy migration) listelenir.
+- **`process_jail_assign_failed` Tauri command + Settings UI uyarısı** — Job Object'e child eklenememesi durumunda kullanıcıya ⚠ "kill-on-close garantisi kayboldu" badge'i gösterilir (sticky, oturum sonuna kadar). Heartbeat 15s timeout fallback aktif kalır. `en/tr` `jailAssignFailedHint` locale anahtarları eklendi.
+- **i18n parity: tree-structure testi** — leaf key parite testine ek olarak `structuralShape()` ile nested obje yapı derinliği de karşılaştırılır. EN'de nested object, TR'de string olan path'ler artık CI'da yakalanır (önceki test yalnızca leaf set eşitliğine bakıyordu).
+- **`src/stores/settings.test.ts`** — `suppressConsoles` rollback regression testi: backend `processSetSuppressConsoles` invoke fail olursa state geri döner + sync flag temizlenir.
+- **TerminalPane RAF coalescing** — backend 16ms event coalescing'ine ek olarak frontend `term.write` çağrıları `requestAnimationFrame` ile tek frame'e birleştirilir; büyük log dump'larda (yarn install, cat huge.log) WebGL/DOM repaint baskısı belirgin azalır.
+
+### Düzeltilen
+- **AI provider API error body log sızıntısı (`openai.rs`)** — `tracing::debug!` hata gövdesinin ilk 80 char'ını log'a düşürüyordu; release filter env-driven olduğu için debug seviyesi bypass olabiliyordu. Body artık hiç log'a düşmüyor (status + provider id yeterli, frontend için Err string zaten dönüyor).
+- **`release.yml` artifact upload silent fail** — `fail_on_unmatched_files: false` ile glob match yokken sessizce geçilebiliyordu. Pre-upload "Verify bundle outputs" step'i (PowerShell ile installer + signature count kontrolü) + `fail_on_unmatched_files: true` ile bundle eksik kalırsa CI hard fail.
+- **`git_diff_shortstat` paralelleştirme** — `git diff --shortstat HEAD` ve `git ls-files --others` artık iki ayrı `spawn_blocking` task'ında **paralel** koşar (`tokio::join!` ile join). `run_git_diff_tracked` fonksiyonu rename + untracked çağrısı caller'a taşındı; path validation tek yerde (race-bypass riski yok).
+- **`sidecar/manager.rs` reader/restart lock pattern dokümantasyonu** — `ensure_started`'da `drop(inner)` sonrası lock-on-lock olmadığını garantileyen yorum eklendi (audit agent'ları false-positive deadlock raporu vermesin diye, kod davranışı değişmedi).
+
+### Güvenlik
+- AI debug log body sızıntısı kapatıldı — release build'lerde prompt/model echo riskini sıfırlar.
+- Bundle artifact eksik upload'ı CI hard fail ile yakalanır — eksik installer ile yayın engellenir.
+- Process koruma assign failure'u kullanıcıya görünür hale geldi (sessiz `tracing::warn` yerine Settings UI badge'i).
+
 ## [0.9.7] — 2026-05-10
 
 Post-v0.9.6 follow-up audit (4 paralel agent) bulgularının toplu düzeltmesi + ProcessJail dokümantasyonu + DX iyileştirmeleri. Detay: bkz. [RELEASE_NOTES.md](./RELEASE_NOTES.md#v097--2026-05-10).

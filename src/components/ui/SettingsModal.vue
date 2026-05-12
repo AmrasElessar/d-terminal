@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useSettingsStore } from '@/stores/settings';
 import { useThemeStore } from '@/stores/theme';
@@ -68,15 +68,30 @@ const isElevated = ref(false);
 // suppression garanti; aksi halde sadece spawn-time CREATE_NO_WINDOW
 // fallback (heartbeat timeout zombi guard'ı).
 const processJailActive = ref(false);
+// Bir veya daha fazla child Job Object'e eklenememişse true. Sticky —
+// session sonuna kadar uyarı badge'i kalır (heartbeat fallback aktif).
+const processJailAssignFailed = ref(false);
 
 onMounted(async () => {
   try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
   try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
   try { processJailActive.value = await api.processJailActive(); } catch { /* default false */ }
+  try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch { /* default false */ }
   // Settings modal açıldığında dil seçici listesi için raw _meta'yı lazy yükle.
   // Modal kapalıyken bu chunk yüklenmez (initial bundle ~100-150 KB hafifler).
   void loadLocaleMeta();
 });
+
+// Modal her açıldığında jail assign-failed durumunu tazele. Sticky flag false→
+// true geçişi sidecar restart sırasında oturum içinde olabilir; onMounted bir
+// kez çalıştığı için modal reopen'de UI stale kalmasın diye watch ile re-fetch.
+watch(
+  () => props.open,
+  async (isOpen) => {
+    if (!isOpen) return;
+    try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch { /* default false */ }
+  },
+);
 
 async function restartAsAdmin() {
   if (!(await confirmAsk(t('settings.general.adminRestartConfirm'), { kind: 'warning' }))) return;
@@ -579,6 +594,9 @@ void props.open;
         </p>
         <p v-else class="note small-note">
           ⚠ {{ t('settings.general.jailInactiveHint') }}
+        </p>
+        <p v-if="processJailAssignFailed" class="note small-note" style="color: #f5a623;">
+          ⚠ {{ t('settings.general.jailAssignFailedHint') }}
         </p>
 
         <hr class="divider" />

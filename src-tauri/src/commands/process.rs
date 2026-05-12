@@ -31,3 +31,11 @@ pub fn process_suppress_consoles(state: State<'_, AppState>) -> bool {
 pub fn process_jail_active(state: State<'_, AppState>) -> bool {
     state.jail.has_job()
 }
+
+/// `assign()` Err döndüyse true. Settings UI bunu ⚠ uyarı badge'i olarak
+/// gösterir — kill-on-close garantisi kayıp, heartbeat fallback çalışır.
+/// Sticky: bir kez set'lenirse session sonuna kadar true kalır.
+#[tauri::command]
+pub fn process_jail_assign_failed(state: State<'_, AppState>) -> bool {
+    state.jail.assign_failed()
+}

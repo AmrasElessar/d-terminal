@@ -41,31 +41,50 @@ pub struct GitStat {
 
 #[tauri::command]
 pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> Result<GitStat, ()> {
-    let jail = state.jail.clone();
-    // tokio task üzerinde spawn — git binary'si büyük repolarda 100ms+ sürebilir,
-    // Tauri main thread'i bloklamasın
-    Ok(
-        tokio::task::spawn_blocking(move || run_git_diff(&jail, &path))
-            .await
-            .unwrap_or_default(),
-    )
-}
-
-fn run_git_diff(jail: &Arc<ProcessJail>, path: &str) -> GitStat {
-    // Önce path'in geçerli olduğunu doğrula
-    if path.is_empty() || !std::path::Path::new(path).exists() {
-        return GitStat::default();
+    // Path validation main thread'de — UNC saldırısı + missing path. İki git
+    // binary çağrısı aynı path'i kullanır; doğrulamayı tek yerde yapmak çift
+    // syscall'u önler ve security check'in iki spawn arasında bypass olmasını
+    // imkansızlaştırır.
+    if path.is_empty() || !std::path::Path::new(&path).exists() {
+        return Ok(GitStat::default());
     }
     // UNC path reddedilir — \\attacker\share\.git\config saldırısını engeller
     // (rogue config core.fsmonitor/core.editor üzerinden RCE — CVE-2022-24765
     // sınıfı zafiyet ailesi).
     if path.starts_with(r"\\") || path.starts_with("//") {
-        return GitStat::default();
+        return Ok(GitStat::default());
     }
 
-    // git diff --shortstat HEAD — staged + unstaged + untracked HARİÇ
-    // Untracked dosyaları da dahil etmek için ayrı `git status --short` lazım,
-    // şimdilik sadece tracked diff yeterli (Claude Code mevcut dosyaları edit eder).
+    let jail = state.jail.clone();
+    let jail_diff = jail.clone();
+    let path_diff = path.clone();
+    // İki git binary spawn'ı paralel — eskiden seri çağrı (run_git_diff içinde
+    // collect_untracked sequential) toplam latency'yi diff+untracked toplamı
+    // yapıyordu. Şimdi max(diff, untracked) ≈ ~yarıya iniyor (büyük repo'larda
+    // hissedilir; küçük repo'larda fark thread spawn overhead'ine yakın).
+    let diff_handle =
+        tokio::task::spawn_blocking(move || run_git_diff_tracked(&jail_diff, &path_diff));
+    let untracked_handle = tokio::task::spawn_blocking(move || collect_untracked(&jail, &path));
+
+    let mut stat = diff_handle.await.unwrap_or_default();
+    if !stat.is_repo {
+        // diff fail (repo değil) → untracked sayımını yutmak doğru; future'ı
+        // tamamlanmadan drop etmek tokio task'ı abort etmez ama spawn_blocking
+        // worker thread'inde git yine sonlanır (sub-saniye). await ile drain.
+        let _ = untracked_handle.await;
+        return Ok(stat);
+    }
+    let untracked = untracked_handle.await.unwrap_or_default();
+    stat.files = stat.files.saturating_add(untracked.file_count);
+    stat.added = stat.added.saturating_add(untracked.line_count);
+    Ok(stat)
+}
+
+/// Sadece tracked (staged + unstaged) farkı — `git diff --shortstat HEAD`.
+/// Untracked dosyalar `collect_untracked` ile ayrı spawn'da paralel toplanır
+/// (bkz. `git_diff_shortstat`). Bu fonksiyon başlı başına untracked dahil
+/// etmez — caller iki sonucu birleştirir.
+fn run_git_diff_tracked(jail: &Arc<ProcessJail>, path: &str) -> GitStat {
     let mut cmd = Command::new("git");
     cmd.args(["-C", path, "diff", "--shortstat", "HEAD"]);
     // Windows'ta git çağrısı için stdin'i /dev/null'a yönlendir — interaktif
@@ -107,15 +126,7 @@ fn run_git_diff(jail: &Arc<ProcessJail>, path: &str) -> GitStat {
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
-    let mut stat = parse_shortstat(&text);
-
-    // Untracked dosyalar — `git diff --shortstat` bunları görmez. Yeni eklenmiş
-    // dosyaların satır sayısını added'a ekleriz, dosya sayısını files'a.
-    let untracked = collect_untracked(jail, path);
-    stat.files = stat.files.saturating_add(untracked.file_count);
-    stat.added = stat.added.saturating_add(untracked.line_count);
-
-    stat
+    parse_shortstat(&text)
 }
 
 #[derive(Default)]

@@ -396,13 +396,11 @@ impl ChatProvider for OpenAi {
         .await?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let txt = resp.text().await.unwrap_or_default();
-            // Body sadece Rust log'a — frontend'e status code yeter
-            // (api key prefix/quota detay sızıntısını engeller).
-            // Body sadece debug seviyesinde (release'de filtrelenir) — provider
-            // hata gövdesi prompt/model içeriği echo edebilir, log'da kalmasın.
+            // Frontend'e sadece status code; provider hata gövdesi prompt/model
+            // içeriği echo edebileceği için log'a hiç düşürmüyoruz (v0.9.8:
+            // debug log filter env-driven olduğu için release'de bypass riski
+            // vardı — body tamamen drop edildi). resp drop edilince stream kapanır.
             tracing::warn!(provider = self.id, status = %status, "AI API error");
-            tracing::debug!(provider = self.id, body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();

@@ -44,3 +44,31 @@ describe('i18n parity — en.json vs tr.json', () => {
     expect(trKeys.size).toBeGreaterThan(200);
   });
 });
+
+/**
+ * Nested obje yapı paritesi — leaf path eşleşmesi (yukarıdaki collectKeys)
+ * iki dilde aynı leaf'leri garanti eder ama nested obje vs string drift'i
+ * yakalamaz: EN'de `foo.bar` nested object, TR'de `foo.bar` string olursa
+ * leaf set'leri farklı görünür ama yine de yapı bozulur. Bu test her path
+ * için node tipini (object | leaf) karşılaştırır.
+ */
+function structuralShape(obj: Json): unknown {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return '<leaf>';
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(obj).sort()) {
+    out[k] = structuralShape((obj as Json)[k] as Json);
+  }
+  return out;
+}
+
+describe('i18n parity — yapı derinliği (tree structure)', () => {
+  it('EN ve TR nested obje yapı ağaçları birebir eşleşir (_meta hariç)', () => {
+    const enCopy = { ...(en as Json) };
+    const trCopy = { ...(tr as Json) };
+    delete enCopy._meta;
+    delete trCopy._meta;
+    const enShape = JSON.stringify(structuralShape(enCopy));
+    const trShape = JSON.stringify(structuralShape(trCopy));
+    expect(enShape, 'Yapısal mismatch: bir tarafta nested object, diğerinde leaf').toBe(trShape);
+  });
+});

@@ -148,4 +148,5 @@ export const api = {
     invoke<void>('process_set_suppress_consoles', { val }),
   processSuppressConsoles: () => invoke<boolean>('process_suppress_consoles'),
   processJailActive: () => invoke<boolean>('process_jail_active'),
+  processJailAssignFailed: () => invoke<boolean>('process_jail_assign_failed'),
 };

@@ -59,6 +59,12 @@ pub struct ProcessJail {
     /// hot path (her spawn'da configure_command çağrılır).
     suppress: AtomicBool,
 
+    /// Bir kez bile `assign()` Err döndüyse true olur. Settings UI bu flag'i
+    /// okuyup kullanıcıya "kill-on-close garantisi kayboldu" uyarısı gösterir
+    /// (heartbeat fallback hala çalışır ama açık iletişim önemli).
+    /// Sticky: temizlenmez; D-Terminal restart edilene kadar uyarı kalır.
+    assign_failed: AtomicBool,
+
     /// Job Object handle. None ise (yaratım fail veya non-Windows platform)
     /// configure_command yine `CREATE_NO_WINDOW` ekler ama assign() no-op
     /// olur — graceful degradation.
@@ -80,6 +86,7 @@ impl ProcessJail {
         }
         Arc::new(Self {
             suppress: AtomicBool::new(suppress_consoles),
+            assign_failed: AtomicBool::new(false),
             #[cfg(windows)]
             job: Mutex::new(job),
         })
@@ -182,6 +189,20 @@ impl ProcessJail {
             let _ = child;
             Ok(false)
         }
+    }
+
+    /// Caller (`sidecar/manager.rs ensure_started`) `assign()` Err döndüğünde
+    /// bunu çağırır. Settings UI flag'i okuyup kullanıcıya uyarı gösterir.
+    /// Idempotent — birden çok kez set'lenebilir, hep true kalır.
+    pub fn mark_assign_failed(&self) {
+        self.assign_failed.store(true, Ordering::Relaxed);
+    }
+
+    /// Sticky failure indicator — herhangi bir `assign()` çağrısı Err döndüyse
+    /// true. Process restart edilene kadar temizlenmez. Settings → Privacy
+    /// uyarı badge'i bu değeri okur.
+    pub fn assign_failed(&self) -> bool {
+        self.assign_failed.load(Ordering::Relaxed)
     }
 
     /// Diagnostic: job kurulu mu (Windows + Job Object yaratıldı).

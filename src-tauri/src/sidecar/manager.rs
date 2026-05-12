@@ -138,6 +138,10 @@ impl SidecarManager {
             Ok(true) => tracing::debug!("sidecar assigned to job"),
             Ok(false) => tracing::debug!("sidecar spawn: job not configured (suppress off?)"),
             Err(e) => {
+                // UX surface (v0.9.8): Settings → Privacy ekranı bu flag'i okuyup
+                // "kill-on-close garantisi kayboldu" uyarısı gösterir. Heartbeat
+                // 15s timeout zombi fallback olarak kalır — spawn yine başarılı.
+                self.jail.mark_assign_failed();
                 tracing::warn!(error = %e, "sidecar job assign failed; kill-on-close skipped")
             }
         }
@@ -163,6 +167,14 @@ impl SidecarManager {
         // Eski thread handle'ları varsa drain et (sidecar restart senaryosu).
         // Kill edilmiş child'in pipe'ları EOF gönderip thread'leri çıkartmıştır;
         // burada join ile gerçekten bitmiş olduklarını doğrulayıp slot'u boşalt.
+        //
+        // Lock pattern garantisi (v0.9.8 audit notu): reader thread
+        // `handle_inbound` `mgr.inner.lock()` çağırır (panes.remove + last_pong).
+        // Burada drop(inner) ile lock bırakılır → reader thread ihtiyaç anında
+        // çakışmasız alır. Aşağıda yeni thread'leri spawn ettikten sonra
+        // `self.inner.lock().threads = ...` ile lock kısa süreliğine yeniden
+        // alınır; o sırada reader thread henüz frame işlemiyor (sidecar HELLO
+        // pipeline'ı drain edilmedi), lock-on-lock yok.
         let old_threads = std::mem::take(&mut inner.threads);
         // Lock'u serbest bırak — thread spawn pahalı + join blocking olabilir.
         drop(inner);

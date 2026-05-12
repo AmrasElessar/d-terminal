@@ -221,6 +221,7 @@
       "suppressConsolesHint": "Spawn edilen komutlar (git, sidecar) normalde DOS pencereleri açar. Açık (önerilen) tutmak hem flash'ları gizler hem D-Terminal crash olursa child'ları otomatik temizler. Yalnızca external GUI tool başlatırken kapat.",
       "jailActiveHint": "Process koruması aktif (Job Object kill-on-close)",
       "jailInactiveHint": "Process koruması pasif — yalnızca spawn-time gizleme; heartbeat fallback zombi guard'ı çalışır",
+      "jailAssignFailedHint": "Bu oturumda bir veya daha fazla child process koruma grubuna eklenemedi. Spawn-time gizleme çalışıyor ama kill-on-close garantisi yok — heartbeat fallback zombileri temizler.",
       "configFile": "Yapılandırma Dosyası (TOML)",
       "configFileHint": "Tüm ayarlarını TOML dosyasına dışa aktar / dosyadan içe aktar. Dotfile senkronizasyonu için kullanışlı. Hot-reload v1.0.5'te eklenecek — şu an manuel import gerekir.",
       "configExport": "TOML'a Dışa Aktar",

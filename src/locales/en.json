@@ -221,6 +221,7 @@
       "suppressConsolesHint": "Spawned processes (git, sidecar) normally show DOS windows. Keep on (recommended) to hide flashes + ensure child cleanup if D-Terminal crashes. Disable only when launching external GUI tools.",
       "jailActiveHint": "Process protection active (Job Object kill-on-close)",
       "jailInactiveHint": "Process protection inactive — spawn-time hiding only; heartbeat fallback handles zombie cleanup",
+      "jailAssignFailedHint": "One or more child processes could not be added to the protection group this session. Spawn-time hiding still works, but kill-on-close is not guaranteed — heartbeat fallback handles zombie cleanup.",
       "configFile": "Configuration File (TOML)",
       "configFileHint": "Export your full settings to / import from a TOML file. Useful for dotfile sync. Hot-reload arrives in v1.0.5 — for now, import manually.",
       "configExport": "Export to TOML",

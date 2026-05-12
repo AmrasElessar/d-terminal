@@ -230,6 +230,7 @@ pub fn run() {
             commands::process::process_set_suppress_consoles,
             commands::process::process_suppress_consoles,
             commands::process::process_jail_active,
+            commands::process::process_jail_assign_failed,
         ])
         .build(tauri::generate_context!())
         .expect("D-Terminal Tauri runtime failed to start")
