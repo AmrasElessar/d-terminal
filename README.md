@@ -72,7 +72,7 @@ It is a **personal-use** D Brand project under the **MIT license**. Builds ship 
 
 ## 🆕 Yenilikler — v0.9.x serisi
 
-> v0.1.1'den v0.9.7'ye geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
+> v0.1.1'den v0.9.9'a geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
 
 - 🪟 **Frameless pencere** — özel başlık çubuğu, popover komut paleti, native min/max/close (Tauri 2 capabilities izinleri ile)
 - 🤖 **AI Agent Watch** — pane başına AI tool-kullanım gözlemcisi, OSC 9999 protokolü, canlı maliyet rozeti, "waiting / running / interrupted" durumları, Claude Code paralel batch parser, otomatik split + heuristik tespit
@@ -407,12 +407,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### En çok kullanılan / Most common (v0.9.7)
+### En çok kullanılan / Most common (v0.9.9)
 
 | Senin için / For you | İndir / Download |
 |---|---|
-| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.7_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.7_x64_tr-TR.msi) |
-| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.7_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.7_arm64_tr-TR.msi) |
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.9_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.9_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.9_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.9_arm64_tr-TR.msi) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
 > `Ayarlar / Settings → Sistem / System → Hakkında / About → Sistem türü / System type`
@@ -424,10 +424,10 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.9.7_x64_en-US.msi` | x86_64 | English MSI installer |
-| `D-Terminal_0.9.7_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.9.7_arm64_en-US.msi` | aarch64 | ARM64 English |
-| `D-Terminal_0.9.7_arm64-setup.exe` | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.9.9_x64_en-US.msi` | x86_64 | English MSI installer |
+| `D-Terminal_0.9.9_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
+| `D-Terminal_0.9.9_arm64_en-US.msi` | aarch64 | ARM64 English |
+| `D-Terminal_0.9.9_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
@@ -467,7 +467,10 @@ After installing, here are **5 quick things** to try when you first open D-Termi
 
 ---
 
-## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.9.3 — 2026-05-08)
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.9.3 baseline — 2026-05-08)
+
+> 🇹🇷 Aşağıdaki taramalar **v0.9.3** taban referansıdır. v0.9.4 – v0.9.9 build'leri aynı Tauri/Rust toolchain'i ve bundle sürecini kullanır; yeni third-party dependency yüzeyi eklenmedi (changelog'da `deps` commit'leri minor bump'lar). Sürüm bazlı yeni VirusTotal raporu eklenmedikçe bu sonuçlar geçerli zemin sayılır.  
+> 🇬🇧 The scans below are the **v0.9.3 baseline**. v0.9.4 – v0.9.9 builds use the same Tauri/Rust toolchain and bundling process; no new third-party dependency surface was added (`deps` commits in the changelog are minor bumps). Until a version-specific VirusTotal report is published, these results stand as the reference baseline.
 
 Tüm 6 installer **VirusTotal**'da tarandı (detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md))
 
@@ -485,7 +488,7 @@ Tüm 6 installer **VirusTotal**'da tarandı (detay / details: [RELEASE_NOTES.md]
 
 Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet, Avast, AVG, Sophos (x64 MSI), Malwarebytes, Microsoft Defender (MSI'lar) — **hepsi clean / all clean**.
 
-> 🛡️ **Bağımsız doğrulama / Independent verification (2026-05-08):** Tüm v0.9.3 dosyaları (geliştirme klasörü + 6 installer) **Kaspersky Security Cloud** lisanslı sürümde clean — full real-time + heuristic + behavioral + KSN cloud reputation tüm katmanlardan geçti.  
+> 🛡️ **Bağımsız doğrulama / Independent verification (2026-05-08, v0.9.3 baseline):** Tüm v0.9.3 dosyaları (geliştirme klasörü + 6 installer) **Kaspersky Security Cloud** lisanslı sürümde clean — full real-time + heuristic + behavioral + KSN cloud reputation tüm katmanlardan geçti.  
 > *All v0.9.3 files (source folder + 6 installers) scanned clean by **licensed Kaspersky Security Cloud** — passed real-time + heuristic + behavioral + KSN cloud reputation across all layers.*
 
 > 🧪 **Sandbox dynamic analysis** (VT runtime, x64 NSIS): No detections, no IDS/Sigma rules triggered, no network communications, no suspicious dropped files. 29 INFO-level MITRE signatures (registry write, taskkill old version, install path scan) are **standard installer behavior** — not malware indicators. Confirms static-scan flags are ML false positives.

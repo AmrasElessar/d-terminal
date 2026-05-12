@@ -56,12 +56,16 @@
     "longDescription": "D-Terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler. Çoklu pane deneyimi + evrensel AI entegrasyonu, Windows'a native.",
     "windows": {
       "wix": {
-        "language": ["en-US", "tr-TR"]
+        "language": ["en-US", "tr-TR"],
+        "bannerPath": "installer/wix-banner.bmp",
+        "dialogImagePath": "installer/wix-dialog.bmp"
       },
       "nsis": {
         "languages": ["English", "Turkish"],
         "displayLanguageSelector": true,
-        "installerHooks": "./installer-hooks.nsh"
+        "installerHooks": "./installer-hooks.nsh",
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp"
       }
     }
   },
