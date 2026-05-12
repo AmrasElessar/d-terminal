@@ -40,7 +40,7 @@ parking_lot = "0.12"
 once_cell = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-dirs = "5"
+dirs = "6"
 # Config as Code: kullanıcı ayarları TOML dosyasına export/import edilebilir.
 # Hot-reload v1.0.5'te eklenecek (notify crate zaten dependency listesinde).
 toml = "0.8"
