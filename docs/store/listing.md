@@ -59,7 +59,7 @@ D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruv
 - Windows DPAPI credential storage (master parola yok)
 - CSP enforced (`script-src 'self'`)
 - KVKK/GDPR uyumlu — IP/hostname varsayılan gizli
-- Açık kaynak (MIT) — kodu inceleyebilirsin
+- Açık kaynak (GPL-3.0+) — kodu inceleyebilirsin
 
 #### Sistem gereksinimleri
 - Windows 10 1809+ veya Windows 11
@@ -141,7 +141,7 @@ Built on **Tauri v2** (Rust core + WebView2). **5× lighter** than Electron — 
 - Windows DPAPI credential storage (no master password)
 - CSP enforced (`script-src 'self'`)
 - GDPR/KVKK compliant — IP/hostname hidden by default
-- Open source (MIT) — review the code yourself
+- Open source (GPL-3.0+) — review the code yourself
 
 #### System requirements
 - Windows 10 1809+ or Windows 11

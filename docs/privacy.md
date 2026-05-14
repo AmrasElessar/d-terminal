@@ -9,7 +9,7 @@
 
 ### 1. Kim olduğumuz
 
-D-Terminal, **Orhan Engin OKAY** (D Brand) tarafından geliştirilen, MIT lisanslı ve açık kaynaklı bir Windows terminal uygulamasıdır. İletişim: `orhanenginokay@gmail.com`
+D-Terminal, **Orhan Engin OKAY** (D Brand) tarafından geliştirilen, GPL-3.0-or-later lisanslı ve açık kaynaklı bir Windows terminal uygulamasıdır (v0.10.0 öncesi sürümler MIT). İletişim: `orhanenginokay@gmail.com`
 
 ### 2. Hangi verileri topluyoruz?
 
@@ -89,7 +89,7 @@ Tüm veriler yerel olduğu için silmek için:
 
 ### 1. Who we are
 
-D-Terminal is an MIT-licensed, open-source Windows terminal application developed by **Orhan Engin OKAY** (D Brand). Contact: `orhanenginokay@gmail.com`
+D-Terminal is a GPL-3.0-or-later licensed, open-source Windows terminal application developed by **Orhan Engin OKAY** (D Brand) (versions before v0.10.0 were released under MIT). Contact: `orhanenginokay@gmail.com`
 
 ### 2. What data do we collect?
 

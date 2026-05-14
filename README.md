@@ -28,7 +28,7 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 [![CI](https://img.shields.io/github/actions/workflow/status/AmrasElessar/d-terminal/ci.yml?branch=main&label=CI&logo=github)](https://github.com/AmrasElessar/d-terminal/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AmrasElessar/d-terminal?include_prereleases&label=release&color=blue)](https://github.com/AmrasElessar/d-terminal/releases)
 [![Downloads](https://img.shields.io/github/downloads/AmrasElessar/d-terminal/total?label=downloads&color=green)](https://github.com/AmrasElessar/d-terminal/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPLv3%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%C2%B7%20x64%20%2B%20ARM64-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri)
@@ -55,7 +55,7 @@ D-Terminal, Windows kullanıcıları için modern, hızlı ve **AI-yerli** açı
 
 **Tauri v2** ile yazıldığı için — Rust core + WebView2 — Electron tabanlı alternatiflerden **5× daha hafif** (~5 MB binary, ~100 MB RAM).
 
-**Kişisel kullanım için** geliştirilen, **MIT lisanslı** bir D Brand projesidir. ARM64 ve x64 mimarileri için **çift mimari (dual-arch)** binary üretir; Windows 10 1809 ve üzeri ile Windows 11'de çalışır.
+**Kişisel kullanım için** geliştirilen, **GPL-3.0-or-later lisanslı** bir D Brand projesidir. ARM64 ve x64 mimarileri için **çift mimari (dual-arch)** binary üretir; Windows 10 1809 ve üzeri ile Windows 11'de çalışır.
 
 <details>
 <summary>🇬🇧 At a glance (English)</summary>
@@ -64,7 +64,7 @@ D-Terminal is a modern, fast, **AI-native**, fully open-source terminal for Wind
 
 Built on **Tauri v2** — Rust core + WebView2 — it is **5× lighter** than Electron-based alternatives (~5 MB binary, ~100 MB RAM).
 
-It is a **personal-use** D Brand project under the **MIT license**. Builds ship for both **ARM64 and x64** Windows; runs on Windows 10 1809+ and Windows 11.
+It is a **personal-use** D Brand project under the **GPL-3.0-or-later** license. Builds ship for both **ARM64 and x64** Windows; runs on Windows 10 1809+ and Windows 11.
 
 </details>
 
@@ -544,14 +544,14 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 
 ## 💖 Sponsorlar / Sponsors
 
-D-Terminal açık kaynak (MIT) ve sürekli geliştiriliyor. Sponsorluk doğrudan **yeni uygulama geliştirmeye** dönüşür — yapılacaklar listesinde 6 fikir daha var.
+D-Terminal açık kaynak (GPL-3.0+) ve sürekli geliştiriliyor. Sponsorluk doğrudan **yeni uygulama geliştirmeye** dönüşür — yapılacaklar listesinde 6 fikir daha var.
 
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-AmrasElessar-db61a2?logo=githubsponsors)](https://github.com/sponsors/AmrasElessar)
 
 <details>
 <summary>🇬🇧 Sponsors (English)</summary>
 
-D-Terminal is open source (MIT) and actively developed. Sponsorships translate directly into **new app development** — six more ideas in the queue.
+D-Terminal is open source (GPL-3.0+) and actively developed. Sponsorships translate directly into **new app development** — six more ideas in the queue.
 
 </details>
 
@@ -606,4 +606,7 @@ Microsoft Store submission prep ongoing for **v1.0**.
 
 ## 📜 Lisans / License
 
-MIT © Orhan Engin OKAY — bkz / see [LICENSE](./LICENSE)
+GPL-3.0-or-later © Orhan Engin OKAY — bkz / see [LICENSE](./LICENSE)
+
+> **v0.10.0'dan itibaren** D-Terminal **GNU GPL v3 (veya daha sonraki)** altında yayınlanır. v0.9.9 ve daha eski sürümler MIT olarak yayınlandı ve o haliyle kalır.
+> *From **v0.10.0** onwards, D-Terminal is released under **GNU GPL v3 or later**. Versions v0.9.9 and earlier were published under MIT and remain so.*

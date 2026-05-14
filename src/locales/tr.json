@@ -452,7 +452,7 @@
     "platformAndroid": "Android",
     "platformWindows": "Windows",
     "sponsor": "Destek",
-    "sponsorHint": "D-Terminal açık kaynak (MIT), ücretsiz ve sürekli geliştiriliyor. GitHub Sponsors üzerinden destek olabilirsin — sponsorluk doğrudan yeni uygulama geliştirmeye dönüşür. Yapılacaklar listesinde 6 fikir daha var.",
+    "sponsorHint": "D-Terminal açık kaynak (GPL-3.0+), ücretsiz ve sürekli geliştiriliyor. GitHub Sponsors üzerinden destek olabilirsin — sponsorluk doğrudan yeni uygulama geliştirmeye dönüşür. Yapılacaklar listesinde 6 fikir daha var.",
     "sponsorButton": "GitHub Sponsors",
     "sponsorListTitle": "Mevcut Sponsorlar",
     "sponsorListEmpty": "Henüz sponsor yok. İlk sponsor sen olabilirsin →",

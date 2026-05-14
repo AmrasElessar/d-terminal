@@ -452,7 +452,7 @@
     "platformAndroid": "Android",
     "platformWindows": "Windows",
     "sponsor": "Support",
-    "sponsorHint": "D-Terminal is open source (MIT), free, and actively developed. Sponsor on GitHub — support translates directly into new app development. Six more ideas in the queue.",
+    "sponsorHint": "D-Terminal is open source (GPL-3.0+), free, and actively developed. Sponsor on GitHub — support translates directly into new app development. Six more ideas in the queue.",
     "sponsorButton": "GitHub Sponsors",
     "sponsorListTitle": "Current Sponsors",
     "sponsorListEmpty": "No sponsors yet. Be the first →",

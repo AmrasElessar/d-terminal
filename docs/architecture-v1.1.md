@@ -8,7 +8,7 @@
 | Tarih | 2026-05-02 |
 | Önceki | `D-Terminal-Mimari-v1.0.docx` |
 | Yapımcı | Orhan Engin OKAY |
-| Lisans | MIT |
+| Lisans | GPL-3.0-or-later (v0.10.0+); MIT (≤v0.9.9) |
 | D Brand Ailesi | D-Player · DCar Launcher · D-Terminal |
 
 ---
@@ -62,7 +62,7 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 
 ### 1.3 Lisans ve Dağıtım
 
-- **Lisans**: MIT — ticari kullanım dahil tamamen özgür
+- **Lisans**: GPL-3.0-or-later (v0.10.0+) — türev işler aynı lisans altında özgür kalır; v0.9.9 ve öncesi MIT
 - **Birincil dağıtım**: GitHub Releases (MSIX + portable ZIP)
 - **İkincil dağıtım**: Microsoft Store (ücretsiz uygulama)
 - **Code signing**: SignPath Foundation veya Microsoft FOSS programı
@@ -416,7 +416,7 @@ d-terminal/
 
 ## 11. Açık Kaynak ve Topluluk
 
-D-Terminal MIT lisansıyla yayınlanır. Topluluk katkıları şu alanlarda beklenmektedir:
+D-Terminal **v0.10.0**'dan itibaren GPL-3.0-or-later lisansıyla yayınlanır (v0.9.9 ve öncesi MIT). Topluluk katkıları şu alanlarda beklenmektedir:
 
 | Katkı Alanı | Detay |
 |---|---|

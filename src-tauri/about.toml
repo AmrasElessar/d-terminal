@@ -7,6 +7,10 @@
 # MS Store submission'unda "Notes for certification" alanı için third-party
 # license listesi talep edilebilir; bu config beklenen license set'ini
 # tanımlar (rustls, reqwest, tokio, serde vs. — apache/MIT permissive).
+#
+# D-Terminal kendi crate license'ı GPL-3.0-or-later (v0.10.0+); allow listesine
+# eklendi ki cargo-about kendi paketini fail etmesin. Permissive dep'ler
+# (MIT/Apache) GPL ile tam uyumludur — başka aksiyon gerekmiyor.
 
 # Bilinmeyen license fail olsun — gözden kaçan yeni dep'i tespit etmek için.
 ignore-build-dependencies = true
@@ -22,6 +26,7 @@ no-clearly-defined = true
 # build fail olur; manuel review + buraya ekleme gerekir.
 [licenses]
 allow = [
+    "GPL-3.0-or-later",  # kendi crate license'ı (v0.10.0+)
     "MIT",
     "MIT-0",
     "Apache-2.0",
@@ -35,7 +40,7 @@ allow = [
     "Zlib",
     "0BSD",
     "CC0-1.0",
-    "MPL-2.0",  # weak copyleft, MIT projesinde kullanılabilir (file-level)
+    "MPL-2.0",  # weak copyleft, GPL projesinde kullanılabilir
 ]
 
 # clarify: bilinmeyen ya da hatalı tanımlanmış license'ları manuel olarak

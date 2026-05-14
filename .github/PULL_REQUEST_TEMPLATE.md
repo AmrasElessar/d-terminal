@@ -30,4 +30,4 @@
 <!-- Çevirmen/sanatçı notu, ekran görüntüsü, vs. / Translator/artist notes, screenshots, etc. -->
 
 ---
-<sub>D-Terminal MIT lisanslı, ücretsiz ve açık kaynak. / MIT-licensed, free and open source. — [💖 Sponsor](https://github.com/sponsors/AmrasElessar)</sub>
+<sub>D-Terminal GPL-3.0-or-later lisanslı, ücretsiz ve açık kaynak. / GPL-3.0-or-later licensed, free and open source. — [💖 Sponsor](https://github.com/sponsors/AmrasElessar)</sub>

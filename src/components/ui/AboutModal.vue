@@ -102,7 +102,7 @@ void props.open;
 
       <section class="section">
         <h3>{{ t('about.license') }}</h3>
-        <p>MIT License — Copyright © {{ currentYear }} Orhan Engin OKAY</p>
+        <p>GPL-3.0-or-later — Copyright © {{ currentYear }} Orhan Engin OKAY</p>
       </section>
 
       <section class="section">

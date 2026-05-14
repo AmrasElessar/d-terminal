@@ -3,6 +3,17 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.10.0 (yaklaşan / upcoming)
+
+### Lisans Değişikliği / License Change
+
+- **D-Terminal lisansı `MIT` → `GPL-3.0-or-later`** (SPDX). Yürürlük: **v0.10.0**'dan itibaren. v0.9.9 ve daha eski tüm yayınlanmış sürümler MIT olarak kalır — geriye yürümez. D Brand açık kaynak uygulamaları için ortak lisans standardına geçiş (ücretli ürünler hariç).
+- **Neden GPL-3.0-or-later?** Türev işler aynı özgürlüklerle dağıtılır (copyleft); kapalı-kaynak fork dağıtımı engellenir. "or-later" (FSF tavsiyesi) ileride GPLv4 çıkarsa otomatik uyum sağlar.
+- **Bağımlılıklar etkilenmedi** — Tauri/Wry, Rust crate'leri (MIT/Apache permissive), Vue/Vite (MIT) tamamen GPL uyumlu; permissive license'lar GPL projeye eklenebilir.
+- Güncellenen dosyalar: `LICENSE` (GPL-3.0 tam metin), `package.json`, `sidecar/package.json`, `src-tauri/Cargo.toml`, `README.md` (rozet + lisans bölümü), `src/components/ui/AboutModal.vue`, `src/locales/{tr,en}.json` (sponsor hint), `docs/privacy.md`, `docs/architecture-v1.1.md`, `docs/store/listing.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/config.yml`.
+
+---
+
 ## [0.9.9] — 2026-05-12
 
 Settings UX iyileştirmeleri + heartbeat dayanıklılığı. v0.9.8 ile wire-uyumlu (protokol değişmedi). v0.9.6→v0.9.9 aynı haftanın dördüncü release'i — feature batch tek pakette.
