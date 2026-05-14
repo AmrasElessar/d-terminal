@@ -77,7 +77,7 @@ Pre-alpha / status'a göre 11-12 düşürülebilir; **sıralama bozulmaz**.
 [Status: pre-alpha/alpha/MVP/stable]             (turuncu→yeşil)
 [Platform: Windows / Android / Linux]            (Windows mavi #1E88E5, Android yeşil #3DDC84)
 [Tech: Tauri v2 / Vue 3 / Rust / Kotlin / ...]   (2-4 badge)
-[D Brand]                                        (yeşil #00FF66 ya da mor #8A2BE2 premium)
+[D Brand]                                        (yeşil #33FF7A ya da mor #8A2BE2 premium)
 ```
 
 ### 2.4 Bilingual yapı
