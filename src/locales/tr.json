@@ -38,13 +38,18 @@
     "next": "Sonraki Sekme",
     "prev": "Önceki Sekme",
     "rename": "Sekmeyi Yeniden Adlandır",
-    "untitled": "Yeni Sekme"
+    "untitled": "Yeni Sekme",
+    "paneCountHint": "panel yok | 1 panel | {count} panel bu sekmede",
+    "closeConfirm": "\"{name}\" sekmesini kapatalım mı?",
+    "closeRunningConfirm": "\"{name}\" sekmesini kapatalım mı? {count} çalışan süreç sonlandırılır. (Sormadan kapatmak için Shift basılı tut.)"
   },
   "pane": {
     "new": "Yeni Panel",
     "newWithType": "Yeni {type}",
     "close": "Paneli Kapat",
-    "closeConfirm": "Bu panel kapatılsın mı? Çalışan process sonlandırılacak.",
+    "closeHint": "Paneli kapat (sormadan kapatmak için Shift basılı tut)",
+    "closeConfirm": "Bu paneli kapatalım mı?",
+    "closeRunningConfirm": "\"{title}\" paneli kapatalım mı? Çalışan süreç sonlandırılır. (Sormadan kapatmak için Shift basılı tut.)",
     "splitHorizontal": "Yatay Böl",
     "splitVertical": "Dikey Böl",
     "focusNext": "Sonraki Panel",
@@ -258,7 +263,18 @@
       "autoStartSection": "Açılışta Otomatik Başlat",
       "autoStartOnBoot": "Windows başlarken D-Terminal'i başlat",
       "autoStartOnBootHint": "HKCU\\…\\Run registry anahtarına D-Terminal entry'si ekler — oturum açtıktan sonra otomatik açılır. Kapatınca entry silinir. Windows Ayarlar → \"Başlangıç uygulamaları\"ndan D-Terminal kaldırılırsa bu ayar da temizlenir.",
-      "autoStartFailed": "Otomatik başlatma ayarı değiştirilemedi"
+      "autoStartFailed": "Otomatik başlatma ayarı değiştirilemedi",
+      "safetySection": "Güvenlik",
+      "confirmOnClose": "Panel/sekme kapatırken onay sor",
+      "confirmOnCloseHint": "Çalışan süreçlerin yanlışlıkla kaybını önler. Her durumda kapatmak için kapat butonunda Shift basılı tut.",
+      "confirmOnCloseOptions": {
+        "never": "Hiç sorma",
+        "runningOnly": "Yalnızca çalışan süreç varken (önerilen)",
+        "always": "Her zaman sor"
+      },
+      "agentSection": "AI Agent Tespiti",
+      "agentHeuristic": "Heuristic agent dedektörü",
+      "agentHeuristicHint": "Claude Code / Codex / aider çıktı pattern'lerinden (Agent(...), paralel batch, ⎿ Done) AI agent yaşam döngüsünü otomatik tespit et. Yalnızca formal OSC 9999 protokolünü kullanmak için kapat — custom shell'lerde yanlış pozitiflerden kaçınır."
     },
     "appearance": {
       "theme": "Tema",
@@ -546,7 +562,18 @@
     "tokenCounterHint": "Bu paneldeki AI agent'lar tarafından harcanan token (maliyet tahminiyle)"
   },
   "git": {
-    "diffHint": "HEAD'e karşı kaydedilmemiş değişiklikler ({files} dosya)"
+    "diffHint": "HEAD'e karşı kaydedilmemiş değişiklikler ({files} dosya)",
+    "cleanHint": "Çalışan ağaç temiz (git takibinde)",
+    "tabDiffHint": "Bu sekmedeki {panes} panelde {repos} repo'nun toplam git değişiklikleri"
+  },
+  "agentView": {
+    "notFound": "Agent bulunamadı",
+    "notFoundHint": "Kaynak panel kapatılmış veya agent geçmişi temizlenmiş. Yeni bir agent başlat ya da küresel görünümden seç.",
+    "awaitingOutput": "Çıktı bekleniyor…",
+    "allTitle": "Tüm Agent'lar",
+    "totalCount": "agent yok | 1 agent | {count} agent izleniyor",
+    "globalEmpty": "Henüz agent aktivitesi yok",
+    "globalEmptyHint": "Bir AI aracı herhangi bir terminal panelinde çalıştığında (OSC 9999 veya heuristic ile) agent'lar burada görünür."
   },
   "window": {
     "minimize": "Küçült",

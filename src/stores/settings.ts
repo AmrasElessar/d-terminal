@@ -10,6 +10,12 @@ export type RendererMode = 'auto' | 'webgl' | 'canvas' | 'dom';
 /** Updater check sıklığı. `startup` = her uygulama açılışında check (debounce yok).
  *  Diğerleri lastCheckAt'i baz alan minimum interval. */
 export type UpdateCheckFrequency = 'startup' | '1h' | '6h' | '12h' | '24h';
+/** Pane/tab kapatma onay davranışı.
+ *  - `never`: Hiç sorma (eski davranış).
+ *  - `runningOnly`: Sadece aktif PTY varsa sor (önerilen).
+ *  - `always`: Her zaman sor (welcome/exit edilmiş dahil).
+ *  Shift basılıysa her durumda bypass — "ne yaptığımı biliyorum" çıkışı. */
+export type ConfirmOnCloseMode = 'never' | 'runningOnly' | 'always';
 
 export interface SettingsState {
   /** ISO dil kodu (`tr`, `en`, `de`, `pt-BR`, ...). Topluluk bir dil paketi
@@ -80,6 +86,13 @@ export interface SettingsState {
    *  isterse false yapabilir. Backend ProcessJail.set_suppress_consoles
    *  ile runtime'da uygulanır — uygulama yeniden başlatma gerekmez. */
   suppressConsoles: boolean;
+  /** Pane/tab kapatma onay davranışı. Default `runningOnly` — aktif çalışan PTY
+   *  varken yanlışlıkla kapanma kazasını önler. Shift basılıyken bypass. */
+  confirmOnClose: ConfirmOnCloseMode;
+  /** AI agent heuristic detector (Claude Code/Codex paralel batch parser vb.)
+   *  aktif mi. False ise sadece OSC 9999 formal protokolü dispatch eder
+   *  (yanlış pozitiflerden kaçınmak isteyen kullanıcılar için). Default true. */
+  agentHeuristicEnabled: boolean;
 }
 
 const DEFAULTS: SettingsState = {
@@ -108,6 +121,8 @@ const DEFAULTS: SettingsState = {
   autoStartOnBoot: false,
   scrollback: 5000,
   suppressConsoles: true,
+  confirmOnClose: 'runningOnly',
+  agentHeuristicEnabled: true,
 };
 
 const KEY_PREFIX = 'ui.';

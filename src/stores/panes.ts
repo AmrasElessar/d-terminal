@@ -144,19 +144,41 @@ export const usePanesStore = defineStore('panes', () => {
    *  - paneBufferCache (xterm serialize snapshot) — ~1.5 MB/pane leak önler
    *  - agentWatch state — agent geçmişi RAM'de yaşamasın
    *  Bu yardımcı closeTab + loadWorkspace + closePane'in ortak cleanup'ını
-   *  tek yerden uygular. */
-  function cleanupPaneState(leafId: string) {
-    // xterm serialize snapshot cache (~1.5 MB/pane) — leak önle
+   *  tek yerden uygular.
+   *
+   *  `force=true` (closeTab/loadWorkspace) → tüm referansları yok say, her
+   *  şeyi sil. `force=false` (closePane) → bu pane'i izleyen agentView pane
+   *  hâlâ varsa agentWatch state'i koru (kullanıcı agent geçmişine erişebilsin
+   *  source terminal kapansa bile). */
+  function cleanupPaneState(leafId: string, opts: { force?: boolean } = {}) {
+    // xterm serialize snapshot cache (~1.5 MB/pane) — leak önle (her durumda)
     const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
       .__dtermPaneBuffer;
     cache?.delete(leafId);
-    // agent watch state (PaneAgents map'inde tutulan agent geçmişi)
-    try {
-      useAgentWatchStore().clearPane(leafId);
-    } catch {
-      /* store henüz initialize değil olabilir; sessiz geç */
+    // agentWatch state — kapanan pane bir agent source'u ise ve onu izleyen
+    // bir agentView leaf hâlâ açıksa state'i korumak istiyoruz. Aksi halde
+    // kullanıcı PowerShell pane'ini kapatınca agent geçmişi de gider.
+    let referencedByAgentView = false;
+    if (!opts.force) {
+      for (const tab of tabs.value) {
+        const referenced = listLeaves(tab.tree.root).some(
+          (l) => l.id !== leafId && l.agentSourcePaneId === leafId,
+        );
+        if (referenced) {
+          referencedByAgentView = true;
+          break;
+        }
+      }
     }
-    // AI chat geçmişi (per-pane mesaj listesi)
+    if (!referencedByAgentView) {
+      try {
+        useAgentWatchStore().clearPane(leafId);
+      } catch {
+        /* store henüz initialize değil olabilir; sessiz geç */
+      }
+    }
+    // AI chat geçmişi (per-pane mesaj listesi) — agentView referansı bunu
+    // etkilemez, her zaman sil.
     try {
       useChatsStore().clearPane(leafId);
     } catch {
@@ -195,7 +217,9 @@ export const usePanesStore = defineStore('panes', () => {
     const idx = tabs.value.findIndex((t) => t.id === id);
     if (idx < 0) return;
     const tab = tabs.value[idx]!;
-    // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle
+    // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle.
+    // force=true → tab kapanırken agentView referansları da gidiyor, state'i
+    // tutmanın anlamı yok (referenced kontrol cycle yapmasın).
     for (const leaf of listLeaves(tab.tree.root)) {
       if (leaf.ptyId) {
         try {
@@ -204,7 +228,7 @@ export const usePanesStore = defineStore('panes', () => {
           /* zaten ölmüş olabilir */
         }
       }
-      cleanupPaneState(leaf.id);
+      cleanupPaneState(leaf.id, { force: true });
     }
     tabs.value.splice(idx, 1);
     if (tabs.value.length === 0) {
@@ -392,13 +416,14 @@ export const usePanesStore = defineStore('panes', () => {
     if (newTabs.length === 0) return;
     // Mevcut açık PTY'leri sessizce kill et + per-pane state'i temizle —
     // yeni workspace fresh başlar; eski leaf id'ler globalThis cache'inde
-    // yaşamasın.
+    // yaşamasın. force=true: workspace değişiyor, agentView referansı tutmanın
+    // anlamı yok.
     for (const tab of tabs.value) {
       for (const leaf of listLeaves(tab.tree.root)) {
         if (leaf.ptyId) {
           try { await api.ptyKill(leaf.ptyId); } catch { /* zaten ölmüş */ }
         }
-        cleanupPaneState(leaf.id);
+        cleanupPaneState(leaf.id, { force: true });
       }
     }
     tabs.value = newTabs;

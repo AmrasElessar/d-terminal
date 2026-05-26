@@ -3,6 +3,8 @@ import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePanesStore } from '@/stores/panes';
 import { listLeaves } from '@/types/pane';
+import { gitStatRef } from '@/composables/useGitStat';
+import { confirmTabClose } from '@/composables/useCloseConfirm';
 
 const { t } = useI18n();
 const panes = usePanesStore();
@@ -13,17 +15,33 @@ interface TabSummary {
   isActive: boolean;
   paneCount: number;
   hasError: boolean;
+  /** Tab'daki tüm terminal pane'lerin git diff toplamı. `repos` 0 ise chip
+   *  görünmez (git takibi olan pane yok). Reactive — her leaf'in gitStatRef'i
+   *  poller tarafından güncellendikçe bu computed da yenilenir. */
+  gitTotal: { added: number; removed: number; repos: number };
 }
 
 const tabSummaries = computed<TabSummary[]>(() =>
   panes.tabs.map((tab) => {
     const leaves = listLeaves(tab.tree.root);
+    let added = 0;
+    let removed = 0;
+    let repos = 0;
+    for (const l of leaves) {
+      const s = gitStatRef(l.id).value;
+      if (s.is_repo) {
+        repos += 1;
+        added += s.added;
+        removed += s.removed;
+      }
+    }
     return {
       id: tab.id,
       name: tab.name,
       isActive: tab.id === panes.activeTabId,
       paneCount: leaves.length,
       hasError: leaves.some((l) => l.status === 'error'),
+      gitTotal: { added, removed, repos },
     };
   }),
 );
@@ -38,8 +56,14 @@ function activate(id: string) {
   panes.setActiveTab(id);
 }
 
-function close(id: string, e: MouseEvent) {
+/** Tab kapatma — Settings.confirmOnClose moduna göre onay alır. Tab içinde
+ *  N running pane varsa kullanıcıya hatırlatır (Shift basılıysa bypass). */
+async function close(id: string, e: MouseEvent) {
   e.stopPropagation();
+  const tab = panes.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const ok = await confirmTabClose(tab, e);
+  if (!ok) return;
   panes.closeTab(id);
 }
 
@@ -97,7 +121,20 @@ function cancelRename() {
           @dblclick.stop
         />
         <span v-else class="tab__name">{{ tab.name }}</span>
-        <span class="tab__count">{{ tab.paneCount }}</span>
+        <span
+          v-if="tab.gitTotal.repos > 0"
+          class="tab__git"
+          :title="t('git.tabDiffHint', { repos: tab.gitTotal.repos, panes: tab.paneCount })"
+        >
+          <span v-if="tab.gitTotal.added > 0" class="tab__git-add">+{{ tab.gitTotal.added }}</span>
+          <span v-if="tab.gitTotal.removed > 0" class="tab__git-rem">-{{ tab.gitTotal.removed }}</span>
+          <span v-if="tab.gitTotal.added === 0 && tab.gitTotal.removed === 0" class="tab__git-clean">✓</span>
+        </span>
+        <span
+          class="tab__count"
+          :title="t('tab.paneCountHint', { count: tab.paneCount })"
+          :aria-label="t('tab.paneCountHint', { count: tab.paneCount })"
+        >{{ tab.paneCount }}</span>
         <button
           type="button"
           class="tab__close"
@@ -144,18 +181,21 @@ function cancelRename() {
 }
 .tab-bar__list::-webkit-scrollbar { display: none; }
 .tab {
-  display: grid;
-  grid-template-columns: 6px 1fr auto auto;
+  display: flex;
   gap: 6px;
   align-items: center;
   padding: 0 8px;
   min-width: 100px;
-  max-width: 220px;
+  max-width: 260px;
   border-right: 1px solid var(--color-line);
   cursor: pointer;
   color: var(--color-dim);
   background: transparent;
   transition: background 0.1s ease, color 0.1s ease;
+}
+.tab__name {
+  flex: 1;
+  min-width: 0;
 }
 .tab:hover {
   background: color-mix(in srgb, var(--color-fg) 3%, transparent);
@@ -214,7 +254,25 @@ function cancelRename() {
   background: color-mix(in srgb, var(--color-fg) 5%, transparent);
   padding: 0 4px;
   border-radius: 2px;
+  cursor: help;
+  flex-shrink: 0;
 }
+/* Tab git toplamı — pane'lerin +/- aggregate'i. PaneTitleBar chip'iyle aynı
+   palet (yeşil eklenmiş / kırmızı silinmiş / dim ✓ temiz). */
+.tab__git {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
+  border-radius: 2px;
+  cursor: help;
+  flex-shrink: 0;
+}
+.tab__git-add   { color: var(--color-green); }
+.tab__git-rem   { color: var(--color-red); }
+.tab__git-clean { color: var(--color-dim); opacity: 0.7; }
 .tab__close {
   background: transparent;
   border: none;

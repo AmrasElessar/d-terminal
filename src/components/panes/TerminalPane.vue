@@ -171,7 +171,11 @@ function feedTriggers(text: string) {
   // Chunk-bazlı paralel agent detector — TUI cursor positioning ile redraw
   // edildiğinde \n boundary olmayabilir, line-bazlı parser kaçırır. Bu hook
   // her chunk'ta çalışır, dedup state.activeByName ile garantide.
-  feedAgentDetectorChunk(stripped, props.leaf.id);
+  // Settings.agentHeuristicEnabled kapalıysa sadece OSC 9999 formal protokolü
+  // çalışır (yanlış pozitif beklemeyen kullanıcı için opt-out).
+  if (settings.state.agentHeuristicEnabled) {
+    feedAgentDetectorChunk(stripped, props.leaf.id);
+  }
   if (!pendingLine.includes('\n')) return;
   const parts = pendingLine.split('\n');
   pendingLine = parts.pop() ?? '';
@@ -179,7 +183,9 @@ function feedTriggers(text: string) {
     if (line.length === 0) continue;
     triggers.matchLine(line, props.leaf.id, props.leaf.type);
     // Generic patterns için (chunk detector'da yakalanmayan format'lar):
-    feedAgentDetector(line, props.leaf.id);
+    if (settings.state.agentHeuristicEnabled) {
+      feedAgentDetector(line, props.leaf.id);
+    }
   }
 }
 

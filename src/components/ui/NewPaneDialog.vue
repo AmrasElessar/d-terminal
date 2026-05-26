@@ -13,7 +13,16 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const profiles = useProfilesStore();
 
-const SPECIAL_TYPES: PaneType[] = ['aiChat', 'logStream'];
+// agentView dahil — kullanıcı auto-split olmadan manuel olarak da "tüm
+// agent'lar" görünümünü açabilsin. Source pane belirsiz olduğunda AgentViewPane
+// "global" moda düşer (bkz. AgentViewPane.vue).
+const SPECIAL_TYPES: PaneType[] = ['aiChat', 'logStream', 'agentView'];
+
+const SPECIAL_ICONS: Record<string, string> = {
+  aiChat: '✨',
+  logStream: '📜',
+  agentView: '👁',
+};
 const selectedProfileId = ref<string | null>(null);
 const selectedSpecialType = ref<PaneType | null>(null);
 
@@ -85,7 +94,7 @@ function create() {
           @click="selectSpecial(type)"
           @dblclick="selectSpecial(type); create()"
         >
-          <span class="card__icon">{{ type === 'aiChat' ? '✨' : '📜' }}</span>
+          <span class="card__icon">{{ SPECIAL_ICONS[type] ?? '•' }}</span>
           <span class="card__name">{{ t(`pane.type.${type}`) }}</span>
         </button>
       </div>

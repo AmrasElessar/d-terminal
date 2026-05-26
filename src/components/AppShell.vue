@@ -13,6 +13,7 @@ import { fallbackChain, ensureFontLoaded } from '@/fonts';
 import { api } from '@/api/tauri';
 import { createLogger } from '@/utils/logger';
 import { useModals } from '@/composables/useModals';
+import { confirmPaneClose, confirmTabClose } from '@/composables/useCloseConfirm';
 import PaneLayout from '@/components/layout/PaneLayout.vue';
 import StatusBar from '@/components/ui/StatusBar.vue';
 import ContextMenu from '@/components/ui/ContextMenu.vue';
@@ -149,8 +150,27 @@ function createPane(type: PaneType, profileId?: string) {
   modals.close('newPane');
 }
 
-function closeFocused() {
-  if (panes.tree.focusedId) panes.closePane(panes.tree.focusedId);
+/** Klavye kısayolu ile pane kapat (Ctrl+Shift+W). Confirm dialog Settings'ten
+ *  açıkken aktif PTY varsa kullanıcı yanlışlıkla kapatmasın. Keyboard event
+ *  yoluyla geldiği için Shift bypass UI butonuyla farklı — kullanıcı bilerek
+ *  Shift+Ctrl+Shift+W diye karmaşık kombo basmak istemez, Settings'ten
+ *  `confirmOnClose='never'` ile genel olarak kapatabilir. */
+async function closeFocused() {
+  const focusedId = panes.tree.focusedId;
+  if (!focusedId) return;
+  const leaf = panes.getLeaf(focusedId);
+  if (!leaf) return;
+  const ok = await confirmPaneClose(leaf);
+  if (!ok) return;
+  panes.closePane(focusedId);
+}
+
+async function closeActiveTab() {
+  const tab = panes.tabs.find((t) => t.id === panes.activeTabId);
+  if (!tab) return;
+  const ok = await confirmTabClose(tab);
+  if (!ok) return;
+  panes.closeTab(tab.id);
 }
 
 /** Split: focused pane'in tipi/profilini koru — PowerShell pane'iyse PS, SSH ise SSH. */
@@ -253,7 +273,7 @@ onMounted(async () => {
   if (import.meta.env.DEV) keybindings.register('app.devTools', toggleDevTools);
   // Tab kısayolları (browser standardı)
   keybindings.register('tab.new',   () => panes.newTab());
-  keybindings.register('tab.close', () => panes.closeTab(panes.activeTabId));
+  keybindings.register('tab.close', () => { void closeActiveTab(); });
   keybindings.register('tab.next',  () => panes.nextTab());
   keybindings.register('tab.prev',  () => panes.prevTab());
   // About + broadcast input

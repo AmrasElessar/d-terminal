@@ -57,6 +57,14 @@ export function gitStatRef(paneId: string): Ref<PaneGitStat> {
   return getOrCreateState(paneId).ref;
 }
 
+/** Yan etkisiz peek — TabBar tab başına toplam hesaplarken kullanır.
+ *  `gitStatRef` çağrısı state yaratır (mount edilmemiş pane'ler için bile
+ *  empty entry oluşur, polling timer'sız); aggregate listeleme bunu istemez.
+ *  Var olmayan pane için `null` döner; caller sıfır olarak işler. */
+export function peekGitStat(paneId: string): PaneGitStat | null {
+  return stateByPane.get(paneId)?.ref.value ?? null;
+}
+
 async function refreshOne(paneId: string) {
   const s = stateByPane.get(paneId);
   if (!s || !s.cwd) return;

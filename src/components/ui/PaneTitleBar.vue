@@ -15,7 +15,8 @@ const props = defineProps<{
   blockCount?: number;
   blockPanelOpen?: boolean;
 }>();
-const emit = defineEmits<{ close: []; toggleBlocks: [] }>();
+// close event MouseEvent taşır — Shift bypass için PaneSlot tarafında kullanılır.
+const emit = defineEmits<{ close: [event: MouseEvent]; toggleBlocks: [] }>();
 
 const { t } = useI18n();
 
@@ -147,15 +148,15 @@ function toggleAgentWatch() {
   agentWatch.toggleVisible(props.leaf.id);
 }
 
-/** Git diff +/- chip — sadece terminal pane'lerinde (PTY var) ve repo
- *  içindeyken görünür. OSC 7 ile cwd alındıktan sonra populate olur.
- *
- *  computed leaf.id'ye reactive — pane remount sonrası (split kapatma)
- *  yeni state'e bağlanır. Eski mimaride const olarak ilk mount'ta fix
- *  oluyordu, remount'ta stale chip riski vardı. */
+/** Git diff +/- chip — terminal pane'lerinde repo içindeyken görünür. OSC 7
+ *  ile cwd alındıktan sonra populate olur. Repo olup hiçbir değişiklik yoksa
+ *  ✓ clean rozeti gösterilir — "burada git takibi var" sinyali kullanıcıya
+ *  net olsun (önceden chip kayboluyordu, kullanıcı "diff sayacı yok"
+ *  sanıyordu). */
 const gitStat = computed(() => gitStatRef(props.leaf.id).value);
-const showGitStat = computed(
-  () => gitStat.value.is_repo && (gitStat.value.added > 0 || gitStat.value.removed > 0),
+const showGitStat = computed(() => gitStat.value.is_repo);
+const gitClean = computed(
+  () => gitStat.value.is_repo && gitStat.value.added === 0 && gitStat.value.removed === 0,
 );
 </script>
 
@@ -238,10 +239,14 @@ const showGitStat = computed(
     <span
       v-if="showGitStat"
       class="title-bar__git"
-      :title="t('git.diffHint', { files: gitStat.files })"
+      :class="{ 'title-bar__git--clean': gitClean }"
+      :title="gitClean ? t('git.cleanHint') : t('git.diffHint', { files: gitStat.files })"
     >
-      <span class="title-bar__git-add" v-if="gitStat.added > 0">+{{ gitStat.added }}</span>
-      <span class="title-bar__git-rem" v-if="gitStat.removed > 0">-{{ gitStat.removed }}</span>
+      <span v-if="gitClean" class="title-bar__git-clean">✓</span>
+      <template v-else>
+        <span v-if="gitStat.added > 0" class="title-bar__git-add">+{{ gitStat.added }}</span>
+        <span v-if="gitStat.removed > 0" class="title-bar__git-rem">-{{ gitStat.removed }}</span>
+      </template>
     </span>
     <span
       v-if="agentCounterText"
@@ -275,9 +280,9 @@ const showGitStat = computed(
     <button
       type="button"
       class="title-bar__close"
-      :title="t('pane.close')"
+      :title="t('pane.closeHint')"
       :aria-label="t('pane.close')"
-      @click.stop="emit('close')"
+      @click.stop="emit('close', $event)"
     >
 ×
 </button>
@@ -454,8 +459,12 @@ const showGitStat = computed(
   border-radius: 2px;
   cursor: help;
 }
-.title-bar__git-add { color: var(--color-green); }
-.title-bar__git-rem { color: var(--color-red);   }
+.title-bar__git-add   { color: var(--color-green); }
+.title-bar__git-rem   { color: var(--color-red);   }
+.title-bar__git-clean { color: var(--color-dim); opacity: 0.7; }
+.title-bar__git.title-bar__git--clean {
+  border-color: color-mix(in srgb, var(--color-fg) 8%, transparent);
+}
 /* Token + cost mini sayacı — agent var ve token > 0 olduğunda görünür.
    Title bar'da gerçek estate kazanmadan AI session metrikleri verir. */
 .title-bar__counter {

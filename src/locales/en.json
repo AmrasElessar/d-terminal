@@ -38,13 +38,18 @@
     "next": "Next Tab",
     "prev": "Previous Tab",
     "rename": "Rename Tab",
-    "untitled": "New Tab"
+    "untitled": "New Tab",
+    "paneCountHint": "no panes | 1 pane | {count} panes in this tab",
+    "closeConfirm": "Close tab \"{name}\"?",
+    "closeRunningConfirm": "Close tab \"{name}\"? {count} running process(es) will be terminated. (Hold Shift to skip this prompt.)"
   },
   "pane": {
     "new": "New Pane",
     "newWithType": "New {type}",
     "close": "Close Pane",
-    "closeConfirm": "Close this pane? Running process will be terminated.",
+    "closeHint": "Close pane (hold Shift to skip confirmation)",
+    "closeConfirm": "Close this pane?",
+    "closeRunningConfirm": "Close pane \"{title}\"? Running process will be terminated. (Hold Shift to skip this prompt.)",
     "splitHorizontal": "Split Horizontal",
     "splitVertical": "Split Vertical",
     "focusNext": "Next Pane",
@@ -258,7 +263,18 @@
       "autoStartSection": "Launch on Boot",
       "autoStartOnBoot": "Start D-Terminal when Windows boots",
       "autoStartOnBootHint": "Adds a registry entry under HKCU\\…\\Run so D-Terminal opens automatically after you sign in. Toggle off any time to remove the entry. Removing D-Terminal from \"Startup apps\" in Windows Settings also clears this state.",
-      "autoStartFailed": "Could not change auto-start setting"
+      "autoStartFailed": "Could not change auto-start setting",
+      "safetySection": "Safety",
+      "confirmOnClose": "Confirm before closing pane/tab",
+      "confirmOnCloseHint": "Prevents accidental loss of running processes. Hold Shift while clicking close to bypass any time.",
+      "confirmOnCloseOptions": {
+        "never": "Never ask",
+        "runningOnly": "Only when a process is running (recommended)",
+        "always": "Always ask"
+      },
+      "agentSection": "AI Agent Detection",
+      "agentHeuristic": "Heuristic agent detector",
+      "agentHeuristicHint": "Auto-detect AI agent lifecycle from Claude Code / Codex / aider output patterns (Agent(...), parallel batches, ⎿ Done). Disable to use only the formal OSC 9999 protocol — avoids false positives in custom shells."
     },
     "appearance": {
       "theme": "Theme",
@@ -546,7 +562,18 @@
     "tokenCounterHint": "Tokens consumed by AI agents in this pane (with cost estimate)"
   },
   "git": {
-    "diffHint": "Uncommitted changes vs HEAD ({files} file(s))"
+    "diffHint": "Uncommitted changes vs HEAD ({files} file(s))",
+    "cleanHint": "Working tree clean (git tracked)",
+    "tabDiffHint": "Total git changes across {repos} repo(s) in {panes} pane(s) of this tab"
+  },
+  "agentView": {
+    "notFound": "Agent not found",
+    "notFoundHint": "The source pane was closed or the agent has been cleared. Open a new agent or select one from the global view.",
+    "awaitingOutput": "Waiting for output…",
+    "allTitle": "All Agents",
+    "totalCount": "no agents tracked | 1 agent tracked | {count} agents tracked",
+    "globalEmpty": "No agent activity yet",
+    "globalEmptyHint": "Agents appear here when an AI tool runs in any terminal pane (via OSC 9999 or detected heuristically)."
   },
   "window": {
     "minimize": "Minimize",

@@ -642,6 +642,26 @@ void props.open;
         <small class="note">{{ t('settings.general.autoStartOnBootHint') }}</small>
 
         <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.safetySection') }}</h3>
+        <label class="field">
+          <span>{{ t('settings.general.confirmOnClose') }}</span>
+          <select v-model="settings.state.confirmOnClose" class="select">
+            <option value="never">{{ t('settings.general.confirmOnCloseOptions.never') }}</option>
+            <option value="runningOnly">{{ t('settings.general.confirmOnCloseOptions.runningOnly') }}</option>
+            <option value="always">{{ t('settings.general.confirmOnCloseOptions.always') }}</option>
+          </select>
+        </label>
+        <small class="note">{{ t('settings.general.confirmOnCloseHint') }}</small>
+
+        <hr class="divider" />
+        <h3 class="subhead">{{ t('settings.general.agentSection') }}</h3>
+        <label class="field row">
+          <input v-model="settings.state.agentHeuristicEnabled" type="checkbox" />
+          <span>{{ t('settings.general.agentHeuristic') }}</span>
+        </label>
+        <small class="note">{{ t('settings.general.agentHeuristicHint') }}</small>
+
+        <hr class="divider" />
         <h3 class="subhead">{{ t('settings.general.adminSection') }}</h3>
         <p class="note">
           <span v-if="isElevated">{{ t('settings.general.adminRunningAsAdmin') }}</span>

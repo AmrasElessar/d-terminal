@@ -14,6 +14,7 @@ import WelcomePane from '@/components/panes/WelcomePane.vue';
 import LogStreamPane from '@/components/panes/LogStreamPane.vue';
 import AgentViewPane from '@/components/panes/AgentViewPane.vue';
 import ErrorPane from '@/components/panes/ErrorPane.vue';
+import { confirmPaneClose } from '@/composables/useCloseConfirm';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const panes = usePanesStore();
@@ -92,7 +93,13 @@ function onDrop(e: DragEvent) {
   panes.movePane(sourceId, props.leaf.id, side);
 }
 
-function close() {
+/** Pane kapatma — Settings.confirmOnClose moduna göre onay alır. PaneTitleBar
+ *  `×` butonu MouseEvent emit eder (Shift bypass için); context menu / keyboard
+ *  yolu ile gelen event olmayabilir → undefined geçerse confirm her halükarda
+ *  çalışır (`runningOnly` mode'da hâlâ running olmayan pane'ler hızlı kapanır). */
+async function close(triggerEvent?: MouseEvent) {
+  const ok = await confirmPaneClose(props.leaf, triggerEvent);
+  if (!ok) return;
   panes.closePane(props.leaf.id);
 }
 
@@ -195,7 +202,7 @@ function onContextMenu(e: MouseEvent) {
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close" />
+    <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close($event)" />
     <div class="slot__body">
       <ErrorPane v-if="leaf.status === 'error'" :leaf="leaf" />
       <TerminalPane v-else-if="isTerminal" ref="terminalRef" :leaf="leaf" />

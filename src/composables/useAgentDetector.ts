@@ -141,7 +141,14 @@ export function detectAgentEventsFromLine(
 /** Chunk-bazlı paralel batch detector — tüm metni tarayıp agent satırlarını
  *  bulur. TUI redraw'da \n olmayabilir; bu yüzden line-bazlı yerine global
  *  regex ile tüm chunk'ı ararız. State.activeByName her id için dedup yapar.
- *  TerminalPane chunk geldikçe bunu çağırır. */
+ *  TerminalPane chunk geldikçe bunu çağırır.
+ *
+ *  **Önemli (v0.10.0+)**: Claude Code paralel batch çıktısı **agent'lar
+ *  tamamlandıktan sonra** tek blok olarak basılır (running iken bu format
+ *  görünmez — TUI ayrı bir progress göstergesi tutar). Bu yüzden detector
+ *  satırı gördüğünde `start` + `tokens` + **`end`** üçlüsünü tek seferde
+ *  yayınlar. Önceki davranışta `end` eksikti → status sonsuza dek `running`
+ *  kalıyor, durationText her tick'te artıyordu. */
 export function detectParallelAgentRows(
   text: string,
   state: DetectorState,
@@ -157,14 +164,17 @@ export function detectParallelAgentRows(
     const num = parseFloat(par[3]!.replace(',', '.'));
     const kSuffix = par[4]?.toLowerCase() === 'k';
     const total = Math.round(kSuffix ? num * 1000 : num);
-    // Yeni agent: start + tokens dispatch et
+    // Yeni agent: start + tokens + end retroactive (batch zaten tamamlanmış)
     if (!state.activeByName.has(id)) {
       state.activeByName.set(id, id);
       events.push({ k: 'start', id, name });
       if (total > 0) events.push({ k: 'tokens', id, out: total });
+      // Paralel batch satırı agent BİTTİKTEN sonra basılır → status 'ok'
+      // ile end yayınla. Aksi halde sidebar/agentView'da süre sonsuz artar.
+      events.push({ k: 'end', id, status: 'ok' });
     } else if (total > 0) {
       // Aynı agent — token sayısı arttıysa update (Claude Code redraw'da
-      // yeni token sayısı gelir).
+      // yeni token sayısı gelir). Status zaten 'done', tokens update zararsız.
       events.push({ k: 'tokens', id, out: total });
     }
   }
