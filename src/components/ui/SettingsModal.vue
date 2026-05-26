@@ -43,6 +43,9 @@ import { confirmAsk } from '@/utils/dialog';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import AICostPanel from '@/components/ui/AICostPanel.vue';
 import { useDialogA11y } from '@/composables/useDialogA11y';
+import { createLogger } from '@/utils/logger';
+
+const log = createLogger('settings');
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -74,10 +77,13 @@ const processJailActive = ref(false);
 const processJailAssignFailed = ref(false);
 
 onMounted(async () => {
-  try { configPath.value = await api.configDotfilePath(); } catch { /* boşalır */ }
-  try { isElevated.value = await api.adminIsElevated(); } catch { /* default false */ }
-  try { processJailActive.value = await api.processJailActive(); } catch { /* default false */ }
-  try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch { /* default false */ }
+  // Sessiz catch yasak — capability hataları sessiz yutulup UI yanlış güvenlik
+  // durumu (elevated/jail false) gösterebilir. Logger'a düşürüp UI default'a
+  // izin ver.
+  try { configPath.value = await api.configDotfilePath(); } catch (e) { log.warn('configDotfilePath failed', { error: String(e) }); }
+  try { isElevated.value = await api.adminIsElevated(); } catch (e) { log.warn('adminIsElevated failed', { error: String(e) }); }
+  try { processJailActive.value = await api.processJailActive(); } catch (e) { log.warn('processJailActive failed', { error: String(e) }); }
+  try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch (e) { log.warn('processJailAssignFailed failed', { error: String(e) }); }
   // Autostart durumunu backend (registry) ile hizala — kullanıcı manuel olarak
   // registry'yi düzenlemiş olabilir veya başka bir D-Terminal kurulumu mevcut
   // entry yazmış olabilir. Backend tek doğru kaynak.
@@ -94,7 +100,7 @@ watch(
   () => props.open,
   async (isOpen) => {
     if (!isOpen) return;
-    try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch { /* default false */ }
+    try { processJailAssignFailed.value = await api.processJailAssignFailed(); } catch (e) { log.warn('processJailAssignFailed (reopen) failed', { error: String(e) }); }
   },
 );
 

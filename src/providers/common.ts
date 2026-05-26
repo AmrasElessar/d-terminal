@@ -118,7 +118,11 @@ export async function* streamChat(
     // olursa stream zaten bitmiş demektir, sessiz geç.
     invoke('ai_abort_stream', { streamId }).catch(() => { /* ignore */ });
     done = true;
-    error = new Error('AbortError');
+    // `.name === 'AbortError'` standart DOMException semantiği — message yerine
+    // name üzerinden kontrol edenler doğru çalışsın.
+    const abortError = new Error('AbortError');
+    abortError.name = 'AbortError';
+    error = abortError;
     resolveNext?.();
   };
   options.signal?.addEventListener('abort', onAbort, { once: true });
@@ -133,7 +137,8 @@ export async function* streamChat(
       resolveNext = null;
     }
     if (error) {
-      // AbortError special — caller upstream'de tanır
+      // AbortError special — caller upstream'de tanır. `.name` standart;
+      // legacy `.message === 'AbortError'` da destekleniyor (eski stream'ler).
       if (error.name === 'AbortError' || error.message === 'AbortError') {
         const e = new Error('AbortError');
         e.name = 'AbortError';

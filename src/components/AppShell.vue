@@ -97,16 +97,16 @@ function openPalette()    { modals.open('commandPalette'); }
 // Native title bar yok, min/max/close butonlarını biz çizip API'yi çağırıyoruz.
 const windowMaximized = ref(false);
 async function syncMaximized() {
-  try { windowMaximized.value = await getCurrentWindow().isMaximized(); } catch (e) { console.warn('isMaximized failed', e); }
+  try { windowMaximized.value = await getCurrentWindow().isMaximized(); } catch (e) { log.warn('isMaximized failed', { error: String(e) }); }
 }
 async function winMinimize() {
-  try { await getCurrentWindow().minimize(); } catch (e) { console.warn('minimize failed', e); }
+  try { await getCurrentWindow().minimize(); } catch (e) { log.warn('minimize failed', { error: String(e) }); }
 }
 async function winToggleMax() {
-  try { await getCurrentWindow().toggleMaximize(); await syncMaximized(); } catch (e) { console.warn('toggleMaximize failed', e); }
+  try { await getCurrentWindow().toggleMaximize(); await syncMaximized(); } catch (e) { log.warn('toggleMaximize failed', { error: String(e) }); }
 }
 async function winClose() {
-  try { await getCurrentWindow().close(); } catch (e) { console.warn('close failed', e); }
+  try { await getCurrentWindow().close(); } catch (e) { log.warn('close failed', { error: String(e) }); }
 }
 
 /** Manuel pencere sürükleme + Windows native title bar çift-tık davranışı.

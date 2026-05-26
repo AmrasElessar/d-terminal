@@ -47,6 +47,27 @@ pub fn config_export(state: State<'_, AppState>) -> AppResult<String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Bilinen settings key prefix'leri — config_import bunların dışında bir key
+/// görürse atlar (warn'a yazar). Kullanıcı TOML'a rastgele `app.foo` yazıp
+/// schema kirletmesin diye allowlist; settings store kanonik prefix sahipliği
+/// buradan koruma altında.
+const ALLOWED_SETTING_PREFIXES: &[&str] = &[
+    "ui.",
+    "ai.",
+    "shortcut.",
+    "trigger.",
+    "profile.",
+    "agent.",
+    "theme.",
+    "session.",
+    "updater.",
+    "logger.",
+    "pane.",
+    "snippet.",
+    "window.",
+    "app.",
+];
+
 #[tauri::command]
 pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
     let path = dotfile_path()?;
@@ -65,6 +86,15 @@ pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
         .ok_or_else(|| AppError::InvalidArg("missing [settings] section".into()))?;
     let mut count = 0;
     for (k, v) in settings {
+        // Allowlist dışı key → atla. Hata yerine warn — TOML'a yorum-uyumlu
+        // kalsın, kullanıcı silmediyse silent ignore yerine log'a düşsün.
+        if !ALLOWED_SETTING_PREFIXES
+            .iter()
+            .any(|p| k.starts_with(p))
+        {
+            tracing::warn!("config_import: skipping unknown setting key '{k}'");
+            continue;
+        }
         let value_str = match v {
             toml::Value::String(s) => s.clone(),
             other => other.to_string(),

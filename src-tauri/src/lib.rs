@@ -25,10 +25,11 @@ pub fn run() {
         .unwrap_or_else(|| PathBuf::from("."));
     let log_dir = data_dir.join("logs");
 
-    // tracing — hem stderr hem dosya (daily rotate). _guard drop edilirse async
-    // writer kapanır; bu yüzden static OnceLock'a yerleştir.
-    let _guard = logger::init_tracing(&log_dir);
-    std::mem::forget(_guard);
+    // tracing — hem stderr hem dosya (daily rotate). Guard drop edilirse async
+    // writer kapanır → process lifetime'ı boyunca yaşamalı. Box::leak idiomatic
+    // (eski `mem::forget` semantik olarak aynı ama "nasıl çözeceğimi bilemedim"
+    // havası bırakıyor; Box::leak niyeti netleştirir).
+    Box::leak(Box::new(logger::init_tracing(&log_dir)));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -69,7 +70,12 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             let db_path = data_dir.join("dterminal.db");
-            let storage = Storage::open(db_path).expect("storage open");
+            // Storage açılamazsa (izin/disk bozuk) Tauri setup hatası olarak
+            // propagate et — log'a context yaz, panic yerine düzgün exit path.
+            let storage = Storage::open(db_path).map_err(|e| {
+                tracing::error!("storage open failed: {e}");
+                e
+            })?;
 
             // ProcessJail — spawn edilen tüm child'ları (sidecar, git_stat'ın
             // git'i vb.) tek Job Object'e toplar, console window flash'larını

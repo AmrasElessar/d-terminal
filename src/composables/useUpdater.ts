@@ -15,6 +15,9 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { useSettingsStore, type UpdateCheckFrequency } from '@/stores/settings';
 import { useToastsStore } from '@/stores/toasts';
 import { i18n } from '@/main';
+import { createLogger } from '@/utils/logger';
+
+const log = createLogger('updater');
 
 const LAST_CHECK_KEY = 'updater.lastCheckAt';
 const READY_UPDATE_KEY = 'updater.readyVersion';
@@ -64,7 +67,7 @@ export async function checkForUpdate(silent = true): Promise<Update | null> {
     handleAvailable(update, settings.state.updateMode);
     return update;
   } catch (err) {
-    console.warn('updater: check failed', err);
+    log.warn('check failed', { error: String(err) });
     if (!silent) toasts.error(tt('update.checkFailed'));
     return null;
   } finally {
@@ -130,7 +133,7 @@ async function downloadAndInstall(update: Update): Promise<boolean> {
     await relaunch();
     return true;
   } catch (err) {
-    console.warn('updater: download/install failed', err);
+    log.warn('download/install failed', { error: String(err) });
     toasts.error(tt('update.failed'));
     return false;
   }
@@ -147,7 +150,7 @@ async function downloadOnly(update: Update): Promise<boolean> {
     localStorage.setItem(READY_UPDATE_KEY, update.version);
     return true;
   } catch (err) {
-    console.warn('updater: download failed', err);
+    log.warn('download failed', { error: String(err) });
     toasts.error(tt('update.failed'));
     return false;
   }
@@ -160,7 +163,7 @@ async function installCached(update: Update): Promise<boolean> {
     await relaunch();
     return true;
   } catch (err) {
-    console.warn('updater: install failed', err);
+    log.warn('install failed', { error: String(err) });
     const toasts = useToastsStore();
     toasts.error(tt('update.failed'));
     return false;

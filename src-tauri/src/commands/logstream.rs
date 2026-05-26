@@ -40,11 +40,27 @@ impl Default for LogStreams {
 /// gibi dosyaları stream edip channel üzerinden exfiltrate edemesin.
 const ALLOWED_LOG_EXTS: &[&str] = &["log", "txt", "out", "err", "json", "ndjson", "csv"];
 
+/// Tek seferlik dosya okuma üst sınırı — devasa bir log (500 MB+) bellekte
+/// patlamasın diye `read_to_string` öncesi `take()` ile sarılır. 16 MB tail
+/// chunk için fazlasıyla yeterli; ötesi log değil dump'tır.
+const MAX_LOG_READ_BYTES: u64 = 16 * 1024 * 1024;
+
 fn validate_log_path(path: &std::path::Path) -> AppResult<()> {
     // UNC path reddet — saldırı yüzeyi hiç açılmasın.
     let s = path.to_string_lossy();
     if s.starts_with(r"\\") || s.starts_with("//") {
         return Err(AppError::InvalidArg("UNC path not allowed".into()));
+    }
+    // `..` component reddi — string contains yerine path components ile
+    // (`my..weird/file.log` gibi false positive olmaz, gerçek parent-dir
+    // segmenti yakalanır).
+    if path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(AppError::InvalidArg(
+            "'..' path components not allowed".into(),
+        ));
     }
     let ext = path
         .extension()
@@ -56,6 +72,17 @@ fn validate_log_path(path: &std::path::Path) -> AppResult<()> {
             "log extension not allowed: .{ext} (allowed: {})",
             ALLOWED_LOG_EXTS.join(", ")
         )));
+    }
+    // Symlink / junction reddi — Windows `is_symlink()` reparse-point'leri
+    // (junction dahil) true döner. Saldırgan whitelist'li uzantılı bir junction
+    // yaratıp arbitrary path'i stream edemez. Dosya yoksa atla (caller .exists()
+    // kontrolü zaten yapıyor; burada path henüz dosya olmadan da çağrılabilir).
+    if let Ok(meta) = path.symlink_metadata() {
+        if meta.file_type().is_symlink() {
+            return Err(AppError::InvalidArg(
+                "symlinks/junctions not allowed for log files".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -90,11 +117,13 @@ pub fn log_stream_open(
             };
             let mut last_pos = initial_pos;
 
-            // Tail değilse mevcut içeriği bir kerede oku.
+            // Tail değilse mevcut içeriği bir kerede oku — ama unbounded değil,
+            // 16 MB cap. Devasa log dosyaları belleği patlatmasın.
             if !tail {
-                if let Ok(mut f) = File::open(&path_buf) {
+                if let Ok(f) = File::open(&path_buf) {
                     let mut buf = String::new();
-                    if f.read_to_string(&mut buf).is_ok() {
+                    let mut reader = f.take(MAX_LOG_READ_BYTES);
+                    if reader.read_to_string(&mut buf).is_ok() {
                         for line in buf.lines() {
                             if *cancel_clone.lock() {
                                 return;
@@ -160,7 +189,9 @@ pub fn log_stream_open(
                     continue;
                 }
                 let mut buf = String::new();
-                if f.read_to_string(&mut buf).is_err() {
+                // Append'lenen bölüm bile dev gibi olabilir (rotate sırasında
+                // dosya yeniden doldurulursa); 16 MB cap ile koru.
+                if f.take(MAX_LOG_READ_BYTES).read_to_string(&mut buf).is_err() {
                     continue;
                 }
                 last_pos = size;

@@ -8,6 +8,9 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { ProviderId } from '@/types/ai';
 import { type UsageEstimate, sumUsage } from '@/types/aiPricing';
+import { createLogger } from '@/utils/logger';
+
+const log = createLogger('aiUsage');
 
 export interface UsageRecord {
   /** ISO 8601 timestamp */
@@ -67,7 +70,7 @@ export const useAIUsageStore = defineStore('aiUsage', () => {
         // Tekrar tekrar uyarma (debounced persist sürekli düşmesin).
         if (!quotaWarned) {
           quotaWarned = true;
-          console.warn('[aiUsage] localStorage persist failed (quota?):', e);
+          log.warn('localStorage persist failed (quota?)', { error: String(e) });
         }
       }
     }, 500);

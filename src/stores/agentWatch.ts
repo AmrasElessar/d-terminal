@@ -13,6 +13,15 @@ import { MODEL_PRICING } from '@/types/aiPricing';
 
 const MAX_OUTPUT_BYTES = 32 * 1024;
 const MAX_THINKING_BLOCKS = 12;
+// String field per-event cap'leri — kötü niyetli (veya bug'lı) AI tool tek
+// `progress.msg`/`thinking.text`/`await.prompt` ile bellek şişirmesin.
+// `output` zaten append-edilirken cumulative cap (MAX_OUTPUT_BYTES) altında;
+// burası tek-event input boyutu.
+const MAX_NAME_LEN = 200;
+const MAX_PROMPT_LEN = 500;
+const MAX_THINKING_TEXT_LEN = 4 * 1024;
+const MAX_ERROR_LEN = 1000;
+const MAX_PROGRESS_MSG_LEN = 16 * 1024;
 
 /** Cost tahmini için varsayılan model — sidebar dropdown bunu seçer.
  *  Pricing tablosundaki anahtarlardan biri. */
@@ -53,7 +62,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         const isNew = !pane.byId.has(ev.id);
         const info: AgentInfo = {
           id: ev.id,
-          name: ev.name || ev.id,
+          name: trimTo(ev.name || ev.id, MAX_NAME_LEN),
           parent: ev.parent,
           status: 'running',
           startedAt: Date.now(),
@@ -81,7 +90,10 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
       case 'progress': {
         const a = pane.byId.get(ev.id);
         if (!a) return;
-        a.output = trimTo(a.output + ev.msg, MAX_OUTPUT_BYTES);
+        // Tek msg parçası MAX_PROGRESS_MSG_LEN'i aşamaz (DoS guard); sonra
+        // birikmiş buffer da MAX_OUTPUT_BYTES'a göre tail-trim.
+        const chunk = trimTo(ev.msg, MAX_PROGRESS_MSG_LEN);
+        a.output = trimTo(a.output + chunk, MAX_OUTPUT_BYTES);
         break;
       }
       case 'tokens': {
@@ -99,13 +111,13 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         const a = pane.byId.get(ev.id);
         if (!a) return;
         a.status = 'waiting';
-        if (ev.prompt) a.awaitPrompt = ev.prompt;
+        if (ev.prompt) a.awaitPrompt = trimTo(ev.prompt, MAX_PROMPT_LEN);
         break;
       }
       case 'thinking': {
         const a = pane.byId.get(ev.id);
         if (!a) return;
-        a.thinking.push(ev.text);
+        a.thinking.push(trimTo(ev.text, MAX_THINKING_TEXT_LEN));
         if (a.thinking.length > MAX_THINKING_BLOCKS) {
           a.thinking.splice(0, a.thinking.length - MAX_THINKING_BLOCKS);
         }
@@ -117,7 +129,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         a.status = mapEndStatus(ev.status);
         a.endedAt = Date.now();
         a.awaitPrompt = undefined;
-        if (ev.error) a.error = ev.error;
+        if (ev.error) a.error = trimTo(ev.error, MAX_ERROR_LEN);
         break;
       }
     }

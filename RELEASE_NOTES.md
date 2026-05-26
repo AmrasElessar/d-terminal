@@ -659,4 +659,5 @@ Bu sonuç sektör standardı: **5'ten az engine flag = false positive** kabul ed
 
 ### 📝 Lisans
 
-MIT © Orhan Engin OKAY
+GPL-3.0-or-later © Orhan Engin OKAY
+(v0.9.9 ve öncesi MIT altında yayınlandı; v0.10.0+ GPL-3.0-or-later)
