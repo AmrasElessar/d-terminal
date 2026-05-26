@@ -2,6 +2,9 @@
 
 > Bu dökümandaki metinler MS Store submission formuna direkt yapıştırılabilir.
 > All text here is ready to paste into the MS Store submission form.
+>
+> **Son güncelleme / Last updated:** 2026-05-26 (v0.10.0 release sonrası)
+> **Privacy URL:** ✅ Aktif — https://amraselessar.github.io/d-terminal/privacy.html (HTTP 200, 2026-05-26 verify)
 
 ---
 
@@ -83,7 +86,25 @@ D-Dark, D-Light, D-Matrix, D-Nord, D-Dracula, D-TokyoNight, D-Catppuccin, D-Gruv
 **3+ (Everyone)** — kullanıcı üretimi içerik yok, in-app satın alma yok, reklam yok.
 
 ### Sertifika notları (Notes for certification)
-> D-Terminal is a developer-focused terminal emulator. It declares `runFullTrust` capability because it spawns native shells (PowerShell, CMD, WSL) via Windows ConPTY API — this is required for any Windows terminal application. The bundled `dterminal-pty-bridge.exe` (Node.js sidecar) is a length-prefixed binary IPC bridge to node-pty (https://github.com/microsoft/node-pty), packaged via @yao-pkg/pkg into a standalone executable. No external network telemetry. AI requests go directly from user to user-configured providers; no proxy or relay through our servers. Privacy policy: https://amraselessar.github.io/d-terminal/privacy.html
+> **About D-Terminal:** Developer-focused terminal emulator for Windows 10 1809+ / Windows 11. Open source under GPL-3.0-or-later (https://github.com/AmrasElessar/d-terminal). Single maintainer: Orhan Engin OKAY (D Brand).
+>
+> **runFullTrust capability:** Declared because the app spawns native shells (PowerShell, CMD, WSL) via Windows ConPTY API — required for any terminal application. Without runFullTrust, ConPTY cannot allocate a pseudo-console.
+>
+> **Bundled sidecar binary:** `dterminal-pty-bridge.exe` is a length-prefixed binary IPC bridge to node-pty (Microsoft's official PTY library: https://github.com/microsoft/node-pty), packaged via @yao-pkg/pkg into a standalone Windows executable. Source: `sidecar/pty-bridge.js` in the repository. The exe runs as a child process of the main D-Terminal executable, not as a separate service.
+>
+> **Secret storage:** API keys for AI providers are encrypted via Windows Data Protection API (DPAPI) — per-user binding, no master password, no plaintext keys ever leave the encrypted vault or sent to our servers (we have no servers).
+>
+> **Network behavior:** No telemetry, no analytics, no crash reporting, no usage statistics. The app makes outbound HTTPS connections only when the user explicitly invokes AI features — and then directly to the user-configured provider (Anthropic, OpenAI, Gemini, Ollama localhost, or a custom OpenAI-compatible endpoint). No proxy, no relay, no logging on our end. SSRF protection in the Rust core validates endpoints before connecting.
+>
+> **Update mechanism:** GPL build channel uses minisign-signed auto-updater pointing to GitHub Releases. MS Store build will use Microsoft's native Store updater (no external manifest). Both are mutually exclusive per install.
+>
+> **Migration from v0.9.x (GitHub) install:** First launch of the Store version detects an existing `%APPDATA%\D-Terminal\` install and offers an opt-in migration dialog (SQLite + settings + custom themes copied to sandbox path). Source: `src-tauri/src/storage/migrate_legacy.rs`.
+>
+> **Content rating rationale (3+ Everyone):** No user-generated content shown to other users, no in-app purchases, no ads, no chat with other users. AI responses are user-prompted and shown only to the requesting user; standard developer tool category.
+>
+> **Privacy policy:** https://amraselessar.github.io/d-terminal/privacy.html (GH Pages, bilingual TR + EN, KVKK/GDPR aligned)
+>
+> **Source code:** https://github.com/AmrasElessar/d-terminal — public, auditable. Same codebase compiled for MS Store with identity adjustments only.
 
 ---
 
@@ -165,7 +186,25 @@ Built on **Tauri v2** (Rust core + WebView2). **5× lighter** than Electron — 
 **3+ (Everyone)** — no user-generated content, no in-app purchases, no ads.
 
 ### Notes for certification
-> D-Terminal is a developer-focused terminal emulator. It declares `runFullTrust` capability because it spawns native shells (PowerShell, CMD, WSL) via Windows ConPTY API — this is required for any Windows terminal application. The bundled `dterminal-pty-bridge.exe` (Node.js sidecar) is a length-prefixed binary IPC bridge to node-pty (https://github.com/microsoft/node-pty), packaged via @yao-pkg/pkg into a standalone executable. No external network telemetry. AI requests go directly from user to user-configured providers; no proxy or relay through our servers. Privacy policy: https://amraselessar.github.io/d-terminal/privacy.html
+> **About D-Terminal:** Developer-focused terminal emulator for Windows 10 1809+ / Windows 11. Open source under GPL-3.0-or-later (https://github.com/AmrasElessar/d-terminal). Single maintainer: Orhan Engin OKAY (D Brand).
+>
+> **runFullTrust capability:** Declared because the app spawns native shells (PowerShell, CMD, WSL) via Windows ConPTY API — required for any terminal application. Without runFullTrust, ConPTY cannot allocate a pseudo-console.
+>
+> **Bundled sidecar binary:** `dterminal-pty-bridge.exe` is a length-prefixed binary IPC bridge to node-pty (Microsoft's official PTY library: https://github.com/microsoft/node-pty), packaged via @yao-pkg/pkg into a standalone Windows executable. Source: `sidecar/pty-bridge.js` in the repository. The exe runs as a child process of the main D-Terminal executable, not as a separate service.
+>
+> **Secret storage:** API keys for AI providers are encrypted via Windows Data Protection API (DPAPI) — per-user binding, no master password, no plaintext keys ever leave the encrypted vault or sent to our servers (we have no servers).
+>
+> **Network behavior:** No telemetry, no analytics, no crash reporting, no usage statistics. The app makes outbound HTTPS connections only when the user explicitly invokes AI features — and then directly to the user-configured provider (Anthropic, OpenAI, Gemini, Ollama localhost, or a custom OpenAI-compatible endpoint). No proxy, no relay, no logging on our end. SSRF protection in the Rust core validates endpoints before connecting.
+>
+> **Update mechanism:** GPL build channel uses minisign-signed auto-updater pointing to GitHub Releases. MS Store build will use Microsoft's native Store updater (no external manifest). Both are mutually exclusive per install.
+>
+> **Migration from v0.9.x (GitHub) install:** First launch of the Store version detects an existing `%APPDATA%\D-Terminal\` install and offers an opt-in migration dialog (SQLite + settings + custom themes copied to sandbox path). Source: `src-tauri/src/storage/migrate_legacy.rs`.
+>
+> **Content rating rationale (3+ Everyone):** No user-generated content shown to other users, no in-app purchases, no ads, no chat with other users. AI responses are user-prompted and shown only to the requesting user; standard developer tool category.
+>
+> **Privacy policy:** https://amraselessar.github.io/d-terminal/privacy.html (GH Pages, bilingual TR + EN, KVKK/GDPR aligned)
+>
+> **Source code:** https://github.com/AmrasElessar/d-terminal — public, auditable. Same codebase compiled for MS Store with identity adjustments only.
 
 ---
 

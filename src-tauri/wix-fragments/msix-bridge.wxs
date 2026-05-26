@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  D-Terminal — MSIX-friendly WiX fragment
+
+  Bu fragment ŞU AN tauri.conf.json'da REGISTER EDİLMEMİŞTİR. MSI build'inin
+  regression riski olmadan dururabilmesi için scaffold halinde tutuluyor.
+
+  Aktivasyon: Identity reservation tamamlandığında (Task#2 — Publisher CN
+  Partner Center'dan alındıktan sonra), tauri.conf.json'da:
+
+    "bundle": {
+      "windows": {
+        "wix": {
+          "fragmentPaths": ["wix-fragments/msix-bridge.wxs"]
+        }
+      }
+    }
+
+  Amaç: MSIX Packaging Tool MSI'ı taradığında, sandbox-aware metadata
+  bulduğunda manifest'i daha temiz üretir. Şu an MSI tek başına MSIX
+  Packaging Tool tarafından tarandığında bu fragment olmadan da çalışır;
+  fragment opsiyonel + kalite iyileştirici.
+
+  Referans:
+  - https://wixtoolset.org/docs/v3/wixui/
+  - https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-prepare
+  - docs/store/appx-config.md
+  - docs/store/msix-build-guide.md
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!--
+      Custom registry değerleri — MSIX wrap'te Windows Registry virtualization
+      bunları sandbox'a yönlendirir. D-Terminal'in versiyon + identity metadata'sı
+      hem MSI hem MSIX install path'inde tutarlı kalsın.
+
+      NOT: SOFTWARE\D-Brand\D-Terminal yolu Tauri'nin default MSI registry
+      yolu DEĞİL — bu fragment ekstra metadata ekler, tauri'nin kendi
+      registry yazımına müdahale etmez.
+    -->
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="DTerminalRegistryMetadata" Guid="*">
+        <RegistryKey Root="HKCU" Key="SOFTWARE\D-Brand\D-Terminal">
+          <RegistryValue Type="string" Name="Channel" Value="github-releases" KeyPath="yes" />
+          <RegistryValue Type="string" Name="License" Value="GPL-3.0-or-later" />
+          <RegistryValue Type="string" Name="Architecture" Value="[Platform]" />
+        </RegistryKey>
+      </Component>
+    </DirectoryRef>
+
+    <!--
+      Feature reference: ana installer feature'ına eklensin diye.
+      tauri.conf.json'da fragmentPaths register edildiğinde Tauri'nin ana
+      feature'ı (Main) bu component'ı pick eder.
+
+      Tauri Main feature ID'sini explicit referans olarak ekliyoruz; eğer
+      Tauri sürüm değişikliğinde Main → AppFeature gibi rename olursa
+      bu satırı güncelle.
+    -->
+    <Feature Id="Main" Level="0">
+      <ComponentRef Id="DTerminalRegistryMetadata" />
+    </Feature>
+  </Fragment>
+</Wix>
