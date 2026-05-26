@@ -1,7 +1,13 @@
+---
+layout: page
+title: Privacy Policy
+permalink: /privacy.html
+---
+
 # D-Terminal — Privacy Policy / Gizlilik Politikası
 
-> **Last updated / Son güncelleme:** 2026-05-10
-> **Applies to / Geçerli sürüm:** D-Terminal v0.9.6 ve üzeri / and later
+> **Last updated / Son güncelleme:** 2026-05-26
+> **Applies to / Geçerli sürüm:** D-Terminal v0.10.0 ve üzeri / and later (v0.9.6+ ile büyük oranda aynı / largely identical)
 
 ---
 
