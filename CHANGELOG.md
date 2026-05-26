@@ -3,14 +3,57 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.10.0 (yaklaşan / upcoming)
+## [0.10.0] — 2026-05-26
+
+**GPL-3.0-or-later relisans + post-audit sertleştirme + UX iyileştirmeleri.** 6-agent paralel audit'in HIGH/MEDIUM bulguları ve kullanıcı UX raporundaki 3 sorun (git diff sayacı, kapatma onayı, agent view modu) bir release'de bağlandı. Yeni feature: AgentView pane global mode + close confirm dialog + tab git aggregate.
 
 ### Lisans Değişikliği / License Change
 
 - **D-Terminal lisansı `MIT` → `GPL-3.0-or-later`** (SPDX). Yürürlük: **v0.10.0**'dan itibaren. v0.9.9 ve daha eski tüm yayınlanmış sürümler MIT olarak kalır — geriye yürümez. D Brand açık kaynak uygulamaları için ortak lisans standardına geçiş (ücretli ürünler hariç).
 - **Neden GPL-3.0-or-later?** Türev işler aynı özgürlüklerle dağıtılır (copyleft); kapalı-kaynak fork dağıtımı engellenir. "or-later" (FSF tavsiyesi) ileride GPLv4 çıkarsa otomatik uyum sağlar.
 - **Bağımlılıklar etkilenmedi** — Tauri/Wry, Rust crate'leri (MIT/Apache permissive), Vue/Vite (MIT) tamamen GPL uyumlu; permissive license'lar GPL projeye eklenebilir.
-- Güncellenen dosyalar: `LICENSE` (GPL-3.0 tam metin), `package.json`, `sidecar/package.json`, `src-tauri/Cargo.toml`, `README.md` (rozet + lisans bölümü), `src/components/ui/AboutModal.vue`, `src/locales/{tr,en}.json` (sponsor hint), `docs/privacy.md`, `docs/architecture-v1.1.md`, `docs/store/listing.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/config.yml`.
+
+### Eklenen
+
+- **Tab git diff aggregate chip** — TabBar'da tab adının yanında tüm pane'lerin `+X -Y / ✓` toplamı, reactive (her `gitStatRef`'ten beslenir). `peekGitStat()` yan etkisiz read helper'ı eklendi.
+- **Pane/tab kapatma onay dialog'u** — `Settings.confirmOnClose: never | runningOnly | always` (default `runningOnly`). `useCloseConfirm` composable; `Shift` basılıyken bypass. PaneSlot/TabBar/AppShell + keybinding'ler entegre. Tauri native dialog (Win32 TaskDialog).
+- **AgentView pane GLOBAL mode** — `NewPaneDialog`'a manuel `agentView` seçeneği. Source/id boşsa tüm pane'lerdeki tüm agent'ları liste; tıklayınca single mode'a geçer. `agentSourcePaneId + agentId` leaf state'inde persist.
+- **`Settings.agentHeuristicEnabled` toggle** — kapalıyken yalnız formal OSC 9999 protokolü dispatch eder (yanlış pozitif beklemeyen kullanıcılar için).
+- **22 yeni i18n key** — `git.cleanHint`, `git.tabDiffHint`, `tab.paneCountHint`, `tab.closeConfirm*`, `pane.closeRunningConfirm` + `closeHint`, `settings.general.safetySection`, `confirmOnClose*`, `agentSection`, `agentHeuristic*`, `agentView.*` 7 key (önceden eksikti, sessiz fallback'e düşüyordu). TR + EN parity korundu.
+
+### Değiştirilen
+
+- **`PaneTitleBar.showGitStat` = `is_repo`** — repo içinde sıfır değişiklikte de chip görünür (✓ clean rozeti). Önceden tamamen kayboluyordu, kullanıcı "diff sayacı yok" sanıyordu.
+- **`panes.cleanupPaneState({force})`** — source terminal kapansa da onu izleyen agentView leaf hâlâ açıksa agentWatch state'i korunur (kullanıcı agent geçmişine erişebilsin). `closeTab` ve `loadWorkspace` `force:true` ile geçer.
+- **`useAgentDetector.detectParallelAgentRows`** — Claude Code paralel batch satırına `end` event eklendi (start + tokens + **end** üçlüsü). Önceden sadece start+tokens vardı → status sonsuz running + süre sonsuz artıyordu (yorum doğru, kod yanlıştı).
+- **`lib.rs`** — `Storage::open().expect()` → `.map_err(?)` propagate (tracing::error + Tauri setup hatası, çıplak panic yok). `std::mem::forget(_guard)` → `Box::leak` (semantik aynı, niyet net).
+- **`commands/logstream.rs`** — `validate_log_path`: `..` path component reject + symlink/junction reject (Windows `is_symlink()` reparse-point'leri yakalar). İki `read_to_string` → `.take(16 MiB).read_to_string` (OOM guard).
+- **`commands/config_io.rs`** — `config_import` 14-prefix allowlist (`ui.`, `ai.`, `shortcut.`, ...) ile schema kirliliği koruması; bilinmeyen key `tracing::warn!` ile skip.
+- **`tauri.conf.json` CSP** — `connect-src`'den 5 gereksiz localhost portu (1234/1337/5273/8080/11434) kaldırıldı; AI çağrıları Rust üzerinden yapıldığı için artık geçersiz (ADR-0007 closed).
+- **`providers/common.ts`** — AbortError `.name = 'AbortError'` standardı (DOMException semantiği). Legacy `.message` check'i geriye uyumluluk için kaldı.
+- **`agentWatch.ts`** — OSC 9999 string field DoS guard: `name` 200, `prompt` 500, `thinking text` 4 KiB, `error` 1 KiB, `progress.msg` 16 KiB per-event cap.
+
+### Düzeltilen
+
+- **`SettingsModal.vue:77-80` 5 boş `catch {}` → `log.warn`** — kapatılan capability hataları artık sessizce yutulmuyor; kullanıcı UI'da yanlış security state (admin/jail false) görmüyor. Memory'deki `feedback_tauri2_window_capabilities` kuralının doğrudan ihlali kapandı.
+- **`AppShell.vue` + `useUpdater.ts` + `aiUsage.ts`** — 10× ham `console.warn` → structured `log.warn` (bridge backend log'una düşer).
+- **`locales/index.ts`** — `any` zorunluluğu açıklandı (vue-i18n `LocaleMessage<VueMessageType>` recursive union tip sistemi; `unknown` çakışıyor). `eslint-disable` yorumları kaldırıldı (rule proje config'inde register değil).
+- **RELEASE_NOTES.md footer** — `MIT © Orhan Engin OKAY` → `GPL-3.0-or-later` + tarihsel not.
+- **18 vue style warning** — `pnpm exec eslint src --fix` ile pre-existing `multiline-html-element-content-newline` + `first-attribute-linebreak` ihlalleri temizlendi (WelcomePane, AgentWatchPanel, DarkSelect, HistoryModal).
+
+### Güvenlik
+
+- DPAPI per-user binding + entropy katmanı + `Zeroizing` doğrulandı; secret leak yok (test fixture'ları hariç).
+- CSP `connect-src` minimize edildi (XSS post-compromise saldırı yüzeyi daraldı).
+- Logstream path traversal: `..` + symlink/junction reject; junction üzerinden whitelist-dışı path okutma engeli.
+- TOML import schema kirletilemez (14-prefix allowlist + warn skip).
+- `cargo audit` 0 CVE. 90 Rust + 71 Vitest PASS.
+
+### Bilinen Sınırlar
+
+- 31 stub locale'de yeni v0.10.0 anahtarları yok — fallback EN (`fallbackLocale: 'en'`).
+- AgentView global mode'da pane id sadece ilk 8 karakter gösterilir (kompakt liste); hover tooltip ileride.
+- M (Triggers preset için agent pattern'leri) — yeni trigger action tipi gerektirir, v0.10.1+ patch.
 
 ---
 

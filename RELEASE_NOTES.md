@@ -1,5 +1,59 @@
 # D-Terminal Release Notes
 
+## v0.10.0 — 2026-05-26
+
+**GPL-3.0-or-later relisans + post-audit sertleştirme + UX iyileştirmeleri.** Tek release'de üç eksen: (1) D Brand açık-kaynak standardına geçiş, (2) 6-agent paralel audit'in HIGH/MEDIUM bulgularının kapatılması, (3) kullanıcı UX raporundan 3 net sorun (git diff sayacı, kapatma onayı, agent view modu). v0.9.9 ile wire-uyumlu (protokol değişmedi); ama lisans değişikliği nedeniyle dağıtım koşulları farklı — fork/derivative işler GPLv3+ kalmak zorunda.
+
+### 📝 Lisans değişikliği — `MIT` → `GPL-3.0-or-later`
+
+Yürürlük v0.10.0'dan itibaren. v0.9.9 ve önceki tüm yayınlanmış sürümler MIT olarak kalır (geriye yürümez). D Brand açık-kaynak uygulamaları için ortak standart. Tüm bağımlılıklar (Tauri, Rust crate'leri, Vue/Vite) MIT/Apache → GPL ile uyumlu, hiçbir CI kontrolü kırılmadı. README rozeti, AboutModal, manifest dosyaları, docs (privacy/architecture/store listing), GitHub template'leri güncellendi.
+
+### 🚀 Yeni feature'lar
+
+- **🪟 Tab git diff aggregate** — TabBar'da tab adının yanında, tüm pane'lerin git değişiklik toplamı (`+X -Y` veya `✓` clean). Reactive — her pane'in `gitStatRef`'inden beslenir, polling sırasında otomatik güncellenir. Pane title bar chip'i de artık repo içinde her zaman görünür (sıfır değişiklikte ✓ clean rozeti).
+- **🛡 Kapatma onayı dialog'u** — Pane/tab close butonuna tıklayınca veya keyboard kısayolu ile Settings'e bağlı dialog. `runningOnly` (default) modunda sadece aktif PTY varken sorar; `always` her zaman; `never` hiç. Tab close mesajında çalışan süreç sayısı yer alır ("3 çalışan süreç sonlandırılır"). Tüm akışlarda **Shift basılıyken bypass** — "ne yaptığımı biliyorum" çıkışı.
+- **👁 AgentView pane "All Agents" modu** — `NewPaneDialog`'a manuel `agentView` seçeneği eklendi. Source pane belirtmeden açılırsa **tüm pane'lerdeki tüm agent'ları** birleşik liste halinde gösterir (status önceliği: running → waiting → done). Bir satıra tıklamak pane'i o agent'a sabitler (single mode'a geçer). Manuel + auto-split iki yol arasında köprü.
+- **🤖 AI Agent heuristic toggle** — `Settings → AI Agent Tespiti → Heuristic agent dedektörü`. Kapalıyken yalnız formal OSC 9999 protokolü çalışır. Yanlış pozitif beklemeyen kullanıcılar (custom shell, edge tool'lar) için opt-out.
+
+### 🔧 Audit fix'leri (post-v0.9.9 6-agent tarama)
+
+- **`SettingsModal.vue` 5 silent catch → `log.warn`** — KRİTİK: capability hataları sessizce yutuluyordu, kullanıcı UI'da yanlış security state (admin/jail false) görüyordu. Memory'deki `feedback_tauri2_window_capabilities` kuralının doğrudan ihlali. Artık `log.warn('adminIsElevated failed', { error })` ile structured log'a düşüyor.
+- **CSP `connect-src` minimize** — `tauri.conf.json`'dan 5 gereksiz localhost portu (lmstudio/jan/foundry/llamacpp/ollama) kaldırıldı. AI çağrıları v0.9.x'ten beri Rust üzerinden (`reqwest`) yapıldığı için frontend'in bu portlara fetch atması artık imkânsız. ADR-0007 açık action item olarak kalmıştı → closed.
+- **`Storage::open().expect()` → `?` propagate** — `lib.rs:72` SQLite açılamazsa çıplak panic atıyordu. Şimdi `tracing::error!` + Tauri setup hatası ile düzgün exit path.
+- **`logstream.rs` layered path guard** — `..` path component reject + symlink/junction reject (Windows `is_symlink()` reparse-point'leri kapsar). Saldırgan whitelist'li uzantılı bir junction yaratıp arbitrary path stream edemez. İki `read_to_string` → `.take(16 MiB)` ile OOM guard.
+- **`config_io.rs` TOML key allowlist** — `config_import` 14 prefix (`ui.`, `ai.`, `shortcut.`, ...) ile sınırlı; bilinmeyen key `tracing::warn!` ile skip. Schema kirliliği koruması.
+- **`agentWatch` OSC 9999 string field cap'leri** — kötü niyetli (veya bug'lı) AI tool tek `progress.msg`/`thinking.text`/`await.prompt` ile bellek şişiremez. Per-event sınır: name 200, prompt 500, thinking 4 KiB, error 1 KiB, progress.msg 16 KiB.
+- **`providers/common.ts` AbortError `.name` standardı** — DOMException semantiği; legacy `.message` check geriye uyumluluk için kaldı.
+
+### 🐛 Bug fix'leri
+
+- **🔥 Agent View modu sonsuz running fix** — Claude Code paralel batch satırı `start + tokens` yayıyordu ama `end` yok → status sonsuza dek `running` + süre sonsuz artıyordu. `useAgentDetector.detectParallelAgentRows` artık üçlüyü tek seferde yayar (yorum doğru, kod yanlıştı — şimdi senkronize). Sonsuz pulsing rozet sorunu çözüldü.
+- **AgentView source pane bağımlılığı** — kaynak terminal kapanınca AgentView "not found" gösteriyordu, agent geçmişi siliniyordu. `panes.cleanupPaneState({force})` semantiği eklendi: source kapansa da onu izleyen agentView leaf hâlâ açıksa `agentWatch.clearPane()` çağrılmaz. `closeTab`/`loadWorkspace` `force:true` ile geçer.
+- **`agentView.*` 7 i18n key eksikti** — kod `t('agentView.notFound')` çağırıyordu ama key tanımlı değildi, sessiz fallback'e düşüyordu. EN + TR eklendi, parity test PASS.
+- **`AppShell` + `useUpdater` + `aiUsage` console.warn → log.warn** — 10 yerde ham `console.warn` yapılıyordu; structured log bridge'i bypass ediyordu. Hepsi `createLogger('source').warn(...)` ile değiştirildi.
+- **18 vue style warning** — pre-existing `multiline-html-element-content-newline` + `first-attribute-linebreak` ihlalleri `pnpm exec eslint src --fix` ile temizlendi (WelcomePane, AgentWatchPanel, DarkSelect, HistoryModal).
+
+### 📊 Metrikler
+
+- Test sayısı: **90 Rust + 71 Vitest** (değişmedi; tüm UX değişiklikleri mevcut testleri kırmadı).
+- Yeni settings alanı: 2 (`confirmOnClose`, `agentHeuristicEnabled`).
+- Yeni i18n key: **22** (TR + EN aynı sayıda).
+- `cargo audit` CVE: **0**.
+- CI: **5/5 job PASS** (Rust x64 + arm64 + Frontend + Sidecar + Security audit).
+
+### Bilinen Sınırlar
+
+- 31 stub locale'de yeni v0.10.0 anahtarları yok — `fallbackLocale: 'en'` devreye girer (TR/EN tam çevrilidir).
+- AgentView global mode'da pane id sadece ilk 8 karakter gösterilir; hover tooltip + tam id pop-over ileride.
+- Triggers sistemi'ne agent pattern preset entegrasyonu (M maddesi) deferred — yeni trigger action tipi gerektirir, v0.10.1+ patch.
+
+### 📝 Lisans
+
+GPL-3.0-or-later © Orhan Engin OKAY
+(v0.9.9 ve öncesi MIT altında yayınlandı; v0.10.0+ GPL-3.0-or-later)
+
+---
+
 ## v0.9.9 — 2026-05-12
 
 **Settings UX iyileştirmeleri + heartbeat dayanıklılığı.** v0.9.6→v0.9.9 aynı haftanın dördüncü release'i; bu sefer kalite/dayanıklılık değil **kullanıcının doğrudan dokunduğu ayarlar** odak. v0.9.8 ile wire-uyumlu (protokol değişmedi, downgrade güvenli).
