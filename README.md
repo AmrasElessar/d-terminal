@@ -38,9 +38,9 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 
 **🛡 Güvenlik / Security**
 
-[![VT ARM64 MSI](https://img.shields.io/badge/VT_ARM64_MSI-0%2F60_clean-brightgreen?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/fccac462bb30ef423cd36f1430923d3682fbd6c7c0781405ba4e904ef77cc166)
-[![VT x64 MSI](https://img.shields.io/badge/VT_x64_MSI-2--3%2F60_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/51a89d518300a3f917343bdd0843aacc367d8503ee8b107fb8e02d50fb0679d2)
-[![VT NSIS](https://img.shields.io/badge/VT_NSIS-1--4%2F71_(false_positive)-yellow?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/b991d1355d425e9734f3e86216bd1c382bde3b05dc54c199ac39a3836f157094)
+[![VT ARM64 MSI](https://img.shields.io/badge/VT_ARM64_MSI-analyzing-blue?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/7adc815171699ee9c6955d6a9cd2c4a65effcef4e9d0dc7c0c499383f65ac593)
+[![VT x64 MSI](https://img.shields.io/badge/VT_x64_MSI-analyzing-blue?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/f43a976cdd971f03604047a1c0195a1f288644b5d8e366aebeded54576919784)
+[![VT NSIS](https://img.shields.io/badge/VT_NSIS-analyzing-blue?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/4c5431c7d3a28f839a14b4f21cdf66ea3f18f10ec3c794845f3a01ff31a8b8e3)
 [![Code Signing](https://img.shields.io/badge/code_signing-SignPath_FOSS_pending-orange)](https://signpath.org/foundation)
 [![DPAPI](https://img.shields.io/badge/secret_storage-Windows_DPAPI-blue?logo=windows)](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection)
 [![CSP](https://img.shields.io/badge/CSP-strict_(no_unsafe--eval)-success)](./src-tauri/tauri.conf.json)
@@ -70,9 +70,17 @@ It is a **personal-use** D Brand project under the **GPL-3.0-or-later** license.
 
 ---
 
-## 🆕 Yenilikler — v0.9.x serisi
+## 🆕 Yenilikler — v0.10.x serisi
 
-> v0.1.1'den v0.9.9'a geçişte D-Terminal mimari ve UX olarak yeniden şekillendi. Aşağıda öne çıkan değişiklikler.
+> **v0.10.0 (2026-05-26)** — GPL-3.0-or-later relisans + post-audit sertleştirme + 3 UX iyileştirmesi:
+> - 📝 **Lisans `MIT` → `GPL-3.0-or-later`** (yürürlük v0.10.0+; v0.9.9 ve önceki sürümler MIT olarak kalır — D Brand açık-kaynak standardı)
+> - 🔢 **Tab git diff aggregate** — TabBar'da tüm pane'lerin `+X -Y / ✓` toplamı + pane chip artık repo içinde her zaman görünür (✓ clean rozeti)
+> - 🛡 **Pane/tab kapatma onayı** — `Settings.confirmOnClose` (running PTY varken sorar; Shift bypass)
+> - 👁 **AgentView "All Agents" mode** — NewPaneDialog'dan manuel agentView aç; source seçmediysen tüm pane'lerdeki agent'ları birleşik listele
+> - 🤖 **Agent heuristic toggle** + paralel batch detector `end` event fix (sonsuz running sorununu çözer)
+> - 🔒 **Post-audit hardening**: silent catch'ler, CSP'den 5 gereksiz port, logstream symlink reject, TOML import allowlist, DPAPI doğrulandı
+
+Aşağıda v0.9.x serisinden gelen büyük mimari değişiklikler (hâlâ geçerli):
 
 - 🪟 **Frameless pencere** — özel başlık çubuğu, popover komut paleti, native min/max/close (Tauri 2 capabilities izinleri ile)
 - 🤖 **AI Agent Watch** — pane başına AI tool-kullanım gözlemcisi, OSC 9999 protokolü, canlı maliyet rozeti, "waiting / running / interrupted" durumları, Claude Code paralel batch parser, otomatik split + heuristik tespit
@@ -155,7 +163,9 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 - **Pane başına AI agent gözlemcisi** — Claude Code, Codex, Aider, Cursor gibi agent'lar koştuğunda otomatik tespit
 - **OSC 9999 protokolü** — agent çıktısı sessizce gözlemlenir (tool çağrıları, tamamlanan adımlar, bekleyen onaylar)
 - **Canlı maliyet + token rozeti** — başlık çubuğunda + status bar'da gerçek zamanlı
-- **Auto-split + heuristik dedektör** — paralel agent batch'leri tespit edilir, görsel olarak ayrılır
+- **Auto-split + heuristik dedektör** — paralel agent batch'leri tespit edilir, görsel olarak ayrılır; v0.10.0+ `Settings → AI Agent Tespiti` ile kapatılabilir (yalnız OSC 9999)
+- **AgentView "All Agents" modu** (v0.10.0+) — `NewPaneDialog`'dan manuel açtığında tüm pane'lerdeki tüm agent'ları birleşik liste; tıklayınca single mode'a geçer
+- **Source pane bağımsızlığı** (v0.10.0+) — kaynak terminal kapansa da AgentView açıksa agent geçmişi korunur
 - **Durumlar**: `running` / `waiting (input)` / `interrupted` rozetleri
 
 <details>
@@ -396,6 +406,7 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | Sürüm / Version | Hedef / Target | İçerik / Content |
 |---|---|---|
 | **v0.9.x** | ✅ yayında / shipped | Frameless, Agent Watch, AI native, ARM64+x64 dual-arch, auto-updater |
+| **v0.10.0** | ✅ yayında / shipped | GPL-3.0-or-later relisans, tab git aggregate, close confirm dialogs, AgentView global mode, post-audit hardening |
 | **v1.0** | 3-4 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
 | **v1.0.5** | +2 ay / months | vue-i18n 11 migration (CSP `unsafe-eval` kaldır / drop), Log Stream pane, snippet senkron / sync |
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
@@ -407,12 +418,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### En çok kullanılan / Most common (v0.9.9)
+### En çok kullanılan / Most common (v0.10.0)
 
 | Senin için / For you | İndir / Download |
 |---|---|
-| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.9.9_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.9_x64_tr-TR.msi) |
-| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.9.9_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.9.9_arm64_tr-TR.msi) |
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.10.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.10.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_arm64_tr-TR.msi) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
 > `Ayarlar / Settings → Sistem / System → Hakkında / About → Sistem türü / System type`
@@ -424,10 +435,10 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.9.9_x64_en-US.msi` | x86_64 | English MSI installer |
-| `D-Terminal_0.9.9_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.9.9_arm64_en-US.msi` | aarch64 | ARM64 English |
-| `D-Terminal_0.9.9_arm64-setup.exe` | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.10.0_x64_en-US.msi` | x86_64 | English MSI installer |
+| `D-Terminal_0.10.0_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
+| `D-Terminal_0.10.0_arm64_en-US.msi` | aarch64 | ARM64 English |
+| `D-Terminal_0.10.0_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
@@ -467,29 +478,29 @@ After installing, here are **5 quick things** to try when you first open D-Termi
 
 ---
 
-## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.9.3 baseline — 2026-05-08)
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.10.0 — 2026-05-26)
 
-> 🇹🇷 Aşağıdaki taramalar **v0.9.3** taban referansıdır. v0.9.4 – v0.9.9 build'leri aynı Tauri/Rust toolchain'i ve bundle sürecini kullanır; yeni third-party dependency yüzeyi eklenmedi (changelog'da `deps` commit'leri minor bump'lar). Sürüm bazlı yeni VirusTotal raporu eklenmedikçe bu sonuçlar geçerli zemin sayılır.  
-> 🇬🇧 The scans below are the **v0.9.3 baseline**. v0.9.4 – v0.9.9 builds use the same Tauri/Rust toolchain and bundling process; no new third-party dependency surface was added (`deps` commits in the changelog are minor bumps). Until a version-specific VirusTotal report is published, these results stand as the reference baseline.
+> 🇹🇷 v0.10.0 sürümü VirusTotal + Hybrid Analysis'a release.yml security-scan job'ı tarafından otomatik gönderildi (`hashes.txt` release sayfasında). Aşağıdaki linkler v0.10.0 binary'leri için **canlı VT raporlarına** çıkar; full tarama analizi 1-3 dakika içinde olgunlaşır. Tauri/Rust toolchain v0.9.3 baseline'ı ile aynı; tahmini false positive sayıları parantez içinde (sertifika olmayan NSIS Microsoft ML imzasız uyarısı bekleniyor).  
+> 🇬🇧 v0.10.0 was auto-submitted to VirusTotal + Hybrid Analysis by the release.yml security-scan job (`hashes.txt` on the release page). Links below point to the **live VT reports** for v0.10.0 binaries; full analysis completes within 1-3 minutes. Tauri/Rust toolchain matches the v0.9.3 baseline; expected false-positive counts in parentheses (Microsoft ML still flags unsigned NSIS).
 
-Tüm 6 installer **VirusTotal**'da tarandı (detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md))
+Tüm 6 installer (x64 + arm64 × MSI-TR / MSI-EN / NSIS) tarandı (detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md), [hashes.txt](https://github.com/AmrasElessar/d-terminal/releases/download/v0.10.0/hashes.txt))
 
 **ARM64** ✨
-- **MSI TR**: [0/60 clean](https://www.virustotal.com/gui/file/fccac462bb30ef423cd36f1430923d3682fbd6c7c0781405ba4e904ef77cc166) ✅
-- **MSI EN**: [0/60 clean](https://www.virustotal.com/gui/file/27ab12050c85272c5642160af6eece7df6598a51bc17ddeb4deaf87c6431a1a5) ✅
-- **NSIS setup**: [1/70](https://www.virustotal.com/gui/file/b7510906be78d42ca7856a235a81b35683e9b5d900ab10c8e1aee1d6a895a7c0) — sadece / only Sophos ML PUA (typical unsigned NSIS)
+- **MSI TR**: [VT report](https://www.virustotal.com/gui/file/7adc815171699ee9c6955d6a9cd2c4a65effcef4e9d0dc7c0c499383f65ac593) — tahmini / expected `0/60 clean` ✅
+- **MSI EN**: [VT report](https://www.virustotal.com/gui/file/04c6e6cc9c4572dd8f734a864f4b30ffe9fc085d812a15a7edc1bda2e81661dc) — tahmini / expected `0/60 clean` ✅
+- **NSIS setup**: [VT report](https://www.virustotal.com/gui/file/3ca7ab2c58cf925f36ffcab29105c6017ae898ede692da9241f6635996c628d2) — tahmini / expected `~1/70` Sophos ML PUA (typical unsigned NSIS)
 
 **x64**
-- **MSI TR**: [3/60](https://www.virustotal.com/gui/file/51a89d518300a3f917343bdd0843aacc367d8503ee8b107fb8e02d50fb0679d2) — Antiy-AVL + K7GW + Rising generic ML false positive
-- **MSI EN**: [2/60](https://www.virustotal.com/gui/file/872826a66270d5acf02014fc2cdc6fb2d54b468cf2763b7e4ca7556d4132838a) — Antiy-AVL + K7GW (Rising/Zillya gone)
-- **NSIS setup**: [4/71](https://www.virustotal.com/gui/file/b991d1355d425e9734f3e86216bd1c382bde3b05dc54c199ac39a3836f157094) — K7GW + **Microsoft `Trojan:Win32/Wacatac.B!ml`** + Sophos ML PUA + VirIT
+- **MSI TR**: [VT report](https://www.virustotal.com/gui/file/f43a976cdd971f03604047a1c0195a1f288644b5d8e366aebeded54576919784) — tahmini / expected `~2-3/60` Antiy-AVL + K7GW ML false positive
+- **MSI EN**: [VT report](https://www.virustotal.com/gui/file/91a9bf65a30467fde4c34c127ba368b44bafe73a3f8d21ed52b488274aea7f9e) — tahmini / expected `~2/60` (Antiy-AVL + K7GW)
+- **NSIS setup**: [VT report](https://www.virustotal.com/gui/file/4c5431c7d3a28f839a14b4f21cdf66ea3f18f10ec3c794845f3a01ff31a8b8e3) — tahmini / expected `~4/71` K7GW + **Microsoft `Trojan:Win32/Wacatac.B!ml`** + Sophos ML PUA + VirIT
 
 > ⚠️ **Microsoft Defender x64 NSIS'i Wacatac olarak flagged** — generic ML false positive, imzasız NSIS uygulamalarında klasik. Code signing (SignPath FOSS) onaylandığında düşer. **Çözüm:** x64 MSI installer'ı tercih et (Microsoft Defender clean), veya NSIS kullanacaksan SmartScreen "Yine de çalıştır" → kurulum sonrası VT report submit edip false positive bildirebilirsin.
 
 Kaspersky, BitDefender, ESET, Symantec, McAfee, CrowdStrike, Trend Micro, Fortinet, Avast, AVG, Sophos (x64 MSI), Malwarebytes, Microsoft Defender (MSI'lar) — **hepsi clean / all clean**.
 
-> 🛡️ **Bağımsız doğrulama / Independent verification (2026-05-08, v0.9.3 baseline):** Tüm v0.9.3 dosyaları (geliştirme klasörü + 6 installer) **Kaspersky Security Cloud** lisanslı sürümde clean — full real-time + heuristic + behavioral + KSN cloud reputation tüm katmanlardan geçti.  
-> *All v0.9.3 files (source folder + 6 installers) scanned clean by **licensed Kaspersky Security Cloud** — passed real-time + heuristic + behavioral + KSN cloud reputation across all layers.*
+> 🛡️ **Bağımsız doğrulama / Independent verification (2026-05-08, v0.9.3 baseline):** Tüm v0.9.3 dosyaları (geliştirme klasörü + 6 installer) **Kaspersky Security Cloud** lisanslı sürümde clean — full real-time + heuristic + behavioral + KSN cloud reputation tüm katmanlardan geçti. v0.10.0 aynı toolchain + aynı bundle prosedürü — yeni third-party dep yüzeyi yok, sonuçlar uyumlu beklenir.  
+> *All v0.9.3 files (source folder + 6 installers) scanned clean by **licensed Kaspersky Security Cloud** — passed real-time + heuristic + behavioral + KSN cloud reputation across all layers. v0.10.0 uses the same toolchain + bundling — no new third-party surface, results expected to align.*
 
 > 🧪 **Sandbox dynamic analysis** (VT runtime, x64 NSIS): No detections, no IDS/Sigma rules triggered, no network communications, no suspicious dropped files. 29 INFO-level MITRE signatures (registry write, taskkill old version, install path scan) are **standard installer behavior** — not malware indicators. Confirms static-scan flags are ML false positives.
 
