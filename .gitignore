@@ -79,3 +79,7 @@ logs/
 /secrets/
 *.key
 *.pem
+
+# screenshot scratch (REPO_STANDARDS hijyen)
+durum.png
+
