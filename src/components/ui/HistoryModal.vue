@@ -169,10 +169,13 @@ function onKey(e: KeyboardEvent) {
             <span class="ts">{{ entry.executedAt.replace('T', ' ').slice(0, 19) }}</span>
           </div>
           <div class="results__actions">
-            <button type="button"
+            <button
+type="button"
                     :aria-label="t('history.rerun')"
                     :title="t('history.rerun')"
-                    @click.stop="rerun(entry)">▶</button>
+                    @click.stop="rerun(entry)">
+▶
+</button>
             <button
               type="button"
               :aria-label="entry.isFavorite ? t('history.unfavorite') : t('history.favorite')"
@@ -182,15 +185,21 @@ function onKey(e: KeyboardEvent) {
             >
 ★
 </button>
-            <button type="button"
+            <button
+type="button"
                     :aria-label="t('history.copy')"
                     :title="t('history.copy')"
-                    @click.stop="copy(entry)">⎘</button>
-            <button type="button"
+                    @click.stop="copy(entry)">
+⎘
+</button>
+            <button
+type="button"
                     :aria-label="t('history.delete')"
                     :title="t('history.delete')"
                     class="danger"
-                    @click.stop="remove(entry)">×</button>
+                    @click.stop="remove(entry)">
+×
+</button>
           </div>
         </li>
       </ul>

@@ -721,7 +721,9 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
       :title="t('welcome.snapshotHint')"
       :aria-label="t('welcome.snapshotHint')"
       @click="takeSnapshot"
-    >📸</button>
+    >
+📸
+</button>
     <!-- Snapshot kartı — sadece bu alan yakalanır (buton ve hint dışarıda). -->
     <div ref="captureRef" class="welcome__capture">
       <div class="welcome__grid">
@@ -740,7 +742,9 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
             :key="i"
             class="os-logo__line"
             :style="{ animationDelay: `${i * 110}ms` }"
-          ><span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span></div>
+          >
+<span :class="i < 7 ? 'win-red' : 'win-blue'">{{ line.left }}</span><span :class="i < 7 ? 'win-green' : 'win-yellow'">{{ line.right }}</span>
+</div>
         </div>
       </div>
 

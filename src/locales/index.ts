@@ -16,11 +16,12 @@ export interface LocaleMeta {
 
 // `Record<string, any>` zorunlu: vue-i18n'in `LocaleMessage<VueMessageType>`
 // tipi derinlemesine recursive (string | VNode | array | nested dict) union;
-// `unknown` ile sıkılaştırmak createI18n imzasıyla çakışıyor. `any` yerine
-// LocaleMessages<VueMessageType> import etmek de aynı nedenle başarısız —
-// vue-i18n exporting tipler ile generic instantiation tam uyuşmuyor. Eksik-key
+// `unknown` ile sıkılaştırmak createI18n imzasıyla çakışıyor. `LocaleMessages
+// <VueMessageType>` import etmek de aynı nedenle başarısız — vue-i18n
+// exporting tipler ile generic instantiation tam uyuşmuyor. Eksik-key
 // güvenliği `locales/parity.test.ts` ile sağlanıyor (runtime parity check).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// NOT: `@typescript-eslint/no-explicit-any` projemizde register değil —
+// eslint-disable yorumu eklemeye gerek yok (gereksiz yorum CI'da hata olur).
 const compiled = import.meta.glob<Record<string, any>>('./*.json', {
   eager: true,
   import: 'default',
@@ -31,7 +32,6 @@ const rawLoaders = import.meta.glob<string>('./*.json', {
   import: 'default',
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const messages: Record<string, any> = {};
 export const availableLocales: string[] = [];
 export const localeMeta: Record<string, LocaleMeta> = {};
@@ -39,7 +39,6 @@ export const localeMeta: Record<string, LocaleMeta> = {};
 for (const [path, mod] of Object.entries(compiled)) {
   const code = path.match(/^\.\/(.+)\.json$/)?.[1];
   if (!code) continue;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { _meta: _ignored, ...entries } = mod as Record<string, any>;
   void _ignored;
   messages[code] = entries;

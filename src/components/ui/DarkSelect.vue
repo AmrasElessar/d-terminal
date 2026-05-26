@@ -186,9 +186,9 @@ onBeforeUnmount(() => {
         :key="opt.value"
         class="ds__opt"
         :class="{
-          'ds__opt--active':   opt.value === modelValue,
-          'ds__opt--focus':    idx === focusIdx,
-          'ds__opt--dim':      opt.dim,
+          'ds__opt--active': opt.value === modelValue,
+          'ds__opt--focus': idx === focusIdx,
+          'ds__opt--dim': opt.dim,
           'ds__opt--disabled': opt.disabled,
         }"
         :aria-selected="opt.value === modelValue"

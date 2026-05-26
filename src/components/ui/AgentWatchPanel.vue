@@ -163,7 +163,9 @@ const summary = computed(() => {
             :title="t('agentWatch.stopHint')"
             :aria-label="t('agentWatch.stopAgent')"
             @click.stop="emit('stop-agent', a.id)"
-          >■</button>
+          >
+■
+</button>
         </div>
         <div v-if="a.status === 'waiting' && a.awaitPrompt" class="agent-row__await">
           ⏸ {{ a.awaitPrompt }}

@@ -88,10 +88,7 @@ pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
     for (k, v) in settings {
         // Allowlist dışı key → atla. Hata yerine warn — TOML'a yorum-uyumlu
         // kalsın, kullanıcı silmediyse silent ignore yerine log'a düşsün.
-        if !ALLOWED_SETTING_PREFIXES
-            .iter()
-            .any(|p| k.starts_with(p))
-        {
+        if !ALLOWED_SETTING_PREFIXES.iter().any(|p| k.starts_with(p)) {
             tracing::warn!("config_import: skipping unknown setting key '{k}'");
             continue;
         }
