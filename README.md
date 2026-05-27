@@ -28,6 +28,7 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 [![CI](https://img.shields.io/github/actions/workflow/status/AmrasElessar/d-terminal/ci.yml?branch=main&label=CI&logo=github)](https://github.com/AmrasElessar/d-terminal/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AmrasElessar/d-terminal?include_prereleases&label=release&color=blue)](https://github.com/AmrasElessar/d-terminal/releases)
 [![Downloads](https://img.shields.io/github/downloads/AmrasElessar/d-terminal/total?label=downloads&color=green)](https://github.com/AmrasElessar/d-terminal/releases)
+[![GitHub Pages](https://img.shields.io/github/deployments/AmrasElessar/d-terminal/github-pages?label=pages&logo=github)](https://amraselessar.github.io/d-terminal/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPLv3%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%C2%B7%20x64%20%2B%20ARM64-blue)
