@@ -106,10 +106,16 @@ function onKeydown(e: KeyboardEvent) {
   e.preventDefault();
   closeDialog();
 }
-watch(openRef, (isOpen) => {
-  if (isOpen) window.addEventListener('keydown', onKeydown, true);
-  else window.removeEventListener('keydown', onKeydown, true);
-});
+// immediate: open=true ile mount edilirse ESC listener'ı hemen bağla;
+// aksi halde modal açık olduğu halde ESC yutulur (test'te yakalanan bug).
+watch(
+  openRef,
+  (isOpen) => {
+    if (isOpen) window.addEventListener('keydown', onKeydown, true);
+    else window.removeEventListener('keydown', onKeydown, true);
+  },
+  { immediate: true },
+);
 
 // Phase transition announce — screen reader idle→success/failure geçişini
 // kaçırmasın. aria-live="assertive" + role="status" kombosu.

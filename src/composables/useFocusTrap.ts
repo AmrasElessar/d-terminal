@@ -36,7 +36,15 @@ const FOCUSABLE_SELECTOR =
 function focusableWithin(root: HTMLElement | null): HTMLElement[] {
   if (!root) return [];
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) => el.offsetParent !== null || el === document.activeElement,
+    (el) => {
+      // Hidden via display:none / visibility:hidden olanları skip et.
+      // offsetParent JSDOM'da güvenilir değil — getComputedStyle daha taşınabilir.
+      if (typeof getComputedStyle === 'function') {
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      }
+      return true;
+    },
   );
 }
 

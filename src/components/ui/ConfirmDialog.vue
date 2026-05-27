@@ -70,13 +70,18 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-watch(open, (isOpen) => {
-  if (isOpen) {
-    window.addEventListener('keydown', onKeydown, true);
-  } else {
-    window.removeEventListener('keydown', onKeydown, true);
-  }
-});
+// immediate: store'da pending varken mount edilirse listener hemen bağlansın.
+watch(
+  open,
+  (isOpen) => {
+    if (isOpen) {
+      window.addEventListener('keydown', onKeydown, true);
+    } else {
+      window.removeEventListener('keydown', onKeydown, true);
+    }
+  },
+  { immediate: true },
+);
 
 function onCancel() {
   store.resolve(false);
