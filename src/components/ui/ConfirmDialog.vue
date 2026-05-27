@@ -207,7 +207,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true));
 .ghost {
   background: transparent;
   color: var(--color-fg);
-  border-color: color-mix(in srgb, var(--color-fg) 10%, transparent);
+  /* WCAG 1.4.11 (Non-text Contrast): UI komponent kenarlığı min 3:1.
+     Önceki `10%` D-Dark zemininde ~1.1:1 (fail). `28%` ile ~3.2:1. */
+  border-color: color-mix(in srgb, var(--color-fg) 28%, transparent);
 }
 .ghost:hover {
   background: color-mix(in srgb, var(--color-fg) 6%, transparent);

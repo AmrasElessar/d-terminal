@@ -40,10 +40,12 @@
     -->
     <DirectoryRef Id="TARGETDIR">
       <Component Id="DTerminalRegistryMetadata" Guid="*">
+        <!-- Sadece distribution channel + license — Architecture runtime'da
+             zaten bilinir; registry'ye yazmak gereksiz fingerprint yüzeyi
+             açar. Security audit'in (CWE-693) önerisi: minimize. -->
         <RegistryKey Root="HKCU" Key="SOFTWARE\D-Brand\D-Terminal">
           <RegistryValue Type="string" Name="Channel" Value="github-releases" KeyPath="yes" />
           <RegistryValue Type="string" Name="License" Value="GPL-3.0-or-later" />
-          <RegistryValue Type="string" Name="Architecture" Value="[Platform]" />
         </RegistryKey>
       </Component>
     </DirectoryRef>

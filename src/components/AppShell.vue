@@ -280,7 +280,9 @@ onMounted(async () => {
     panes.startListening().catch((e) => log.error('panes.startListening failed', { error: String(e) })),
   ]);
   // UAC elevation durumu — process lifetime boyunca sabit, tek seferlik fetch
-  api.adminIsElevated().then((v) => { isElevated.value = v; }).catch(() => {});
+  api.adminIsElevated()
+    .then((v) => { isElevated.value = v; })
+    .catch((e) => log.warn('adminIsElevated failed', { error: String(e) }));
 
   // Legacy install algılama — MS Store sürümüne taşıma için. Fire-and-forget;
   // backend çoğu zaman null döner (legacy == target). Some dönerse modal açılır.

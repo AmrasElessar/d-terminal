@@ -16,6 +16,9 @@ import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
 import type { DetectedLegacy, MigrationReport } from '@/api/tauri';
 import { formatBytes } from '@/utils/formatBytes';
+import { createLogger } from '@/utils/logger';
+
+const log = createLogger('migration-dialog');
 
 const props = defineProps<{
   open: boolean;
@@ -66,8 +69,8 @@ async function dismissMigration() {
   } catch (err: unknown) {
     // Dismiss başarısız olsa bile UI'dan kapanmasını engellemiyoruz —
     // marker yazılmadıysa bir sonraki açılışta tekrar sorulur, kullanıcı
-    // yeniden seçer. Sessiz tutmuyoruz, console üzerinden görünür.
-    console.warn('migrate_dismiss failed', err);
+    // yeniden seçer. Structured log → user'ın log file'ına da girer.
+    log.warn('migrate_dismiss failed', { error: String(err) });
   }
   emit('dismissed');
   emit('close');
@@ -99,7 +102,7 @@ function retry() {
           <li v-if="detected.has_config">{{ t('migration.hasConfig') }}</li>
         </ul>
 
-        <p class="privacy">🔒 {{ t('migration.privacy') }}</p>
+        <p class="privacy"><span aria-hidden="true">🔒 </span>{{ t('migration.privacy') }}</p>
 
         <div v-if="isRunning" class="progress" aria-live="polite">
           <span class="progress__spinner" aria-hidden="true" />
@@ -128,7 +131,7 @@ function retry() {
 
       <!-- success: tamamlandı ekranı -->
       <template v-else-if="phase === 'success'">
-        <h2 id="mig-title">✅ {{ t('migration.successTitle') }}</h2>
+        <h2 id="mig-title"><span aria-hidden="true">✅ </span>{{ t('migration.successTitle') }}</h2>
         <p class="subtitle">
           {{ t('migration.successBody', { bytes: reportSizeFormatted }) }}
         </p>
@@ -142,7 +145,7 @@ function retry() {
 
       <!-- failure: hata + tekrar dene -->
       <template v-else>
-        <h2 id="mig-title">⚠ {{ t('migration.failureTitle') }}</h2>
+        <h2 id="mig-title"><span aria-hidden="true">⚠ </span>{{ t('migration.failureTitle') }}</h2>
         <p class="subtitle">{{ t('migration.failureBody', { error: errorMessage }) }}</p>
         <div class="actions">
           <button type="button" class="ghost" @click="closeDialog">
@@ -252,7 +255,8 @@ h2 {
 .ghost {
   background: transparent;
   color: var(--color-fg);
-  border-color: color-mix(in srgb, var(--color-fg) 10%, transparent);
+  /* WCAG 1.4.11 (Non-text Contrast): UI komponent kenarlığı min 3:1. */
+  border-color: color-mix(in srgb, var(--color-fg) 28%, transparent);
 }
 .primary {
   background: var(--color-accent);
