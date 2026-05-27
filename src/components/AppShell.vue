@@ -33,6 +33,11 @@ const CommandPalette  = defineAsyncComponent(() => import('@/components/ui/Comma
 const AboutModal      = defineAsyncComponent(() => import('@/components/ui/AboutModal.vue'));
 const AISuggestModal  = defineAsyncComponent(() => import('@/components/ui/AISuggestModal.vue'));
 const MigrationDialog = defineAsyncComponent(() => import('@/components/ui/MigrationDialog.vue'));
+// ConfirmDialog: global onay modalı — `confirmAsk()` çağrılarının render hedefi.
+// Eager mount: pek küçük (~3 KB) ve startup'tan itibaren erişilebilir olmalı
+// çünkü her store/composable confirmAsk çağırabilir (settings, snippet,
+// session, AI cost vb.).
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import type { DetectedLegacy } from '@/api/tauri';
 import type { PaneType } from '@/types/pane';
 
@@ -515,6 +520,10 @@ watch(
     />
     <ContextMenu />
     <ToastContainer />
+    <!-- Global onay dialog'u (confirmAsk render target) — diğer modal'ların
+         üzerinde (z-index: 120) çünkü silme onayı Settings/Snippet/Session
+         modal'larının içinden tetiklenebiliyor. -->
+    <ConfirmDialog />
     <!-- Prefix-mode (tmux tarzı) aktif overlay — 1 sn pencere içinde
          kullanıcıya hangi tuşa basabileceği hatırlatılır. -->
     <div v-if="keybindings.prefixActive.value" class="prefix-overlay" aria-live="polite">

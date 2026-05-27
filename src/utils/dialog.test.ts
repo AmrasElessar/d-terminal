@@ -1,81 +1,76 @@
-// confirmAsk — Tauri 2 native dialog wrapper'ı için test.
-// Plugin başarılı path + plugin reject fallback path + options forwarding.
+// confirmAsk — in-app ConfirmDialog wrapper'ı için test.
+//
+// Eski sürümde Tauri native dialog (Win32 TaskDialog) çağrılıyordu;
+// şimdi Pinia confirm store'una request push edilir, kullanıcı action'ı
+// resolve eder. Test: store interaction + Promise resolve davranışı.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { useConfirmStore } from '@/stores/confirm';
+import { confirmAsk } from './dialog';
 
-const askMock = vi.fn();
-
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  ask: (...args: unknown[]) => askMock(...args),
-}));
-
-describe('confirmAsk', () => {
+describe('confirmAsk → ConfirmDialog store', () => {
   beforeEach(() => {
-    askMock.mockReset();
+    setActivePinia(createPinia());
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('store.pending request ile dolar', async () => {
+    const store = useConfirmStore();
+    void confirmAsk('Devam edilsin mi?');
+    // request synchronously pending oluşturur — promise pending state'te kalır.
+    expect(store.pending).not.toBeNull();
+    expect(store.pending?.message).toBe('Devam edilsin mi?');
   });
 
-  it('plugin başarılı → dönüş değeri direkt iletilir (true)', async () => {
-    askMock.mockResolvedValueOnce(true);
-    const { confirmAsk } = await import('./dialog');
-    const r = await confirmAsk('Devam edilsin mi?');
-    expect(r).toBe(true);
-    expect(askMock).toHaveBeenCalledTimes(1);
+  it('store.resolve(true) → confirmAsk Promise true ile çözülür', async () => {
+    const store = useConfirmStore();
+    const p = confirmAsk('Kapat?');
+    store.resolve(true);
+    await expect(p).resolves.toBe(true);
+    expect(store.pending).toBeNull();
   });
 
-  it('plugin başarılı → false döner', async () => {
-    askMock.mockResolvedValueOnce(false);
-    const { confirmAsk } = await import('./dialog');
-    const r = await confirmAsk('Sil?');
-    expect(r).toBe(false);
+  it('store.resolve(false) → Promise false ile çözülür', async () => {
+    const store = useConfirmStore();
+    const p = confirmAsk('Sil?');
+    store.resolve(false);
+    await expect(p).resolves.toBe(false);
   });
 
-  it('options (title + kind) plugin\'e iletilir', async () => {
-    askMock.mockResolvedValueOnce(true);
-    const { confirmAsk } = await import('./dialog');
-    await confirmAsk('Kapatılsın mı?', { title: 'Pane', kind: 'warning' });
-    expect(askMock).toHaveBeenCalledWith('Kapatılsın mı?', {
-      title: 'Pane',
-      kind: 'warning',
-    });
+  it('options (title + kind) pending request\'e iletilir', async () => {
+    const store = useConfirmStore();
+    void confirmAsk('Kapatılsın mı?', { title: 'Pane', kind: 'warning' });
+    expect(store.pending?.options.title).toBe('Pane');
+    expect(store.pending?.options.kind).toBe('warning');
   });
 
-  it('plugin reject ederse window.confirm fallback (true)', async () => {
-    askMock.mockRejectedValueOnce(new Error('capability denied'));
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
-    const { confirmAsk } = await import('./dialog');
-    const r = await confirmAsk('Yine soralım?');
-    expect(r).toBe(true);
-    expect(confirmSpy).toHaveBeenCalledWith('Yine soralım?');
+  it('danger flag pending request\'e iletilir', async () => {
+    const store = useConfirmStore();
+    void confirmAsk('Sil?', { danger: true });
+    expect(store.pending?.options.danger).toBe(true);
   });
 
-  it('plugin reject + window.confirm cancel (false)', async () => {
-    askMock.mockRejectedValueOnce(new Error('plugin yok'));
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
-    const { confirmAsk } = await import('./dialog');
-    const r = await confirmAsk('Onay gerek');
-    expect(r).toBe(false);
-    expect(confirmSpy).toHaveBeenCalled();
+  it('options olmadan çağrı boş options object oluşturur', async () => {
+    const store = useConfirmStore();
+    void confirmAsk('Sade soru?');
+    expect(store.pending?.options).toEqual({});
   });
 
-  it('options olmadan çağrılırsa undefined olarak iletilir', async () => {
-    askMock.mockResolvedValueOnce(true);
-    const { confirmAsk } = await import('./dialog');
-    await confirmAsk('Sade soru?');
-    expect(askMock).toHaveBeenCalledWith('Sade soru?', undefined);
+  it('ardışık çağrı: ikinci request birinciyi false ile resolve eder', async () => {
+    const store = useConfirmStore();
+    const first = confirmAsk('İlk');
+    void confirmAsk('İkinci');
+    // İlk istek false'la sonlandırılmış olmalı (overlap engelleme).
+    await expect(first).resolves.toBe(false);
+    expect(store.pending?.message).toBe('İkinci');
   });
 
-  it('plugin throw eden senkron hata → fallback yine devreye girer', async () => {
-    askMock.mockImplementationOnce(() => {
-      throw new Error('sync throw');
-    });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
-    const { confirmAsk } = await import('./dialog');
-    const r = await confirmAsk('Sync hata?');
-    expect(r).toBe(true);
-    expect(confirmSpy).toHaveBeenCalled();
+  it('resolve sonrası store.pending null olur', async () => {
+    const store = useConfirmStore();
+    const p = confirmAsk('Onay');
+    expect(store.pending).not.toBeNull();
+    store.resolve(true);
+    await p;
+    expect(store.pending).toBeNull();
   });
 });
