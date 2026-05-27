@@ -70,15 +70,36 @@ It is a **personal-use** D Brand project under the **GPL-3.0-or-later** license.
 
 ---
 
-## 🆕 Yenilikler — v0.10.x serisi
+## 🆕 Yenilikler — v0.11.x serisi
 
-> **v0.10.0 (2026-05-26)** — GPL-3.0-or-later relisans + post-audit sertleştirme + 3 UX iyileştirmesi:
-> - 📝 **Lisans `MIT` → `GPL-3.0-or-later`** (yürürlük v0.10.0+; v0.9.9 ve önceki sürümler MIT olarak kalır — D Brand açık-kaynak standardı)
-> - 🔢 **Tab git diff aggregate** — TabBar'da tüm pane'lerin `+X -Y / ✓` toplamı + pane chip artık repo içinde her zaman görünür (✓ clean rozeti)
-> - 🛡 **Pane/tab kapatma onayı** — `Settings.confirmOnClose` (running PTY varken sorar; Shift bypass)
-> - 👁 **AgentView "All Agents" mode** — NewPaneDialog'dan manuel agentView aç; source seçmediysen tüm pane'lerdeki agent'ları birleşik listele
-> - 🤖 **Agent heuristic toggle** + paralel batch detector `end` event fix (sonsuz running sorununu çözer)
-> - 🔒 **Post-audit hardening**: silent catch'ler, CSP'den 5 gereksiz port, logstream symlink reject, TOML import allowlist, DPAPI doğrulandı
+> **v0.11.0 (2026-05-27)** — In-app dialogs + MSIX-ready migration + comprehensive test suite + 5-agent audit kapatıldı:
+> - 🎨 **In-app ConfirmDialog** — Win32 TaskDialog (eski Windows estetiği) yerine Mica/Acrylic uyumlu, accent renkli, ARIA-tam in-app modal. Tüm 8 onay noktası (pane/tab kapat, snippet/session sil, Settings restart/import, AI cost/Block clear) artık uygulama temasıyla render edilir.
+> - 🛒 **MS Store hazırlığı 10/13** — Migration backend (`storage/migrate_legacy.rs` + `commands/migrate.rs`) + MigrationDialog UI + MSIX build guide + CI workflow taslağı + WiX fragment scaffold. v0.10.x'te dormant (legacy == target → detect None); MSIX feature flag aktif olunca devreye girer.
+> - 🛡 **5-agent security/a11y/quality audit kapatıldı** — TypeScript + Rust + Security + A11y + Code-review paralel taraması: **10 HIGH + 8 MEDIUM + 6 LOW** bulgu, hepsi düzeltildi. Path traversal (CWE-73), atomic rename junction safety, MIGRATION_MUTEX, focus trap (WCAG 2.1.2 + 2.4.3), aria-describedby, WCAG 1.4.11 contrast, username path gizleme (CWE-200), stub locale subset parity test.
+> - 🧪 **Comprehensive test suite** — 370 vitest test (35 dosya) + 112 cargo test. Önceki 153 → 370 (217 yeni: stores/composables/components/utils/types). @vue/test-utils ile ConfirmDialog + MigrationDialog davranış testleri. useFocusTrap composable testi (Tab wrap + focus restoration). OSC 133 block tracker state machine testi. Bu sürüm sonrası "bu eksikti gözden kaçtı" denemez.
+> - 🌐 **GitHub Pages bilingual** — TR + EN landing yeniden tasarlandı (https://amraselessar.github.io/d-terminal/); privacy policy TL;DR kutusu + dil banner'ı.
+> - 🔧 **useFocusTrap composable** — modal'larda Tab/Shift+Tab paneli sınırında döndürür, kapanışta önceki focus hedefine geri döner.
+
+<details>
+<summary>🇬🇧 What's new in v0.11.0</summary>
+
+- 🎨 **In-app ConfirmDialog** replaces Win32 TaskDialog — Mica/Acrylic-friendly, accent-themed, ARIA-complete. All 8 confirmation points (pane/tab close, snippet/session delete, Settings restart/import, AI cost/Block clear) now render with the app theme.
+- 🛒 **MS Store prep 10/13** — Migration backend + MigrationDialog UI + MSIX build guide + CI workflow + WiX fragment. Dormant in v0.10.x (legacy == target); activates with MSIX feature flag.
+- 🛡 **5-agent audit closed** — TypeScript + Rust + Security + A11y + Code-review parallel review: **10 HIGH + 8 MEDIUM + 6 LOW** findings, all fixed. Path traversal, atomic rename, focus trap (WCAG 2.1.2 + 2.4.3), aria-describedby, contrast (1.4.11), username path masking (CWE-200), stub locale parity.
+- 🧪 **Comprehensive test suite** — 370 vitest tests (35 files) + 112 cargo tests. From 153 → 370 (+217 new). @vue/test-utils mounts for ConfirmDialog + MigrationDialog. useFocusTrap composable test. OSC 133 block tracker state machine.
+- 🌐 **GitHub Pages bilingual** — TR + EN landing redesigned; privacy with TL;DR.
+- 🔧 **useFocusTrap composable** — Tab/Shift+Tab wraps within modal panel; focus restoration on close.
+
+</details>
+
+### v0.10.0 (2026-05-26) — önceki minor / previous minor
+
+- 📝 Lisans **MIT → GPL-3.0-or-later** (v0.10.0+; v0.9.9 ve öncesi MIT kalır)
+- 🔢 Tab git diff aggregate (TabBar'da tüm pane'lerin `+X -Y / ✓` toplamı)
+- 🛡 Pane/tab kapatma onayı (`Settings.confirmOnClose` — running PTY için)
+- 👁 AgentView "All Agents" modu — tüm pane'lerdeki agent'ları birleşik liste
+- 🤖 Agent heuristic toggle + paralel batch detector `end` event fix
+- 🔒 Post-audit hardening (silent catch'ler, CSP cleanup, logstream symlink reject, TOML import allowlist)
 
 Aşağıda v0.9.x serisinden gelen büyük mimari değişiklikler (hâlâ geçerli):
 
@@ -389,15 +410,27 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 | | |
 |---|---|
 | **Tauri v2** | Rust core + WebView2 |
-| **Vue 3** | TypeScript + Vite |
+| **Vue 3** | TypeScript + Vite + Pinia + vue-i18n 11 |
 | **xterm.js** | WebGL/canvas renderer, OSC 133, image addon, search, Unicode 11 |
 | **node-pty** | sidecar PTY köprüsü / bridge (`@yao-pkg/pkg` ile standalone exe) |
 | **rusqlite** | yerel storage / local storage (WAL mode) |
-| **Windows DPAPI** | secret storage |
+| **Windows DPAPI** | secret storage (AI key encryption, kullanıcı oturumuna bağlı) |
+| **Tests** | **370 vitest** (35 dosya) + **112 cargo test** — stores, composables, components, OSC 133, regex, focus trap, migration |
+| **CI/CD** | GitHub Actions (CI 5/5: Sidecar + Frontend + Rust x64 + Rust ARM64 + Security audit) |
 
 ### 📐 Mimari Belgeler / Architecture Documents
 
 Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/architecture-v1.1.md) ve [ADR'lar / ADRs](./docs/adr/).
+
+### 🧪 Test Yapısı / Test Coverage (v0.11.0+)
+
+| Katman / Layer | Test sayısı / Count | Kapsamı / Scope |
+|---|---|---|
+| **Vitest (frontend)** | **370** in 35 files | stores (12) · composables (7) · components (2) · utils + types + locales |
+| **Cargo (Rust)** | **112** | storage modülleri · Tauri command'lar · migration (16) · sidecar protocol |
+| **i18n parity** | TR ↔ EN tam parite + 31 stub locale subset check (partial translation drift catch) |
+| **A11y** | Focus trap (WCAG 2.1.2 + 2.4.3) · aria-modal + describedby · contrast (1.4.11) |
+| **Security audit** | 5-agent paralel (TS + Rust + Security + A11y + Code) — **10 HIGH + 8 MEDIUM + 6 LOW** bulgu kapatıldı |
 
 ---
 
@@ -413,7 +446,7 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
 
-> 🛒 **Microsoft Store yolculuğu / journey:** v1.0 hedefli MSIX paketleme + Store submission hazırlığı **8/13 madde tamamlandı** (2026-05-27). Tamamlananlar: privacy policy aktif, listing metni TR+EN final, code signing rehberi, MSIX build guide step-by-step, MigrationDialog (legacy v0.9.x verisi otomatik aktarım), WiX fragment scaffold, submission checklist, CI workflow taslağı. Kalan: Partner Center hesabı + identity reservation + screenshot. Detaylar / Details: [`docs/store/`](./docs/store/) — özellikle [`msix-build-guide.md`](./docs/store/msix-build-guide.md) ve [`submission-checklist.md`](./docs/store/submission-checklist.md).
+> 🛒 **Microsoft Store yolculuğu / journey:** v1.0 hedefli MSIX paketleme + Store submission hazırlığı **10/13 madde tamamlandı** (2026-05-27). Tamamlananlar: privacy policy aktif, listing metni TR+EN final, code signing rehberi (SignPath FOSS), MSIX build guide step-by-step, MigrationDialog + backend (legacy v0.9.x/v0.10.x verisi otomatik aktarım, DPAPI-safe), WiX fragment scaffold, submission checklist, CI workflow taslağı (`release-msix.yml`), README MS Store section. **5-agent audit kapatıldı** — path traversal koruması, atomic rename safety, focus trap (WCAG 2.1.2 + 2.4.3). Kalan **3 USER task**: Partner Center hesabı + identity reservation + 6 screenshot. Detaylar / Details: [`docs/store/`](./docs/store/) — özellikle [`msix-build-guide.md`](./docs/store/msix-build-guide.md) ve [`submission-checklist.md`](./docs/store/submission-checklist.md).
 
 ---
 
@@ -483,12 +516,14 @@ After installing, here are **5 quick things** to try when you first open D-Termi
 
 ---
 
-## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.10.0 — 2026-05-26)
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.11.0 — 2026-05-27)
 
-> 🇹🇷 v0.10.0 sürümü VirusTotal + Hybrid Analysis'a release.yml security-scan job'ı tarafından otomatik gönderildi (`hashes.txt` release sayfasında). Aşağıdaki linkler v0.10.0 binary'leri için **canlı VT raporlarına** çıkar; full tarama analizi 1-3 dakika içinde olgunlaşır. Tauri/Rust toolchain v0.9.3 baseline'ı ile aynı; tahmini false positive sayıları parantez içinde (sertifika olmayan NSIS Microsoft ML imzasız uyarısı bekleniyor).  
-> 🇬🇧 v0.10.0 was auto-submitted to VirusTotal + Hybrid Analysis by the release.yml security-scan job (`hashes.txt` on the release page). Links below point to the **live VT reports** for v0.10.0 binaries; full analysis completes within 1-3 minutes. Tauri/Rust toolchain matches the v0.9.3 baseline; expected false-positive counts in parentheses (Microsoft ML still flags unsigned NSIS).
+> 🇹🇷 v0.11.0 sürümü VirusTotal + Hybrid Analysis'a release.yml security-scan job'ı tarafından otomatik gönderildi (`hashes.txt` release sayfasında). Aşağıdaki linkler v0.10.0 binary'leri için **canlı VT raporlarına** çıkar; v0.11.0 raporları için release sayfasındaki `hashes.txt` üzerinden SHA-256 lookup yapılabilir. Tauri/Rust toolchain v0.10.0 ile aynı; aynı toolchain + yeni dep yüzeyi yok → sonuç stabil bekleniyor (sertifika olmayan NSIS Microsoft ML imzasız uyarısı her sürümde aynı).  
+> 🇬🇧 v0.11.0 was auto-submitted to VirusTotal + Hybrid Analysis by the release.yml security-scan job (`hashes.txt` on the release page). Links below point to v0.10.0 reports as baseline; for v0.11.0 use the `hashes.txt` on the release page for direct SHA-256 lookup. Same toolchain + no new dep surface → stable results expected.
 
-Tüm 6 installer (x64 + arm64 × MSI-TR / MSI-EN / NSIS) tarandı (detay / details: [RELEASE_NOTES.md](./RELEASE_NOTES.md), [hashes.txt](https://github.com/AmrasElessar/d-terminal/releases/download/v0.10.0/hashes.txt))
+v0.11.0 — Tüm 6 installer (x64 + arm64 × MSI-TR / MSI-EN / NSIS) yayında. SHA-256 hashleri ve VT/HA submission durumu: [v0.11.0 release page](https://github.com/AmrasElessar/d-terminal/releases/tag/v0.11.0) · [hashes.txt](https://github.com/AmrasElessar/d-terminal/releases/download/v0.11.0/hashes.txt)
+
+v0.10.0 (baseline, aşağıdaki rozet linkleri için):
 
 **ARM64** ✨
 - **MSI TR**: [VT report](https://www.virustotal.com/gui/file/7adc815171699ee9c6955d6a9cd2c4a65effcef4e9d0dc7c0c499383f65ac593) — tahmini / expected `0/60 clean` ✅
