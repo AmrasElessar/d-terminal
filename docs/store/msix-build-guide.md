@@ -240,12 +240,15 @@ Export-PfxCertificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" `
 signtool sign /fd SHA256 /a /f dterm-dev.pfx /p test1234 `
   D-Terminal_0.10.0.0_x64.msix
 
-# 4) Cert'i Trusted Root'a ekle (test için, normalde YASAK)
+# 4) Cert'i Trusted Root'a ekle — TERCIH: CurrentUser\TrustedPeople
+# `LocalMachine\Root` ALL users için global Root CA olur (PROD'da kati YASAK).
+# `CurrentUser\TrustedPeople` sadece bu kullanıcı için, MSIX test yeterli.
+# Test sonrası MUTLAKA kaldır (adım 7).
 Export-Certificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" `
   -FilePath "dterm-dev.cer"
 Import-Certificate -FilePath "dterm-dev.cer" `
-  -CertStoreLocation "Cert:\LocalMachine\Root"
-# ↑ Admin PowerShell gerekir
+  -CertStoreLocation "Cert:\CurrentUser\TrustedPeople"
+# ↑ Admin gerekmez (CurrentUser scope)
 
 # 5) MSIX'i kur
 Add-AppxPackage -Path D-Terminal_0.10.0.0_x64.msix
@@ -256,9 +259,14 @@ Add-AppxPackage -Path D-Terminal_0.10.0.0_x64.msix
 Remove-AppxPackage -Package "12345AmrasElessar.DTerminal_0.10.0.0_x64__..."
 
 # 7) Cert temizliği (kritik — bu cert PROD'da KULLANILMAZ)
-Get-ChildItem "Cert:\LocalMachine\Root" |
+Get-ChildItem "Cert:\CurrentUser\TrustedPeople" |
   Where-Object { $_.Subject -eq "CN=12345AmrasElessar" } |
   Remove-Item
+Get-ChildItem "Cert:\CurrentUser\My" |
+  Where-Object { $_.Subject -eq "CN=12345AmrasElessar" } |
+  Remove-Item
+# PFX dosyasını da sil — private key dışarı sızmasın
+Remove-Item -Force dterm-dev.pfx, dterm-dev.cer -ErrorAction SilentlyContinue
 ```
 
 ---
@@ -408,6 +416,12 @@ Workflow şu an manual `workflow_dispatch` ile çalışır — kullanıcı ident
 ---
 
 ## ✅ MSIX Build Checklist
+
+> ⚠️ **Sıra önemli — §1 → §7'yi tamamlamadan CI workflow'u (release-msix.yml)
+> manuel tetiklemeye çalışma.** Workflow pre-flight guard'ı placeholder
+> identity veya eksik Cargo feature tespit ederse **intentionally fail** eder
+> (yanlışlıkla placeholder MSIX üretip Store'a göndermeyelim diye). Hata
+> alırsan §1, §2 ve §4'ü gözden geçir.
 
 Submit etmeden önce her madde doğrulanmış olmalı:
 

@@ -1,6 +1,14 @@
 # D-Terminal — Identity Migration Plan (v0.9.x → MS Store)
 
 > v0.9.x kullanıcılarının MS Store sürümüne **kayıpsız** geçmesi için strateji.
+>
+> ✅ **Durum (2026-05-27):** Strateji B **IMPLEMENTED**. Tam akış:
+>   - Backend: [`src-tauri/src/storage/migrate_legacy.rs`](../../src-tauri/src/storage/migrate_legacy.rs) + [`src-tauri/src/commands/migrate.rs`](../../src-tauri/src/commands/migrate.rs)
+>   - UI: [`src/components/ui/MigrationDialog.vue`](../../src/components/ui/MigrationDialog.vue)
+>   - Doc: [`msix-build-guide.md`](./msix-build-guide.md)
+>
+> Aşağıdaki taslak/pseudocode dokümante amaçlıdır — fiili implementation
+> referansını yukarıdaki dosyalardan oku.
 
 ---
 
@@ -77,26 +85,31 @@ Store sürümü ilk açıldığında:
 
 ### Adım 1: Migration utility yaz
 
-`src-tauri/src/storage/migrate_legacy.rs`:
-```rust
-pub fn detect_legacy_install() -> Option<PathBuf> {
-    let legacy = dirs::data_dir()?.join("D-Terminal");
-    if legacy.join("dterminal.db").exists() {
-        Some(legacy)
-    } else {
-        None
-    }
-}
+**FİİLİ implementation** — bkz. `src-tauri/src/storage/migrate_legacy.rs`:
 
-pub fn migrate_from_legacy(legacy_dir: &Path, store_dir: &Path) -> AppResult<MigrationReport> {
-    // 1. dterminal.db kopyala (refinery V001+ migration'ları sandbox'da çalıştırır)
-    // 2. settings.json kopyala
-    // 3. themes/ kopyala (kullanıcının custom tema'ları)
-    // 4. logs/ kopyala (debugging için, son 7 gün)
-    // 5. DPAPI secrets'ları yeni vault'a aktar (DPAPI master key kullanıcı bağlamında — aynı PC'de decrypt edilebilir)
-    // 6. MigrationReport döndür
-}
+Üç ana fonksiyon (signatures):
+```rust
+pub fn detect_legacy_install(target_dir: &Path, legacy_dir: &Path) -> Option<PathBuf>;
+pub fn migrate_from_legacy(legacy_dir: &Path, target_dir: &Path) -> AppResult<MigrationReport>;
+pub fn dismiss_legacy_migration(target_dir: &Path) -> AppResult<()>;
 ```
+
+Kopyalanan içerik:
+1. **`dterminal.db`** — `VACUUM INTO` ile temiz snapshot (WAL/SHM bağımsız).
+   refinery migration'ları zaten DB içinde uygulanmış olarak gelir.
+2. **`themes/`** — kullanıcının custom temaları (recursive copy, symlink skip).
+3. **`config.toml`** — Config as Code dosyası (Settings: TOML).
+4. **`.migration-state.json`** — marker (idempotency için).
+
+Önceki taslakta yer alan iki nokta gerçekte UYGULANMADI çünkü gereksizdi:
+- ❌ **settings.json kopyalama** — D-Terminal settings'i `dterminal.db`'nin
+  `settings` tablosunda tutar (config.toml ayrı sürüm "Config as Code" özelliği)
+- ❌ **DPAPI secrets re-encrypt** — DPAPI master key kullanıcı SID'ine bağlı
+  ve aynı user account'ta otomatik decrypt eder. Re-encrypt **gerekmiyor**,
+  sadece ciphertext path değişiyor.
+
+Eski taslakta önerilen `logs/` kopyalama da yapılmadı (debug için
+geriye dönük çıkar/maliyet düşük, kullanıcı manuel kopyalayabilir).
 
 ### Adım 2: İlk-açılış UI'ı
 

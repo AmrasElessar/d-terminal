@@ -3,11 +3,19 @@
 // eder; aksi halde çeviri eksiği fallback chain'e düşer (TR fallback'e),
 // kullanıcıya yanlış dil görünür.
 //
-// 31 stub locale'i kapsamaz — onlar topluluk PR'larıyla doldurulur.
+// 31 stub locale'in TAM çevrilmesi beklenmez — boş dosyalar fallback chain
+// üzerinden EN'e düşer. Ama partial-translation (örn. topluluk PR'ı `de`'ye
+// 30 key ekledi, biri typo'lu) drift'ini yakalamak için "stub anahtarları
+// EN'in subset'i olmalı" kuralı uygulanır (audit H10).
 
 import { describe, expect, it } from 'vitest';
 import en from './en.json';
 import tr from './tr.json';
+// Glob ile tüm locale'leri eager yükle — test ortamında küçük yük.
+const allLocales = import.meta.glob<Record<string, unknown>>('./*.json', {
+  eager: true,
+  import: 'default',
+});
 
 type Json = Record<string, unknown>;
 
@@ -71,4 +79,33 @@ describe('i18n parity — yapı derinliği (tree structure)', () => {
     const trShape = JSON.stringify(structuralShape(trCopy));
     expect(enShape, 'Yapısal mismatch: bir tarafta nested object, diğerinde leaf').toBe(trShape);
   });
+});
+
+/**
+ * Stub locale subset kuralı (audit H10):
+ *
+ * Topluluk PR'ı bir dile (de/fr/ja/…) anahtar eklediğinde, key'ler
+ * EN'de mevcut olmalı. Aksi halde:
+ *  - Typo: `migration.succesTitle` (eksik bir 's') EN'de yok → vue-i18n
+ *    o anahtarı asla render etmez, "key not found" warning'i loglara düşer.
+ *  - Eski silinmiş key: kullanılmayan çeviri, drift.
+ *
+ * Tam translation şart değil (boş stub OK). Sadece "var olan anahtar"
+ * EN ile uyumlu olmalı.
+ */
+describe('i18n stub parity — subset check', () => {
+  const enKeys = new Set(collectKeys(en as Json));
+
+  for (const [path, mod] of Object.entries(allLocales)) {
+    const code = path.match(/^\.\/(.+)\.json$/)?.[1];
+    if (!code || code === 'en' || code === 'tr') continue;
+    it(`${code}.json: tüm anahtarlar EN subset`, () => {
+      const localeKeys = collectKeys(mod as Json).filter((k) => !k.startsWith('_meta'));
+      const orphans = localeKeys.filter((k) => !enKeys.has(k));
+      expect(
+        orphans,
+        `${code}.json'da EN'de olmayan ${orphans.length} anahtar:\n${orphans.join('\n')}`,
+      ).toEqual([]);
+    });
+  }
 });
