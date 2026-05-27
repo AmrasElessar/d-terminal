@@ -231,6 +231,11 @@ pub fn run() {
             commands::snippets::snippet_get,
             // PSReadLine
             commands::psreadline::psreadline_import,
+            // Migration (legacy install → Store install)
+            commands::migrate::migrate_detect_legacy,
+            commands::migrate::migrate_run,
+            commands::migrate::migrate_dismiss,
+            commands::migrate::migrate_state,
             // Logger
             commands::logger::log_event,
             commands::logger::log_paths,

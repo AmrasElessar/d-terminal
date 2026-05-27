@@ -10,6 +10,7 @@ pub mod git_stat;
 pub mod history;
 pub mod logger;
 pub mod logstream;
+pub mod migrate;
 pub mod process;
 pub mod psreadline;
 pub mod pty;

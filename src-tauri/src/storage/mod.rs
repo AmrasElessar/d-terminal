@@ -5,6 +5,7 @@
 
 pub mod db;
 pub mod history;
+pub mod migrate_legacy;
 pub mod migrations;
 pub mod secrets;
 pub mod session;
