@@ -388,6 +388,26 @@
     "special": "Özel Panel Tipleri",
     "userBadge": "özel"
   },
+  "migration": {
+    "title": "Eski D-Terminal kurulumu algılandı",
+    "subtitle": "Mevcut verilerini bu sürüme aktaralım mı?",
+    "detectedFrom": "Konum: {path}",
+    "dbSize": "Veri boyutu: {size}",
+    "hasThemes": "Özel temalar dahil",
+    "hasConfig": "Config dosyası (config.toml) dahil",
+    "privacy": "Tüm veriler bu PC'de kalır — internet erişimi yok.",
+    "migrate": "Aktar",
+    "dismiss": "Atla — sıfırdan başla",
+    "cancel": "İptal",
+    "progress": "Aktarılıyor…",
+    "successTitle": "Aktarım tamamlandı",
+    "successBody": "{bytes} aktarıldı. Geçmişin, gizli anahtarların ve temaların hazır.",
+    "successHint": "Hızlı bir yeniden başlatma verileri temiz şekilde yükler.",
+    "failureTitle": "Aktarım başarısız",
+    "failureBody": "Hata: {error}",
+    "failureRetry": "Tekrar dene",
+    "close": "Kapat"
+  },
   "profiles": {
     "title": "Shell Profilleri",
     "hint": "Built-in profiller (PowerShell/CMD/WSL) silinemez. Kendi profilini ekle: pwsh 7, SSH host, Docker exec, Python REPL, …",

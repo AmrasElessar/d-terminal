@@ -388,6 +388,26 @@
     "special": "Special Pane Types",
     "userBadge": "user"
   },
+  "migration": {
+    "title": "Legacy D-Terminal install detected",
+    "subtitle": "Move your existing data into this version?",
+    "detectedFrom": "Found at: {path}",
+    "dbSize": "Data size: {size}",
+    "hasThemes": "Custom themes included",
+    "hasConfig": "Config file (config.toml) included",
+    "privacy": "Everything stays on this PC — no network calls.",
+    "migrate": "Migrate",
+    "dismiss": "Skip — start fresh",
+    "cancel": "Cancel",
+    "progress": "Migrating…",
+    "successTitle": "Migration complete",
+    "successBody": "{bytes} transferred. Your history, secrets and themes are ready.",
+    "successHint": "A quick restart will pick up the new data cleanly.",
+    "failureTitle": "Migration failed",
+    "failureBody": "Error: {error}",
+    "failureRetry": "Try again",
+    "close": "Close"
+  },
   "profiles": {
     "title": "Shell Profiles",
     "hint": "Built-in profiles (PowerShell/CMD/WSL) cannot be deleted. Add your own: pwsh 7, SSH host, Docker exec, Python REPL, …",

@@ -39,6 +39,27 @@ export interface ThemeFile {
   content: string;
 }
 
+/** Backend `commands/migrate.rs` ile birebir. */
+export interface DetectedLegacy {
+  path: string;
+  db_size_bytes: number;
+  has_themes: boolean;
+  has_config: boolean;
+}
+
+export interface MigrationReport {
+  db_copied: boolean;
+  themes_copied: number;
+  config_copied: boolean;
+  total_bytes: number;
+}
+
+export interface MigrationStateDto {
+  status: 'completed' | 'dismissed';
+  from: string | null;
+  at: string;
+}
+
 export const api = {
   // PTY
   ptySpawn: (args: SpawnArgs) => invoke<string>('pty_spawn', { args }),
@@ -149,4 +170,10 @@ export const api = {
   processSuppressConsoles: () => invoke<boolean>('process_suppress_consoles'),
   processJailActive: () => invoke<boolean>('process_jail_active'),
   processJailAssignFailed: () => invoke<boolean>('process_jail_assign_failed'),
+
+  // Migration (legacy install → Store install)
+  migrateDetectLegacy: () => invoke<DetectedLegacy | null>('migrate_detect_legacy'),
+  migrateRun: () => invoke<MigrationReport>('migrate_run'),
+  migrateDismiss: () => invoke<void>('migrate_dismiss'),
+  migrateState: () => invoke<MigrationStateDto | null>('migrate_state'),
 };

@@ -32,6 +32,8 @@ const SnippetModal    = defineAsyncComponent(() => import('@/components/ui/Snipp
 const CommandPalette  = defineAsyncComponent(() => import('@/components/ui/CommandPalette.vue'));
 const AboutModal      = defineAsyncComponent(() => import('@/components/ui/AboutModal.vue'));
 const AISuggestModal  = defineAsyncComponent(() => import('@/components/ui/AISuggestModal.vue'));
+const MigrationDialog = defineAsyncComponent(() => import('@/components/ui/MigrationDialog.vue'));
+import type { DetectedLegacy } from '@/api/tauri';
 import type { PaneType } from '@/types/pane';
 
 const { t, locale } = useI18n();
@@ -49,6 +51,12 @@ const modals = useModals();
  *  değişmez (process lifetime boyunca elevation değişmez). Header'da rozet,
  *  Settings'te "Yönetici olarak başlat" durum bilgisi için kullanılır. */
 const isElevated = ref(false);
+
+/** Legacy install (v0.9.x/v0.10.x %APPDATA%\D-Terminal) algılanırsa dolar.
+ *  MigrationDialog mount edilir; kullanıcı aktarım yapar veya dismiss eder.
+ *  v0.10.x'te legacy_dir == target_dir → backend her zaman null döner,
+ *  dialog açılmaz. MSIX build çıkınca aktif olur. */
+const migrationDetected = ref<DetectedLegacy | null>(null);
 
 /** Aktif font + boyut'u CSS değişkenlerine yansıt — UI ile xterm aynı görünür.
  *  Lazy-load: kullanıcının seçtiği font bundle'da eager değilse arka planda
@@ -93,6 +101,22 @@ function openSettings()   { modals.open('settings'); }
 function openHistory()    { modals.open('history'); }
 function openSnippets()   { modals.open('snippets'); }
 function openPalette()    { modals.open('commandPalette'); }
+
+/** Migration başarılı — modal kapanır, kullanıcıya yeniden başlatma önerisi
+ *  toast'la gösterilir (MigrationDialog kendi "successHint"i de hatırlatır).
+ *  Aktarılan DB henüz açık Storage Arc'ı ile senkron değil; ideal davranış
+ *  user-initiated restart. Hot-swap (Storage::reload) v1.0 öncesi eklenecek. */
+function onMigrated() {
+  // İçeride ek aksiyon almıyoruz; success ekranı zaten "restart hint" gösterdi.
+  // Dismiss değil close — kullanıcı modal'ı manuel kapatır.
+}
+function onMigrationDismissed() {
+  // Marker yazıldı — bu açılışta bir daha sorulmaz; future başlatmalarda da.
+  migrationDetected.value = null;
+}
+function onMigrationClose() {
+  migrationDetected.value = null;
+}
 
 // Custom window controls — Tauri 2 frameless mode (decorations:false).
 // Native title bar yok, min/max/close butonlarını biz çizip API'yi çağırıyoruz.
@@ -252,6 +276,12 @@ onMounted(async () => {
   ]);
   // UAC elevation durumu — process lifetime boyunca sabit, tek seferlik fetch
   api.adminIsElevated().then((v) => { isElevated.value = v; }).catch(() => {});
+
+  // Legacy install algılama — MS Store sürümüne taşıma için. Fire-and-forget;
+  // backend çoğu zaman null döner (legacy == target). Some dönerse modal açılır.
+  api.migrateDetectLegacy()
+    .then((d) => { if (d) migrationDetected.value = d; })
+    .catch((e) => log.warn('migrate_detect_legacy failed', { error: String(e) }));
 
   if (settings.state.startup === 'welcome') {
     panes.openPane('welcome', t('pane.type.welcome'));
@@ -475,6 +505,14 @@ watch(
     <CommandPalette v-if="modals.state.commandPalette" :open="true" @close="modals.close('commandPalette')" @navigate="paletteNavigate" />
     <AboutModal v-if="modals.state.about" :open="true" @close="modals.close('about')" />
     <AISuggestModal v-if="modals.state.aiSuggest" :open="true" @close="modals.close('aiSuggest')" />
+    <MigrationDialog
+      v-if="migrationDetected"
+      :open="true"
+      :detected="migrationDetected"
+      @migrated="onMigrated"
+      @dismissed="onMigrationDismissed"
+      @close="onMigrationClose"
+    />
     <ContextMenu />
     <ToastContainer />
     <!-- Prefix-mode (tmux tarzı) aktif overlay — 1 sn pencere içinde
