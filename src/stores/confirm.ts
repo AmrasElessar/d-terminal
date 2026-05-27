@@ -37,13 +37,13 @@ export interface ConfirmRequest {
   options: ConfirmOptions;
 }
 
-let nextId = 1;
-
 export const useConfirmStore = defineStore('confirm', () => {
   const pending = ref<ConfirmRequest | null>(null);
   // Resolver Vue reactive değil; ref dışı tutuyoruz (function değer reactive'e
-  // serialize olmaz, lint warning yaratır).
+  // serialize olmaz, lint warning yaratır). Closure içinde yaşar → her store
+  // instance kendi sayacına sahip (test izolasyonu için).
   let resolver: ((value: boolean) => void) | null = null;
+  let nextId = 1;
 
   function request(message: string, options: ConfirmOptions = {}): Promise<boolean> {
     // Önceki istek varsa false'la kapat — overlap engelle.

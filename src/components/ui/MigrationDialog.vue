@@ -11,12 +11,13 @@
 // Tauri komutları: api.migrateRun / api.migrateDismiss.
 // Detect & wiring AppShell.vue içinde, bu komponent sadece UI durumunu yönetir.
 
-import { computed, ref } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
 import type { DetectedLegacy, MigrationReport } from '@/api/tauri';
 import { formatBytes } from '@/utils/formatBytes';
 import { createLogger } from '@/utils/logger';
+import { useFocusTrap } from '@/composables/useFocusTrap';
 
 const log = createLogger('migration-dialog');
 
@@ -85,15 +86,63 @@ function closeDialog() {
 function retry() {
   void runMigration();
 }
+
+// Focus trap + restoration — `<dialog open>` programatik açıldığı için
+// browser native modal trap devreye girmiyor. WCAG 2.1.2 + 2.4.3.
+const panel = ref<HTMLElement | null>(null);
+const dismissBtn = ref<HTMLButtonElement | null>(null);
+const openRef = toRef(props, 'open');
+useFocusTrap({
+  panel,
+  open: openRef,
+  initialFocus: dismissBtn as unknown as typeof panel,
+});
+
+// ESC handler — yalnız modal açıkken aktif. running fazında ESC yutuluyor
+// (kullanıcı migration ortasında modal'ı kapatamasın, race oluşturmasın).
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return;
+  if (phase.value === 'running') return;
+  e.preventDefault();
+  closeDialog();
+}
+watch(openRef, (isOpen) => {
+  if (isOpen) window.addEventListener('keydown', onKeydown, true);
+  else window.removeEventListener('keydown', onKeydown, true);
+});
+
+// Phase transition announce — screen reader idle→success/failure geçişini
+// kaçırmasın. aria-live="assertive" + role="status" kombosu.
+const phaseAnnouncement = computed(() => {
+  switch (phase.value) {
+    case 'success': return t('migration.successTitle');
+    case 'failure': return t('migration.failureTitle');
+    case 'running': return t('migration.progress');
+    default:        return '';
+  }
+});
 </script>
 
 <template>
   <dialog v-if="props.open" class="dialog" open @click.self="closeDialog">
-    <article class="dialog__panel" role="alertdialog" aria-labelledby="mig-title">
+    <article
+      ref="panel"
+      class="dialog__panel"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="mig-title"
+      aria-describedby="mig-desc"
+    >
+      <!-- Phase transition announcer — DOM'da daima var ki SR
+           idle→success/failure geçişini kaçırmasın (a11y M3). -->
+      <span class="sr-only" role="status" aria-live="assertive" aria-atomic="true">
+        {{ phaseAnnouncement }}
+      </span>
+
       <!-- idle / running: detect bilgisi + butonlar -->
       <template v-if="phase === 'idle' || phase === 'running'">
         <h2 id="mig-title">{{ t('migration.title') }}</h2>
-        <p class="subtitle">{{ t('migration.subtitle') }}</p>
+        <p id="mig-desc" class="subtitle">{{ t('migration.subtitle') }}</p>
 
         <ul class="details">
           <li>{{ t('migration.detectedFrom', { path: detected.path }) }}</li>
@@ -104,13 +153,17 @@ function retry() {
 
         <p class="privacy"><span aria-hidden="true">🔒 </span>{{ t('migration.privacy') }}</p>
 
-        <div v-if="isRunning" class="progress" aria-live="polite">
+        <!-- Progress region DAİMA mount'lu (v-show), aria-live polite ile.
+             v-if olsaydı DOM'a geç eklenince NVDA/JAWS içeriği duyurmayabilir
+             (a11y M2). aria-atomic="true" → her güncelleme tek seferde okunur. -->
+        <div v-show="isRunning" class="progress" aria-live="polite" aria-atomic="true">
           <span class="progress__spinner" aria-hidden="true" />
           <span>{{ t('migration.progress') }}</span>
         </div>
 
         <div class="actions">
           <button
+            ref="dismissBtn"
             type="button"
             class="ghost"
             :disabled="isRunning"
@@ -132,7 +185,7 @@ function retry() {
       <!-- success: tamamlandı ekranı -->
       <template v-else-if="phase === 'success'">
         <h2 id="mig-title"><span aria-hidden="true">✅ </span>{{ t('migration.successTitle') }}</h2>
-        <p class="subtitle">
+        <p id="mig-desc" class="subtitle">
           {{ t('migration.successBody', { bytes: reportSizeFormatted }) }}
         </p>
         <p class="hint">{{ t('migration.successHint') }}</p>
@@ -146,7 +199,7 @@ function retry() {
       <!-- failure: hata + tekrar dene -->
       <template v-else>
         <h2 id="mig-title"><span aria-hidden="true">⚠ </span>{{ t('migration.failureTitle') }}</h2>
-        <p class="subtitle">{{ t('migration.failureBody', { error: errorMessage }) }}</p>
+        <p id="mig-desc" class="subtitle">{{ t('migration.failureBody', { error: errorMessage }) }}</p>
         <div class="actions">
           <button type="button" class="ghost" @click="closeDialog">
             {{ t('migration.close') }}
@@ -182,6 +235,19 @@ function retry() {
   min-width: 460px;
   max-width: 600px;
   color: var(--color-fg);
+}
+/* Görsel olarak gizli ama SR'a açık — phase transition announcer için.
+   WCAG-Audit-Conformance pattern (sadece görsel kullanıcıdan saklar). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 h2 {
   margin: 0 0 6px 0;

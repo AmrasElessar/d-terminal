@@ -15,9 +15,10 @@
 // mesaj, autofocus iptal butonunda (yıkıcı varsayım yapma — kullanıcı kasıtlı
 // onaylamalı, kazara Enter'a basılıp veri silinmesin).
 
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useConfirmStore } from '@/stores/confirm';
+import { useFocusTrap } from '@/composables/useFocusTrap';
 
 const { t } = useI18n();
 const store = useConfirmStore();
@@ -43,16 +44,38 @@ const icon = computed(() => {
   }
 });
 
+const panel = ref<HTMLElement | null>(null);
 const cancelBtn = ref<HTMLButtonElement | null>(null);
 const confirmBtn = ref<HTMLButtonElement | null>(null);
 
-// Açılışta iptal butonuna fokus ver — yıkıcı aksiyonda kazara Enter koruması.
-// `danger=false` ise confirm butonu da kabul edilebilir bir fokus ama iptal
-// daha güvenli default; kullanıcı sekmeyle confirm'e geçer.
-watch(open, async (isOpen) => {
-  if (!isOpen) return;
-  await nextTick();
-  cancelBtn.value?.focus();
+// Focus trap + restoration — modal açılınca iptal butonuna fokus ver
+// (yıkıcı aksiyonda kazara Enter koruması), Tab/Shift+Tab panel sınırında
+// dönsün, kapanışta önceki focus hedefine dön. ESC/Enter handler aşağıda
+// ayrıca yönetiliyor (composable sadece Tab navigation'ı handle eder).
+useFocusTrap({ panel, open, initialFocus: cancelBtn as unknown as typeof panel });
+
+// ESC/Enter handler — sadece modal açıkken aktif. watch(open) ile bind:
+// gereksiz global listener her zaman aktif kalmasın (a11y audit M5).
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    onCancel();
+  } else if (e.key === 'Enter') {
+    // Default action = confirm. Ama cancelBtn focused ise yine cancel
+    // (yıkıcı aksiyonda kazara Enter koruması — Tab ile confirm'e geçilirse onaylar).
+    e.preventDefault();
+    const activeIsCancel = document.activeElement === cancelBtn.value;
+    if (activeIsCancel) onCancel();
+    else onConfirm();
+  }
+}
+
+watch(open, (isOpen) => {
+  if (isOpen) {
+    window.addEventListener('keydown', onKeydown, true);
+  } else {
+    window.removeEventListener('keydown', onKeydown, true);
+  }
 });
 
 function onCancel() {
@@ -61,33 +84,15 @@ function onCancel() {
 function onConfirm() {
   store.resolve(true);
 }
-
-// ESC global → cancel. window-level listener ekleyip kapanışta kaldır.
-// (Modal `<dialog>` element'i tarayıcının native ESC davranışını bazen yutuyor
-// — programatik açıldığımız için keydown global olarak takip ediyoruz.)
-function onKeydown(e: KeyboardEvent) {
-  if (!open.value) return;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    onCancel();
-  } else if (e.key === 'Enter') {
-    // Default action = confirm. Ama dangerous + cancelBtn focused ise yine cancel.
-    e.preventDefault();
-    const activeIsCancel = document.activeElement === cancelBtn.value;
-    if (activeIsCancel) onCancel();
-    else onConfirm();
-  }
-}
-
-window.addEventListener('keydown', onKeydown, true);
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true));
 </script>
 
 <template>
   <dialog v-if="open" class="confirm" open @click.self="onCancel">
     <article
+      ref="panel"
       class="confirm__panel"
       role="alertdialog"
+      aria-modal="true"
       aria-labelledby="confirm-title"
       aria-describedby="confirm-msg"
     >
