@@ -6,7 +6,7 @@
 > 13 task'lık MS Store hazırlık planının özetidir. Detaylar için her bölümün
 > sonundaki linklere bak.
 
-**Son güncelleme:** 2026-05-26 — v0.10.0 sonrası prep başladı
+**Son güncelleme:** 2026-05-27 — Migration backend + UI + MSIX build guide + CI workflow taslağı eklendi (8/13 tamam)
 
 ---
 
@@ -26,6 +26,7 @@
 | ✅ | Migration wizard (Rust) | `src-tauri/src/storage/migrate_legacy.rs` |
 | ✅ | Migration wizard (Vue UI) | `src/components/ui/MigrationDialog.vue` |
 | ✅ | tauri.conf.json MSIX hazırlığı | publisher placeholder + WiX fragment |
+| ✅ | CI MSIX workflow (gated, manual trigger) | [.github/workflows/release-msix.yml](../../.github/workflows/release-msix.yml) |
 
 ---
 
@@ -145,5 +146,8 @@ Kullanıcı `T+?` = "diğer ay" (post-2026-05) demiş. Diğer her şey hazır; k
 - [msix-build-guide.md](./msix-build-guide.md) — Step-by-step MSIX wrap
 - [code-signing.md](./code-signing.md) — SignPath/Azure/EV karşılaştırması
 - [../privacy.md](../privacy.md) — Privacy policy (GH Pages: /privacy.html)
-- `src-tauri/src/storage/migrate_legacy.rs` — Migration utility
-- `src/components/ui/MigrationDialog.vue` — Migration UI
+- `src-tauri/src/storage/migrate_legacy.rs` — Migration utility (backend)
+- `src-tauri/src/commands/migrate.rs` — Tauri commands (detect/run/dismiss/state)
+- `src/components/ui/MigrationDialog.vue` — Migration UI (Vue)
+- `src/locales/{en,tr}.json` — i18n `migration.*` namespace
+- `.github/workflows/release-msix.yml` — CI MSIX workflow (manual trigger)

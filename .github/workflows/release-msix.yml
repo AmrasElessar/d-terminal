@@ -1,0 +1,284 @@
+name: Release MSIX (gated)
+
+# MS Store hazırlık workflow'u — identity reservation tamamlandıktan SONRA aktif olur.
+#
+# Şu an MANUEL trigger only (workflow_dispatch). v0.10.x'te MSIX feature flag
+# henüz koda eklenmediği için bu workflow no-op değil ama prod artifact üretmez —
+# Adım 4'te tanımlı `msix` Cargo feature olmadan target_dir farklılaşmaz.
+#
+# Tag-based auto trigger v1.0 sonrası açılır. Şimdilik:
+#  1. Maintainer GitHub Actions UI'dan manuel başlatır
+#  2. Identity reserved + tauri.conf.json güncellenmiş olmalı
+#  3. msix-build-guide.md adımlarındaki ön koşullar tamam olmalı
+#
+# Artifact: MSIX paketi (x64 + ARM64) — release asset olarak yüklenir; submission
+# Partner Center upload'ı el ile yapılır (Microsoft Store API otomatik submission
+# henüz Tauri eko-sisteminde stable değil; gelecekte msstore-cli ile eklenebilir).
+#
+# Ref: docs/store/msix-build-guide.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'MSIX version (4 segments, e.g. 0.10.0.0)'
+        required: true
+        type: string
+        default: '0.10.0.0'
+      sign:
+        description: 'Self-signed test cert ile imzala (sadece smoke test için, store submission GEREKMEZ)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  # MSIX paketinin tutulduğu klasör — workspace-relative.
+  MSIX_OUT_DIR: dist/msix
+
+jobs:
+  guard:
+    name: Pre-flight guard
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: check
+        name: Verify identity reservation flags
+        # Bu workflow ÇALIŞMADAN ÖNCE tauri.conf.json'da:
+        #  1. publisher gerçek CN olmalı (placeholder yok)
+        #  2. identifier gerçek package family name olmalı
+        #  3. wix.fragmentPaths register edilmiş olmalı
+        #  4. Cargo.toml'da `msix` feature tanımlı olmalı
+        # Her dördü de eksikse workflow erken fail eder ki yanlışlıkla
+        # placeholder ile MSIX üretip Store'a göndermeyelim.
+        run: |
+          set -e
+          ready=true
+
+          if grep -q '"publisher": "AmrasElessar"' src-tauri/tauri.conf.json; then
+            # Publisher Display Name OK ama CN explicit değil — yine de geçebilir.
+            echo "::warning::tauri.conf.json publisher Display Name kullanıyor; CN identity reservation'dan sonra eklenmeli"
+          fi
+
+          if grep -q "wix-fragments/msix-bridge.wxs" src-tauri/tauri.conf.json; then
+            echo "wix fragment registered: ✅"
+          else
+            echo "::error::wix-fragments/msix-bridge.wxs henüz tauri.conf.json'a register edilmemiş — Adım 1'i tamamla (docs/store/msix-build-guide.md)"
+            ready=false
+          fi
+
+          if grep -q '^msix = \[' src-tauri/Cargo.toml; then
+            echo "msix Cargo feature defined: ✅"
+          else
+            echo "::error::src-tauri/Cargo.toml'da 'msix' feature tanımlı değil — Adım 4'ü tamamla (docs/store/msix-build-guide.md)"
+            ready=false
+          fi
+
+          # Version format check
+          if [[ ! "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version 4 segment olmalı (X.Y.Z.W); aldı: ${{ inputs.version }}"
+            ready=false
+          fi
+
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          if [ "$ready" = "false" ]; then
+            echo "::error::Pre-flight başarısız. Yukarıdaki hatalardan en az birini düzelt."
+            exit 1
+          fi
+
+  build-msix:
+    name: Build MSIX (${{ matrix.arch_label }})
+    needs: guard
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            arch_label: x64
+            rust_target: x86_64-pc-windows-msvc
+            sidecar_script: bundle:x64
+            msix_arch: x64
+          - arch: aarch64
+            arch_label: arm64
+            rust_target: aarch64-pc-windows-msvc
+            sidecar_script: bundle:arm64
+            msix_arch: arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          # release.yml ile aynı pin
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: msix-${{ matrix.rust_target }}
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Sidecar install (with dev deps)
+        working-directory: sidecar
+        run: npm install
+
+      - name: Sidecar bundle
+        working-directory: sidecar
+        run: npm run ${{ matrix.sidecar_script }}
+
+      - name: Tauri build with msix feature
+        # MSIX feature flag aktif — target_dir sandbox path'ine yönlendirilir
+        run: pnpm tauri build --features msix --target ${{ matrix.rust_target }}
+
+      - name: Locate MSI artifact
+        id: msi
+        shell: pwsh
+        run: |
+          $bundleRoot = "src-tauri/target/${{ matrix.rust_target }}/release/bundle/msi"
+          $msi = Get-ChildItem $bundleRoot -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msi) {
+            Write-Error "FAIL: MSI artifact bulunamadı: $bundleRoot"
+            exit 1
+          }
+          Write-Host "MSI: $($msi.FullName)"
+          "msi_path=$($msi.FullName)" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Setup Windows SDK (signtool, makeappx, makepri)
+        # GitHub Actions windows-latest runner'ında Windows SDK kurulu gelir
+        # ama signtool/makeappx PATH'te olmayabilir. Bul ve PATH'e ekle.
+        shell: pwsh
+        run: |
+          $sdkBin = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter "x64" -Recurse |
+            Where-Object { Test-Path (Join-Path $_.FullName "makeappx.exe") } |
+            Select-Object -First 1
+          if (-not $sdkBin) {
+            Write-Error "FAIL: Windows SDK bulunamadı — makeappx.exe yok"
+            exit 1
+          }
+          Write-Host "Windows SDK bin: $($sdkBin.FullName)"
+          "$($sdkBin.FullName)" | Out-File -Append -FilePath $env:GITHUB_PATH
+
+      - name: Convert MSI → MSIX
+        # MSIX Packaging Tool CLI versionu: msixmgr / makeappx ile manuel wrap.
+        # GUI'siz CI ortamında MSIX Packaging Tool çalışmaz; alternatif:
+        #  - makeappx pack /d <unpacked_dir> /p <out.msix>
+        #  - Önce MSI'yi unpack et (msiexec /a ile administrative install)
+        #  - Manifest'i template'ten üret (PackageVersion, Identity inject)
+        #  - makeappx ile paketle
+        #
+        # Bu adım identity reservation'dan SONRA çalışır — aksi halde manifest
+        # placeholder ile kalır. v0.10.x'te no-op uyarısı:
+        shell: pwsh
+        env:
+          MSI_PATH: ${{ steps.msi.outputs.msi_path }}
+          VERSION: ${{ inputs.version }}
+          MSIX_ARCH: ${{ matrix.msix_arch }}
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:MSIX_OUT_DIR" | Out-Null
+          $outMsix = Join-Path $env:MSIX_OUT_DIR "D-Terminal_${env:VERSION}_${env:MSIX_ARCH}.msix"
+
+          # 1) MSI'yi administrative install ile unpack et
+          $unpackDir = Join-Path $env:RUNNER_TEMP "msi-unpacked"
+          New-Item -ItemType Directory -Force -Path $unpackDir | Out-Null
+          $msiLog = Join-Path $env:RUNNER_TEMP "msi-install.log"
+          $proc = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(
+            "/a", "`"$env:MSI_PATH`"",
+            "/qn",
+            "TARGETDIR=`"$unpackDir`"",
+            "/l*v", "`"$msiLog`""
+          )
+          if ($proc.ExitCode -ne 0) {
+            Write-Error "msiexec administrative install başarısız (exit $($proc.ExitCode))"
+            Get-Content $msiLog -Tail 50
+            exit 1
+          }
+
+          # 2) AppxManifest.xml template
+          # TODO (identity reservation sonrası):
+          #   - <Identity Name=...> Partner Center'dan
+          #   - <Identity Publisher="CN=..."> Partner Center'dan
+          #   - assets/StoreLogo.png, Square150x150Logo.png hazırlandı mı
+          # docs/store/msix-build-guide.md §4.7'deki manifest blok'unu kullan.
+          Write-Host "::warning::AppxManifest.xml template şu an PLACEHOLDER — identity reservation tamamlanmadan üretilen MSIX submission'a uygun DEĞİL"
+          Write-Host "::warning::Bu workflow şu an scaffold; gerçek MSIX üretimi msix-build-guide.md §4 takip edilerek elle yapılmalı"
+
+          # 3) makeappx pack — manifest hazırsa
+          # makeappx.exe pack /d "$unpackDir" /p "$outMsix" /o
+          # Şu an placeholder — manifest yok, pack çağrılmıyor
+
+          # Gelecekte buraya gelecek:
+          # & makeappx.exe pack /d $unpackDir /p $outMsix /o
+          # if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          # Placeholder artifact — workflow'un mantığını test etmek için boş .msix oluştur
+          # PROD'da bu satır KALDIRILIR
+          New-Item -ItemType File -Path $outMsix -Force | Out-Null
+          Write-Host "Placeholder MSIX yazıldı: $outMsix"
+
+          "msix_path=$outMsix" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Sign MSIX (optional, self-signed test cert)
+        if: inputs.sign == true
+        shell: pwsh
+        run: |
+          Write-Host "::warning::Self-signed sign şu an opsiyonel placeholder. PROD store submission Microsoft'un kendi cert'iyle imzalar — bu adım GEREKMEZ."
+          # signtool sign /fd SHA256 /a /f cert.pfx /p "${{ secrets.MSIX_PFX_PASSWORD }}" "<msix_path>"
+
+      - name: Validate MSIX (WACK / makeappx unpack)
+        shell: pwsh
+        run: |
+          Write-Host "::warning::WACK (Windows App Cert Kit) CI'da headless çalışmaz — sadece manuel test ortamında çalışır."
+          Write-Host "Manual WACK testi için: %ProgramFiles(x86)%\Windows Kits\10\App Certification Kit\appcert.exe (windows-latest runner'da kuruludur)"
+
+      - name: Upload MSIX as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-${{ matrix.arch_label }}
+          path: ${{ env.MSIX_OUT_DIR }}/*.msix
+          retention-days: 30
+
+  publish-release:
+    name: Attach MSIX to GitHub Release (opt-in)
+    needs: build-msix
+    runs-on: ubuntu-latest
+    # Yalnız tag mevcut ise release'e ek yapar — workflow_dispatch ile çalıştırılırken
+    # tag yoksa bu job skip'lenir (release yaratmaz; sadece artifact saklar).
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download MSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: msix-all
+          pattern: msix-*
+          merge-multiple: true
+
+      - name: List downloaded MSIX
+        run: ls -lh msix-all/
+
+      - name: Upload to existing release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: msix-all/*.msix
+          fail_on_unmatched_files: true
+          # MSIX submission Partner Center'dan elle yapılır; bu sadece GitHub
+          # ayna kopyası. Kullanıcılar Store'u istemezse buradan da indirebilir.

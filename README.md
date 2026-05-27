@@ -412,7 +412,7 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
 
-> 🛒 **Microsoft Store yolculuğu / journey:** v1.0 hedefli MSIX paketleme + Store submission hazırlığı başladı. Detaylar / Details: [`docs/store/`](./docs/store/) — privacy policy, store listing (TR+EN), identity migration plan, AppX config notes.
+> 🛒 **Microsoft Store yolculuğu / journey:** v1.0 hedefli MSIX paketleme + Store submission hazırlığı **8/13 madde tamamlandı** (2026-05-27). Tamamlananlar: privacy policy aktif, listing metni TR+EN final, code signing rehberi, MSIX build guide step-by-step, MigrationDialog (legacy v0.9.x verisi otomatik aktarım), WiX fragment scaffold, submission checklist, CI workflow taslağı. Kalan: Partner Center hesabı + identity reservation + screenshot. Detaylar / Details: [`docs/store/`](./docs/store/) — özellikle [`msix-build-guide.md`](./docs/store/msix-build-guide.md) ve [`submission-checklist.md`](./docs/store/submission-checklist.md).
 
 ---
 
@@ -424,9 +424,13 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 |---|---|
 | 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.10.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_x64_tr-TR.msi) |
 | 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.10.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_arm64_tr-TR.msi) |
+| 🛒 **Microsoft Store** (yakında / coming soon) | v1.0 hedefli MSIX paketi — [hazırlık durumu / progress](./docs/store/submission-checklist.md) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
 > `Ayarlar / Settings → Sistem / System → Hakkında / About → Sistem türü / System type`
+
+> 🛒 **MSIX (Store sürümü) ne fark eder?** Microsoft Store'dan kurulumda: ❶ SmartScreen "unknown publisher" uyarısı **yok** (Store kendi cert'iyle imzalar), ❷ admin/UAC **gerekmez**, ❸ otomatik güncellemeler Microsoft Store updater üzerinden, ❹ temiz uninstall garantili. Mevcut v0.9.x / v0.10.x kullanıcıları için **otomatik veri aktarımı** dahildir — Store sürümü ilk açılışta geçmiş + temalar + AI key'ler taşınır ([detay / details](./docs/store/identity-migration.md)).  
+> 🇬🇧 **What does the MSIX (Store) build change?** Install from the Microsoft Store gives: ❶ **no** SmartScreen "unknown publisher" warning (signed by Microsoft), ❷ **no** admin/UAC prompt, ❸ auto-updates through Microsoft Store, ❹ guaranteed clean uninstall. Existing v0.9.x / v0.10.x users get **automatic data migration** — history, themes and AI keys are carried over on first launch.
 
 <details>
 <summary>📦 Diğer indirme seçenekleri / Other downloads (NSIS, EN locale)</summary>
@@ -604,10 +608,11 @@ Active development, 6+ app ideas in queue.
 
 ### 🛒 Yakında Store'da / Coming to Store
 
-Microsoft Store submission hazırlığı **v1.0** hedefli sürmektedir.  
-Microsoft Store submission prep ongoing for **v1.0**.
+Microsoft Store submission hazırlığı **v1.0** hedefli, **8/13 madde tamam**.  
+Backend + UI + dokümantasyon hazır; identity reservation + screenshot kaldı.  
+Microsoft Store submission prep ongoing for **v1.0** — **8/13 items done**.
 
-[🛒 Detaylar / Details](./docs/store/)
+[🛒 Detaylar / Details](./docs/store/) · [Checklist](./docs/store/submission-checklist.md) · [MSIX Build Guide](./docs/store/msix-build-guide.md)
 
 </td>
 </tr>
