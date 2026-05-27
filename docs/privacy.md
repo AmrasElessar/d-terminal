@@ -6,8 +6,19 @@ permalink: /privacy.html
 
 # D-Terminal — Privacy Policy / Gizlilik Politikası
 
-> **Last updated / Son güncelleme:** 2026-05-26
+> **Last updated / Son güncelleme:** 2026-05-27
 > **Applies to / Geçerli sürüm:** D-Terminal v0.10.0 ve üzeri / and later (v0.9.6+ ile büyük oranda aynı / largely identical)
+>
+> 🌐 **TR · EN** — Bu sayfa iki dillidir / This page is bilingual
+
+[🏠 Ana sayfa / Home](./) · [📂 GitHub](https://github.com/AmrasElessar/d-terminal)
+
+**Kısa özet / TL;DR:**
+- ❌ Telemetri yok / No telemetry
+- ❌ Analitik yok / No analytics
+- ❌ Sunucumuza veri gitmez / No data sent to our servers
+- ✅ Tüm veriler **senin bilgisayarında** kalır / All data stays **on your machine**
+- ✅ AI API key'leri **Windows DPAPI** ile şifrelenir / AI API keys encrypted via Windows DPAPI
 
 ---
 
