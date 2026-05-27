@@ -52,8 +52,8 @@ D Brand kişisel kullanım projesi · **GPL-3.0-or-later** lisanslı · **ARM64 
 
 | Platformun | İndir |
 |---|---|
-| 💻 Modern Windows PC (Intel/AMD) | [D-Terminal_0.10.0_x64_tr-TR.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
-| 🪶 ARM64 (Surface Pro X, Snapdragon laptop) | [D-Terminal_0.10.0_arm64_tr-TR.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
+| 💻 Modern Windows PC (Intel/AMD) | [D-Terminal_0.11.0_x64_tr-TR.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
+| 🪶 ARM64 (Surface Pro X, Snapdragon laptop) | [D-Terminal_0.11.0_arm64_tr-TR.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
 | 🛒 Microsoft Store | Yakında — v1.0 hedefli |
 
 Sistem türünü öğrenmek için: **Ayarlar → Sistem → Hakkında → Sistem türü**.
@@ -126,8 +126,8 @@ A personal-use D Brand project · **GPL-3.0-or-later** licensed · **ARM64 and x
 
 | Your platform | Download |
 |---|---|
-| 💻 Modern Windows PC (Intel/AMD) | [D-Terminal_0.10.0_x64_en-US.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
-| 🪶 ARM64 (Surface Pro X, Snapdragon laptops) | [D-Terminal_0.10.0_arm64_en-US.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
+| 💻 Modern Windows PC (Intel/AMD) | [D-Terminal_0.11.0_x64_en-US.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
+| 🪶 ARM64 (Surface Pro X, Snapdragon laptops) | [D-Terminal_0.11.0_arm64_en-US.msi](https://github.com/AmrasElessar/d-terminal/releases/latest) |
 | 🛒 Microsoft Store | Coming soon — v1.0 target |
 
 To find your system type: **Settings → System → About → System type**.

@@ -407,7 +407,8 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 |---|---|---|
 | **v0.9.x** | ✅ yayında / shipped | Frameless, Agent Watch, AI native, ARM64+x64 dual-arch, auto-updater |
 | **v0.10.0** | ✅ yayında / shipped | GPL-3.0-or-later relisans, tab git aggregate, close confirm dialogs, AgentView global mode, post-audit hardening |
-| **v1.0** | 3-4 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
+| **v0.11.0** | ✅ yayında / shipped | In-app ConfirmDialog (Win32 TaskDialog yerine), MigrationDialog (MSIX hazırlığı), comprehensive test suite (370 vitest + 112 cargo), 5-agent security audit kapatıldı, GitHub Pages bilingual TR/EN |
+| **v1.0** | 2-3 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
 | **v1.0.5** | +2 ay / months | vue-i18n 11 migration (CSP `unsafe-eval` kaldır / drop), Log Stream pane, snippet senkron / sync |
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
@@ -418,12 +419,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### En çok kullanılan / Most common (v0.10.0)
+### En çok kullanılan / Most common (v0.11.0)
 
 | Senin için / For you | İndir / Download |
 |---|---|
-| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.10.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_x64_tr-TR.msi) |
-| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.10.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.10.0_arm64_tr-TR.msi) |
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.11.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.11.0_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.11.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.11.0_arm64_tr-TR.msi) |
 | 🛒 **Microsoft Store** (yakında / coming soon) | v1.0 hedefli MSIX paketi — [hazırlık durumu / progress](./docs/store/submission-checklist.md) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
@@ -439,10 +440,10 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.10.0_x64_en-US.msi` | x86_64 | English MSI installer |
-| `D-Terminal_0.10.0_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.10.0_arm64_en-US.msi` | aarch64 | ARM64 English |
-| `D-Terminal_0.10.0_arm64-setup.exe` | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.11.0_x64_en-US.msi` | x86_64 | English MSI installer |
+| `D-Terminal_0.11.0_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
+| `D-Terminal_0.11.0_arm64_en-US.msi` | aarch64 | ARM64 English |
+| `D-Terminal_0.11.0_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
