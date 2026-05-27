@@ -406,7 +406,9 @@
     "failureTitle": "Aktarım başarısız",
     "failureBody": "Hata: {error}",
     "failureRetry": "Tekrar dene",
-    "close": "Kapat"
+    "close": "Kapat",
+    "restartToastMsg": "Veriler aktarıldı. Yeni veriler tamamen aktif olsun diye uygulamayı yeniden başlat.",
+    "restartToastAction": "Yeniden başlat"
   },
   "profiles": {
     "title": "Shell Profilleri",

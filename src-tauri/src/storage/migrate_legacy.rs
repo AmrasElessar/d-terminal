@@ -70,7 +70,15 @@ pub struct MigrationReport {
 ///    sürümünde veri biriktirmişse override etme.
 /// 4. `target_dir/.migration-state.json` marker'ı mevcut OLMAMALI — kullanıcı
 ///    daha önce migration ya yapmış ya da reddetmiş.
+///
+/// Path safety: her iki path için `..` segment'i reddedilir (CWE-73 path
+/// traversal). canonicalize başarısızsa (target henüz yok) lexical
+/// karşılaştırma yapılır ama traversal kontrolü her halükârda zorunlu.
 pub fn detect_legacy_install(target_dir: &Path, legacy_dir: &Path) -> Option<PathBuf> {
+    if path_has_parent_traversal(target_dir) || path_has_parent_traversal(legacy_dir) {
+        tracing::warn!(target: "migration", "rejected: path contains '..' segment");
+        return None;
+    }
     let target = canonicalize_or_self(target_dir);
     let legacy = canonicalize_or_self(legacy_dir);
     if target == legacy {
@@ -92,10 +100,28 @@ pub fn detect_legacy_install(target_dir: &Path, legacy_dir: &Path) -> Option<Pat
 /// Storage'ı kapatmış olduğu varsayılır (DB lock alamadığında VACUUM INTO
 /// fail eder). Atomicity yok — partial state mümkün; başarısızlık halinde
 /// kullanıcı yeniden deneyebilir çünkü marker yazılmaz.
+///
+/// Hata mesajları UI'a generic mesaj döner; tam fs path tracing log'a yazılır
+/// (CWE-200 / CWE-532 — UI'da Windows username görünmesin).
 pub fn migrate_from_legacy(legacy_dir: &Path, target_dir: &Path) -> AppResult<MigrationReport> {
-    // Validate ön koşullar — caller'a düzgün hata mesajı dön.
-    let legacy = canonicalize_or_self(legacy_dir);
-    let target = canonicalize_or_self(target_dir);
+    // CWE-73: path traversal koruması — `..` segment'lerini reddet.
+    if path_has_parent_traversal(legacy_dir) || path_has_parent_traversal(target_dir) {
+        return Err(AppError::InvalidArg(
+            "path '..' segment içeriyor (path traversal reddedildi)".into(),
+        ));
+    }
+    // target dizinini canonicalize öncesi yarat — `..` olmadığını yukarıda
+    // garantiledikten sonra create_dir_all güvenli, sonra her iki tarafta
+    // canonical path eşitliği güvenilir hale gelir.
+    std::fs::create_dir_all(target_dir)?;
+    let legacy = std::fs::canonicalize(legacy_dir).map_err(|e| {
+        tracing::warn!(target: "migration", error = %e, path = ?legacy_dir, "legacy canonicalize failed");
+        AppError::InvalidArg("kaynak dizini çözümlenemedi".into())
+    })?;
+    let target = std::fs::canonicalize(target_dir).map_err(|e| {
+        tracing::warn!(target: "migration", error = %e, path = ?target_dir, "target canonicalize failed");
+        AppError::InvalidArg("hedef dizin çözümlenemedi".into())
+    })?;
     if legacy == target {
         return Err(AppError::InvalidArg(
             "legacy_dir == target_dir; migration yapacak yer yok".into(),
@@ -103,23 +129,18 @@ pub fn migrate_from_legacy(legacy_dir: &Path, target_dir: &Path) -> AppResult<Mi
     }
     let legacy_db = legacy.join(LEGACY_DB_FILE);
     if !legacy_db.is_file() {
-        return Err(AppError::InvalidArg(format!(
-            "kaynak DB bulunamadı: {}",
-            legacy_db.display()
-        )));
+        tracing::warn!(target: "migration", path = ?legacy_db, "source DB missing");
+        return Err(AppError::InvalidArg("kaynak DB bulunamadı".into()));
     }
     if target.join(LEGACY_DB_FILE).is_file() {
-        return Err(AppError::InvalidArg(format!(
-            "target zaten veri içeriyor: {}",
-            target.join(LEGACY_DB_FILE).display()
-        )));
+        tracing::warn!(target: "migration", path = ?target, "target already has data");
+        return Err(AppError::InvalidArg("target zaten veri içeriyor".into()));
     }
     if marker_path(&target).is_file() {
         return Err(AppError::InvalidArg(
             "migration zaten yapılmış/reddedilmiş (marker var)".into(),
         ));
     }
-    std::fs::create_dir_all(&target)?;
 
     let mut report = MigrationReport::default();
 
@@ -163,8 +184,13 @@ pub fn migrate_from_legacy(legacy_dir: &Path, target_dir: &Path) -> AppResult<Mi
 
 /// Kullanıcı "Hayır, sıfırdan başlıyorum" derse — marker yaz, bir daha sorma.
 pub fn dismiss_legacy_migration(target_dir: &Path) -> AppResult<()> {
-    let target = canonicalize_or_self(target_dir);
-    std::fs::create_dir_all(&target)?;
+    if path_has_parent_traversal(target_dir) {
+        return Err(AppError::InvalidArg(
+            "path '..' segment içeriyor (path traversal reddedildi)".into(),
+        ));
+    }
+    std::fs::create_dir_all(target_dir)?;
+    let target = std::fs::canonicalize(target_dir).unwrap_or_else(|_| target_dir.to_path_buf());
     write_state(
         &target,
         &MigrationState {
@@ -192,21 +218,40 @@ fn write_state(target_dir: &Path, state: &MigrationState) -> AppResult<()> {
     let p = marker_path(target_dir);
     let json = serde_json::to_vec_pretty(state)
         .map_err(|e| AppError::Internal(format!("marker serialize: {e}")))?;
-    // Atomic write: tmp file + rename. Partial write riski yok.
+    // Atomic write: tmp file + rename — Windows'ta MoveFileExW(MOVEFILE_REPLACE_EXISTING)
+    // ile aynı volume içinde atomik. `tmp` her zaman aynı dizinde olduğu için
+    // volume-cross senaryosu YOK (`p.with_extension` parent değiştirmez).
+    // Junction/reparse senaryosunda fail durumunda tmp kalmasın diye cleanup.
     let tmp = p.with_extension("json.tmp");
-    std::fs::write(&tmp, json)?;
-    std::fs::rename(&tmp, &p)?;
+    if let Err(e) = std::fs::write(&tmp, &json) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.into());
+    }
+    if let Err(e) = std::fs::rename(&tmp, &p) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     Ok(())
+}
+
+/// `..` (ParentDir) segment'lerini reddet — CWE-73 path traversal koruması.
+/// Normal kullanıcı `dirs::data_dir()` çıktısı kullanır; `..` segment ancak
+/// bir attacker ya da bug ile gelebilir.
+fn path_has_parent_traversal(p: &Path) -> bool {
+    p.components().any(|c| c == std::path::Component::ParentDir)
 }
 
 /// SQLite DB'yi VACUUM INTO ile temiz kopyala. WAL/SHM olsa bile target tek
 /// dosya olur. Source kilitliyse SQLITE_BUSY → AppError::Sqlite.
+///
+/// Çağıran sözleşmesi: kaynak DB başka bir writer connection tarafından AÇIK
+/// OLMAMALI. Read-only open SQLite seviyesinde lock almasa da, WAL içinde
+/// uncommitted frame'ler varsa VACUUM INTO bozuk olabilir. `migrate_run`
+/// command katmanında AppState.storage Arc'ı için bu kontrol H7 ile yapılır.
 fn copy_sqlite_via_vacuum(src: &Path, dst: &Path) -> AppResult<()> {
     if dst.exists() {
-        return Err(AppError::InvalidArg(format!(
-            "target DB zaten var: {}",
-            dst.display()
-        )));
+        tracing::warn!(target: "migration", path = ?dst, "target DB already exists");
+        return Err(AppError::InvalidArg("target DB zaten var".into()));
     }
     // Read-only open: VACUUM INTO source'a yazmaz, sadece okur.
     let conn = rusqlite::Connection::open_with_flags(
@@ -316,6 +361,32 @@ mod tests {
         assert!(detect_legacy_install(&target, &legacy).is_none());
         std::fs::remove_dir_all(&legacy).ok();
         std::fs::remove_dir_all(&target).ok();
+    }
+
+    #[test]
+    fn detect_rejects_paths_with_parent_traversal() {
+        let legacy = unique_tmp("legacy-trav");
+        populate_legacy(&legacy);
+        let target_with_traversal = std::env::temp_dir().join("foo").join("..").join("bar");
+        assert!(detect_legacy_install(&target_with_traversal, &legacy).is_none());
+        let legacy_with_traversal = legacy.join("..").join("evil");
+        let target = unique_tmp("target");
+        assert!(detect_legacy_install(&target, &legacy_with_traversal).is_none());
+        std::fs::remove_dir_all(&legacy).ok();
+        std::fs::remove_dir_all(&target).ok();
+    }
+
+    #[test]
+    fn migrate_rejects_paths_with_parent_traversal() {
+        let legacy = unique_tmp("legacy");
+        populate_legacy(&legacy);
+        let target = std::env::temp_dir().join("foo").join("..").join("bar");
+        let err = migrate_from_legacy(&legacy, &target).unwrap_err();
+        match err {
+            AppError::InvalidArg(msg) => assert!(msg.contains("traversal"), "msg: {msg}"),
+            other => panic!("expected InvalidArg, got {other:?}"),
+        }
+        std::fs::remove_dir_all(&legacy).ok();
     }
 
     #[test]
@@ -477,7 +548,9 @@ mod tests {
         std::fs::write(nested.join("D-Nested.json"), br##"{"name":"D-Nested"}"##).unwrap();
 
         let report = migrate_from_legacy(&legacy, &target).unwrap();
-        assert_eq!(report.themes_copied, 2); // D-Custom + D-Nested
+        // copy_dir_recursive yalnız `is_file()` dalında sayar — dizinler
+        // sayım dışı. 2 = themes/D-Custom.json + themes/user-pack/D-Nested.json.
+        assert_eq!(report.themes_copied, 2);
         assert!(target
             .join(LEGACY_THEMES_DIR)
             .join("user-pack")

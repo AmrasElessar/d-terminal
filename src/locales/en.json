@@ -406,7 +406,9 @@
     "failureTitle": "Migration failed",
     "failureBody": "Error: {error}",
     "failureRetry": "Try again",
-    "close": "Close"
+    "close": "Close",
+    "restartToastMsg": "Your data has been migrated. Restart the app to fully activate the new data.",
+    "restartToastAction": "Restart now"
   },
   "profiles": {
     "title": "Shell Profiles",

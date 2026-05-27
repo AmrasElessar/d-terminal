@@ -19,6 +19,7 @@ import StatusBar from '@/components/ui/StatusBar.vue';
 import ContextMenu from '@/components/ui/ContextMenu.vue';
 import TabBar from '@/components/ui/TabBar.vue';
 import ToastContainer from '@/components/ui/ToastContainer.vue';
+import { useToastsStore } from '@/stores/toasts';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // Modallar lazy load — v-if ile mount/destroy + dynamic import ile prod
@@ -50,6 +51,7 @@ const snippets = useSnippetsStore();
 const triggers = useTriggersStore();
 const profiles = useProfilesStore();
 const log = createLogger('shell');
+const toasts = useToastsStore();
 const modals = useModals();
 
 /** Process'in admin token'ı var mı (Windows UAC). Mount sırasında okunur,
@@ -107,13 +109,30 @@ function openHistory()    { modals.open('history'); }
 function openSnippets()   { modals.open('snippets'); }
 function openPalette()    { modals.open('commandPalette'); }
 
-/** Migration başarılı — modal kapanır, kullanıcıya yeniden başlatma önerisi
- *  toast'la gösterilir (MigrationDialog kendi "successHint"i de hatırlatır).
- *  Aktarılan DB henüz açık Storage Arc'ı ile senkron değil; ideal davranış
- *  user-initiated restart. Hot-swap (Storage::reload) v1.0 öncesi eklenecek. */
+/** Migration başarılı — modal kapanır, kullanıcıya **persistent** restart
+ *  toast'ı gösterilir. Storage hot-swap v1.0'a kadar yok; bu süre içinde
+ *  kullanıcı session'a devam ederse yazımları ESKİ path'e gider, restart
+ *  sonra YENİ migrate edilmiş DB aktif olur → data loss window (audit H9).
+ *  Toast persistent (duration:0) ve "Yeniden başlat" action'ı ile relaunch
+ *  tetiklenir; kullanıcı manuel kapat ile dismiss edebilir ama uyarı belirgin. */
 function onMigrated() {
-  // İçeride ek aksiyon almıyoruz; success ekranı zaten "restart hint" gösterdi.
-  // Dismiss değil close — kullanıcı modal'ı manuel kapatır.
+  toasts.push('success', t('migration.restartToastMsg'), {
+    duration: 0, // manuel dismiss; kullanıcı görmeden geçemez
+    actions: [
+      {
+        label: t('migration.restartToastAction'),
+        primary: true,
+        handler: async () => {
+          try {
+            const { relaunch } = await import('@tauri-apps/plugin-process');
+            await relaunch();
+          } catch (e) {
+            log.error('migration restart failed', { error: String(e) });
+          }
+        },
+      },
+    ],
+  });
 }
 function onMigrationDismissed() {
   // Marker yazıldı — bu açılışta bir daha sorulmaz; future başlatmalarda da.
