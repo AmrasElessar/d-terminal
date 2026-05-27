@@ -1,41 +1,59 @@
 # D-Terminal GitHub Pages — minimal Jekyll config.
 #
-# Bu site'ın amacı YALNIZ statik dokümanlar host etmek:
-#   - Privacy policy (listing.md'de MS Store'a verilecek URL)
-#   - Landing sayfası (GitHub repo'ya yönlendiren mini sayfa)
-#
-# Repo'nun ana README'si zaten GitHub'da render edildiği için burada
-# tekrarlanmaz. Site root /docs dizini, Pages settings'te seçilir.
+# Site amacı: Yalnız statik landing + privacy policy host etmek.
 
 title: D-Terminal
 description: Agent-aware Windows terminal — GPL-3.0-or-later
 url: "https://amraselessar.github.io"
 baseurl: "/d-terminal"
 
-# minima en sade Jekyll theme — extra setup'a gerek yok
 theme: minima
 minima:
   social_links:
     github: AmrasElessar
 
-# Sadece markdown dosyalarını render et; node_modules / src vb. her şey hariç.
+# Sadece bu 2 sayfa Jekyll tarafından render edilsin. Diğer md dosyaları
+# (architecture, agent-watch-protocol, sidecar-bundling, dev-setup vb.)
+# GitHub'da repo içinde okunur — Pages site'ında değil.
 include:
   - privacy.md
   - index.md
+
+# Tüm gereksiz dosyaları nav menüsünden ve build'den dışla. Minima theme
+# default'unda tüm .md dosyaları üst nav'a girer; bu liste tepedeki
+# "Privacy Policy / Agent Watch Protocol / Mimari / Sidecar Bundling"
+# karmaşasını engeller.
 exclude:
   - "*.docx"
   - architecture-v1.1.md
+  - architecture-v1.1-changes.md
+  - agent-watch-protocol.md
+  - sidecar-bundling.md
   - dev-setup.md
   - github-profile-readme.md
+  - README.md
   - store/
   - adr/
   - media/
+
+# Üst nav menüsünde yalnız Privacy sayfası gözüksün — Home (/) otomatik gelir.
+header_pages:
+  - privacy.md
 
 # URL formatı — listing.md'de geçen `/privacy.html` ile uyumlu olsun diye
 # basename'i extension ile birlikte permalink yap.
 permalink: /:basename:output_ext
 
-# GitHub Pages varsayılan SHA-pinned plugin set
+# Markdown engine — kramdown (Jekyll default), GitHub-Flavored input.
+# `parse_block_html: true` <div>/<section> içindeki markdown render edilsin
+# (badges + center hero için kritik; aksi halde raw `![]()` text gözüküyor).
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  hard_wrap: false
+  parse_block_html: true
+
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
