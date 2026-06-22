@@ -45,7 +45,7 @@ jobs:
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: check
         name: Verify identity reservation flags
         # Bu workflow ÇALIŞMADAN ÖNCE tauri.conf.json'da:
@@ -110,7 +110,7 @@ jobs:
             sidecar_script: bundle:arm64
             msix_arch: arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -251,7 +251,7 @@ jobs:
           Write-Host "Manual WACK testi için: %ProgramFiles(x86)%\Windows Kits\10\App Certification Kit\appcert.exe (windows-latest runner'da kuruludur)"
 
       - name: Upload MSIX as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: msix-${{ matrix.arch_label }}
           path: ${{ env.MSIX_OUT_DIR }}/*.msix
@@ -266,7 +266,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Download MSIX artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: msix-all
           pattern: msix-*
