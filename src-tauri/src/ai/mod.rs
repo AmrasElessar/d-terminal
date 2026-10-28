@@ -102,10 +102,15 @@ where
     let mut attempt = 0u32;
     loop {
         attempt += 1;
-        let resp = build_request()
-            .send()
-            .await
-            .map_err(|e| format!("network: {e}"))?;
+        // Yanıt başlıkları için üst sınır — sunucu bağlantıyı kabul edip hiç
+        // yanıt vermezse komut sonsuza kadar asılı kalmasın.
+        let resp = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            build_request().send(),
+        )
+        .await
+        .map_err(|_| "network: response timeout (60s)".to_string())?
+        .map_err(|e| format!("network: {e}"))?;
         let status = resp.status();
         // 429 (rate limit) veya 503 (service unavailable) → backoff
         if (status.as_u16() == 429 || status.as_u16() == 503) && attempt < max_attempts {
@@ -122,6 +127,61 @@ where
             continue;
         }
         return Ok(resp);
+    }
+}
+
+/// Tüm AI provider'larının paylaştığı HTTP client.
+///
+/// - Redirect takip edilmez: public bir host 302 ile `169.254.169.254` /
+///   `10.x` gibi iç adreslere yönlendirip SSRF filtresini atlatamaz.
+/// - DNS çözümlemesi [`FilteringResolver`] üzerinden yapılır: reqwest'in
+///   gerçekte bağlandığı IP'ler `check_ip_public` ile süzülür (validate →
+///   connect arası DNS rebinding TOCTOU'su kapanır).
+/// - connect 5s, okuma arası 60s timeout (stream idle timeout ile aynı).
+///
+/// Builder başarısız olursa (TLS backend init hatası) panik yerine hata döner.
+pub fn http_client() -> Result<reqwest::Client, String> {
+    static CLIENT: std::sync::OnceLock<Result<reqwest::Client, String>> =
+        std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .read_timeout(std::time::Duration::from_secs(60))
+                .redirect(reqwest::redirect::Policy::none())
+                .dns_resolver(std::sync::Arc::new(FilteringResolver))
+                .build()
+                .map_err(|e| format!("httpClient:{e}"))
+        })
+        .clone()
+}
+
+/// reqwest DNS resolver'ı: sistem resolver'ı ile çözer, sonra private /
+/// link-local / CGNAT / reserved adresleri eler. Hiç izinli adres kalmazsa
+/// bağlantı reddedilir. Loopback izinlidir (yerel runtime'lar).
+struct FilteringResolver;
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+impl reqwest::dns::Resolve for FilteringResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                tokio::net::lookup_host((host.as_str(), 0)),
+            )
+            .await
+            .map_err(|_| -> BoxError { "dnsResolveTimeout".into() })??;
+            let allowed: Vec<std::net::SocketAddr> = addrs
+                .filter(|sa| openai::check_ip_public(&sa.ip()).is_ok())
+                .collect();
+            if allowed.is_empty() {
+                return Err::<reqwest::dns::Addrs, BoxError>(format!("dnsBlocked:{host}").into());
+            }
+            let iter: reqwest::dns::Addrs = Box::new(allowed.into_iter());
+            Ok(iter)
+        })
     }
 }
 
