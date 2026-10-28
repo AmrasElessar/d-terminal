@@ -90,7 +90,7 @@ void props.open;
           <p class="ver">v{{ version }} · alpha</p>
           <p class="tagline">{{ t('app.tagline') }}</p>
         </div>
-        <button type="button" class="close" @click="emit('close')">×</button>
+        <button type="button" class="close" :aria-label="t('common.close')" :title="t('common.close')" @click="emit('close')">×</button>
       </header>
 
       <section class="section">

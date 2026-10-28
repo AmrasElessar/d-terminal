@@ -134,7 +134,7 @@ function onKey(e: KeyboardEvent) {
     <article class="panel">
       <header class="panel__header">
         <h2>{{ t('history.title') }}</h2>
-        <button type="button" class="close" @click="emit('close')">×</button>
+        <button type="button" class="close" :aria-label="t('common.close')" :title="t('common.close')" @click="emit('close')">×</button>
       </header>
       <div class="panel__bar">
         <input

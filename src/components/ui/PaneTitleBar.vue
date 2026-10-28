@@ -219,7 +219,7 @@ const gitClean = computed(
       type="button"
       class="title-bar__tag"
       :style="{ '--tag-color': tagColor, borderColor: tagColor, color: tagColor }"
-      :title="t('pane.tag.edit')"
+      :title="t('pane.tag.edit')" :aria-label="t('pane.tag.edit')"
       @click.stop="startEditTag"
     >
       <span class="title-bar__tag-dot" :style="{ background: tagColor }" />
@@ -262,7 +262,7 @@ const gitClean = computed(
         running: agentRunning && !agentWaiting,
         waiting: agentWaiting,
       }"
-      :title="t('agentWatch.toggle', { count: agentView.agents.length })"
+      :title="t('agentWatch.toggle', { count: agentView.agents.length })" :aria-label="t('agentWatch.toggle', { count: agentView.agents.length })"
       @click.stop="toggleAgentWatch"
     >
 👁 {{ agentView.agents.length }}

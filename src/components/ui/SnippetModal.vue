@@ -141,10 +141,10 @@ void props.open;
         <button v-if="!editing" type="button" class="primary small" @click="startNew">
           {{ t('snippet.addNew') }}
         </button>
-        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.exportHint')" @click="exportSnippets">
+        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.exportHint')" :aria-label="t('snippet.exportHint')" @click="exportSnippets">
           ⬇ {{ t('snippet.export') }}
         </button>
-        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.importHint')" @click="triggerImport">
+        <button v-if="!editing" type="button" class="ghost small" :title="t('snippet.importHint')" :aria-label="t('snippet.importHint')" @click="triggerImport">
           ⬆ {{ t('snippet.import') }}
         </button>
         <input
@@ -154,7 +154,7 @@ void props.open;
           style="display:none"
           @change="onImportFile"
         />
-        <button type="button" class="close" @click="emit('close')">×</button>
+        <button type="button" class="close" :aria-label="t('common.close')" :title="t('common.close')" @click="emit('close')">×</button>
       </header>
 
       <form v-if="editing" class="form" @submit.prevent="save">

@@ -128,8 +128,8 @@ function previewLines(output: string, max: number = 6): string[] {
         <span class="block-panel__count">{{ blocks.length }}</span>
         {{ t('block.title') }}
       </h3>
-      <button type="button" class="block-panel__action" :title="t('block.clearAll')" @click="clear">⌫</button>
-      <button type="button" class="block-panel__close" :title="t('common.close')" @click="emit('close')">×</button>
+      <button type="button" class="block-panel__action" :title="t('block.clearAll')" :aria-label="t('block.clearAll')" @click="clear">⌫</button>
+      <button type="button" class="block-panel__close" :title="t('common.close')" :aria-label="t('common.close')" @click="emit('close')">×</button>
     </header>
 
     <div class="block-panel__body">
@@ -156,11 +156,11 @@ function previewLines(output: string, max: number = 6): string[] {
           <p v-if="b.cwd" class="block__cwd">📁 {{ b.cwd }}</p>
           <pre v-if="b.output" class="block__output">{{ previewLines(b.output, 12).join('\n') }}{{ b.output.split('\n').length > 12 ? '\n…' : '' }}</pre>
           <div class="block__actions">
-            <button type="button" :title="t('block.copyCommand')" @click.stop="copyCommand(b)">⎘ cmd</button>
-            <button type="button" :title="t('block.copyOutput')" @click.stop="copyOutput(b)">⎘ out</button>
-            <button type="button" :title="t('block.rerun')" @click.stop="rerun(b)">▶</button>
-            <button type="button" :title="t('block.sendToAi')" @click.stop="sendToAI(b)">✨ AI</button>
-            <button type="button" class="danger" :title="t('common.delete')" @click.stop="remove(b)">×</button>
+            <button type="button" :title="t('block.copyCommand')" :aria-label="t('block.copyCommand')" @click.stop="copyCommand(b)">⎘ cmd</button>
+            <button type="button" :title="t('block.copyOutput')" :aria-label="t('block.copyOutput')" @click.stop="copyOutput(b)">⎘ out</button>
+            <button type="button" :title="t('block.rerun')" :aria-label="t('block.rerun')" @click.stop="rerun(b)">▶</button>
+            <button type="button" :title="t('block.sendToAi')" :aria-label="t('block.sendToAi')" @click.stop="sendToAI(b)">✨ AI</button>
+            <button type="button" class="danger" :title="t('common.delete')" :aria-label="t('common.delete')" @click.stop="remove(b)">×</button>
           </div>
         </div>
       </article>

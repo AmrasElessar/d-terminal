@@ -417,12 +417,12 @@ onBeforeUnmount(() => {
           class="ai-pane__bsToggle"
           :class="{ 'ai-pane__bsToggle--on': brainstormMode }"
           :disabled="!canBrainstorm"
-          :title="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')"
+          :title="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')" :aria-label="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')"
           @click="toggleBrainstormMode"
         >
           🌪️ {{ t('ai.brainstorm.short') }}
         </button>
-        <button type="button" class="link" :title="t('ai.clearHistory')" @click="clearAll">
+        <button type="button" class="link" :title="t('ai.clearHistory')" :aria-label="t('ai.clearHistory')" @click="clearAll">
           {{ t('ai.clearHistory') }}
         </button>
       </header>

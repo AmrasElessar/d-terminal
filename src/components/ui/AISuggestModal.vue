@@ -201,7 +201,7 @@ function onResultKey(e: KeyboardEvent) {
             type="button"
             class="ghost"
             :disabled="!canExecute"
-            :title="t('ai.suggest.insertHint')"
+            :title="t('ai.suggest.insertHint')" :aria-label="t('ai.suggest.insertHint')"
             @click="insertIntoTerminal(false)"
           >
             ⇥ {{ t('ai.suggest.insert') }}
@@ -210,7 +210,7 @@ function onResultKey(e: KeyboardEvent) {
             type="button"
             class="primary go"
             :disabled="!canExecute"
-            :title="t('ai.suggest.executeHint')"
+            :title="t('ai.suggest.executeHint')" :aria-label="t('ai.suggest.executeHint')"
             @click="insertIntoTerminal(true)"
           >
             ⏎ {{ t('ai.suggest.execute') }}

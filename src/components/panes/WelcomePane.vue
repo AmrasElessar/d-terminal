@@ -723,7 +723,7 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
             type="button"
             class="row row--expander"
             :class="{ open: netExpanded }"
-            :title="t('welcome.netExpandHint')"
+            :title="t('welcome.netExpandHint')" :aria-label="t('welcome.netExpandHint')"
             @click="toggleNetExpand"
           >
             <span class="row__key">{{ row.key.padEnd(maxKeyLen, ' ') }}</span>

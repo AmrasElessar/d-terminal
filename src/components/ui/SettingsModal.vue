@@ -546,7 +546,7 @@ void props.open;
     <article class="dialog__panel">
       <header class="dialog__header">
         <h2>{{ t('settings.title') }}</h2>
-        <button type="button" class="close" @click="emit('close')">×</button>
+        <button type="button" class="close" :aria-label="t('common.close')" :title="t('common.close')" @click="emit('close')">×</button>
       </header>
       <nav class="tabs">
         <button
@@ -741,7 +741,7 @@ void props.open;
               type="button"
               class="theme-card"
               :class="{ active: settings.state.themeName === theme.name }"
-              :title="theme.description"
+              :title="theme.description" :aria-label="theme.description"
               :style="{
                 background: theme.colors.background,
                 color: theme.colors.foreground,
@@ -1163,7 +1163,7 @@ void props.open;
               v-if="row.isOverridden"
               type="button"
               class="ghost"
-              :title="`${t('settings.shortcuts.reset')}: ${row.defaultCombo}`"
+              :title="`${t('settings.shortcuts.reset')}: ${row.defaultCombo}`" :aria-label="`${t('settings.shortcuts.reset')}: ${row.defaultCombo}`"
               @click="resetShortcut(row.id)"
             >
 ↺
