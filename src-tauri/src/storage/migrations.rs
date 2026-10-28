@@ -9,11 +9,46 @@
 // çıkıyordu. Strict mode panic atıp app'i çökertiyordu. Tolerant mode warning
 // log'lar, app çalışmaya devam eder. Migration disiplini değişmedi: V001
 // dokunulmaz, yeni şema değişiklikleri V002+ olarak eklenir.
+//
+// Neden hâlâ `false`: strict moda geçmek, checksum'ı alanda zaten uyumsuz
+// kayıtlı kullanıcılarda uygulamanın her açılışta çökmesi demek (geri dönüşü
+// olmayan kırılma). Refinery tolerant modda divergent migration'ları kendisi
+// WARN olarak log'lar; uygulanan migration'lar da aşağıda INFO olarak yazılır.
 
 refinery::embed_migrations!("./migrations");
 
+/// Henüz uygulanmamış migration var mı? (Yedek yalnızca bu durumda alınır.)
+/// Yeni (boş) DB'de `refinery_schema_history` yoktur → true.
+pub fn has_pending(conn: &mut rusqlite::Connection) -> crate::error::AppResult<bool> {
+    let has_table: bool = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='refinery_schema_history'",
+            [],
+            |_| Ok(()),
+        )
+        .is_ok();
+    if !has_table {
+        return Ok(true);
+    }
+    let runner = migrations::runner();
+    let latest = runner
+        .get_migrations()
+        .iter()
+        .map(|m| m.version())
+        .max()
+        .unwrap_or(0);
+    let applied = runner
+        .get_last_applied_migration(conn)?
+        .map(|m| m.version())
+        .unwrap_or(0);
+    Ok(applied < latest)
+}
+
 pub fn run(conn: &mut rusqlite::Connection) -> crate::error::AppResult<()> {
-    migrations::runner().set_abort_divergent(false).run(conn)?;
+    let report = migrations::runner().set_abort_divergent(false).run(conn)?;
+    for m in report.applied_migrations() {
+        tracing::info!(target: "storage", version = m.version(), name = m.name(), "migration applied");
+    }
     // Downgrade guard: stored _app_version mevcut binary'den daha yüksekse
     // refuse — eski binary yeni şemayı kıramasın (kolon eksik vs. crash).
     // İlk açılışta settings tablosu boştur, no-op.
@@ -76,6 +111,14 @@ mod tests {
             )
             .expect("count");
         assert!(n >= 5, "Expected at least 5 core tables, got {n}");
+    }
+
+    #[test]
+    fn has_pending_reflects_state() {
+        let mut conn = Connection::open_in_memory().expect("in-memory");
+        assert!(has_pending(&mut conn).expect("pending fresh"));
+        run(&mut conn).expect("migration");
+        assert!(!has_pending(&mut conn).expect("pending after run"));
     }
 
     /// Migration idempotent — peş peşe iki kere çalıştırılabilmeli.

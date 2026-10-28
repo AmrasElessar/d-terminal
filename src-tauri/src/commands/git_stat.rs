@@ -15,6 +15,7 @@
 
 use crate::commands::path_policy;
 use crate::process_jail::ProcessJail;
+use crate::error::AppResult;
 use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
@@ -41,7 +42,7 @@ pub struct GitStat {
 }
 
 #[tauri::command]
-pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> Result<GitStat, ()> {
+pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> AppResult<GitStat> {
     // Path doğrulaması FS'e dokunmadan ÖNCE: UNC / device path'te `exists()`
     // bile SMB bağlantısı açıp NTLM hash'ini uzak sunucuya gönderir (path,
     // terminal çıktısındaki güvenilmez OSC 7'den gelebilir). Canonical path ağ
@@ -100,8 +101,8 @@ const NULL_DEVICE: &str = "/dev/null";
 /// yüzden komut çalıştırabilen config anahtarları burada etkisizleştirilir:
 ///   - GIT_TERMINAL_PROMPT=0 + stdin null : credential prompt yok
 ///   - GIT_CONFIG_NOSYSTEM / GLOBAL=null   : sistem/kullanıcı config'i okunmaz
-///   - core.fsmonitor=false                : rogue fsmonitor hook'u (index okunurken
-///                                           çalışır — `ls-files` dahil) devre dışı
+///   - core.fsmonitor=false                : rogue fsmonitor hook'u devre dışı
+///     (index okunurken çalışır — `ls-files` dahil)
 ///   - core.hooksPath=<null>               : hook dizini boş
 ///   - core.sshCommand / core.askPass / credential.helper boş
 ///   - diff.external boş (+ `--no-ext-diff --no-textconv` bayrakları)
