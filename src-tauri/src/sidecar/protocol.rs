@@ -26,11 +26,9 @@ pub const HEADER_LEN: usize = 13;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MsgType {
-    /// HELLO — sidecar boot'ta gönderir (Tauri ileri geri yorumu CBOR
-    /// HelloPayload). Tauri ileri geri yorumu CBOR ile ilettikten sonra
-    /// `protocol_version` uyumsuzsa bağlantıyı kapatır. v0.9.4'ten itibaren
-    /// zorunlu — eski sidecar binary HELLO göndermezse Tauri 1sn timeout
-    /// sonra warn loglar ama çalışmaya devam eder (geri uyumluluk).
+    /// HELLO — sidecar boot'ta gönderir (CBOR `HelloPayload`). Tauri
+    /// `protocol_version` uyumsuzsa sidecar'ı kapatır; eklemeli özellikler
+    /// `capabilities` listesiyle müzakere edilir (ör. `flow_credit`).
     Hello = 0x00,
     Spawn = 0x01,
     Stdin = 0x02,
@@ -129,18 +127,33 @@ impl Frame {
         Ok(())
     }
 
-    /// `reader`'dan tek frame oku. EOF → `None`.
+    /// `reader`'dan tek frame oku. Frame sınırında temiz EOF → `None`.
+    /// Header'ın ortasında EOF (1-12 byte) bozuk/yarım stream demektir ve
+    /// `UnexpectedEof` hatası olarak döner — sessizce temiz kapanış sayılmaz.
     pub fn decode<R: Read>(reader: &mut R) -> Result<Option<Self>, ProtocolError> {
-        let len = match reader.read_u32::<BigEndian>() {
-            Ok(v) => v,
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            Err(e) => return Err(e.into()),
-        };
+        let mut header = [0u8; HEADER_LEN];
+        let mut filled = 0;
+        while filled < HEADER_LEN {
+            match reader.read(&mut header[filled..]) {
+                Ok(0) if filled == 0 => return Ok(None),
+                Ok(0) => {
+                    return Err(ProtocolError::Io(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        format!("truncated frame header ({filled}/{HEADER_LEN} bytes)"),
+                    )))
+                }
+                Ok(n) => filled += n,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e.into()),
+            }
+        }
+        let mut cur = Cursor::new(&header[..]);
+        let len = cur.read_u32::<BigEndian>()?;
         if len as usize > MAX_PAYLOAD {
             return Err(ProtocolError::PayloadTooLarge(len));
         }
-        let msg_type = MsgType::from_byte(reader.read_u8()?)?;
-        let pane_id = reader.read_u64::<BigEndian>()?;
+        let msg_type = MsgType::from_byte(cur.read_u8()?)?;
+        let pane_id = cur.read_u64::<BigEndian>()?;
         let mut payload = vec![0u8; len as usize];
         reader.read_exact(&mut payload)?;
         Ok(Some(Self {
@@ -190,6 +203,14 @@ pub struct ExitPayload {
     pub exit_code: i32,
     #[serde(default)]
     pub signal: Option<String>,
+}
+
+/// FLOW_RESUME payload'ı (Tauri → sidecar): `pane_id` için `bytes` kadar
+/// çıktının tüketildiğini bildirir (credit tabanlı akış kontrolü). Pane 0'a
+/// boş payload ile gönderilen FLOW_RESUME credit modunu etkinleştirir.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FlowPayload {
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -248,7 +269,7 @@ mod tests {
         bytes.push(MsgType::Stdout as u8);
         bytes.extend_from_slice(&0u64.to_be_bytes());
         let err = Frame::from_bytes(&bytes).unwrap_err();
-        matches!(err, ProtocolError::PayloadTooLarge(_));
+        assert!(matches!(err, ProtocolError::PayloadTooLarge(_)));
     }
 
     #[test]
@@ -258,7 +279,7 @@ mod tests {
         bytes.push(0xFF); // bilinmeyen tip
         bytes.extend_from_slice(&0u64.to_be_bytes());
         let err = Frame::from_bytes(&bytes).unwrap_err();
-        matches!(err, ProtocolError::UnknownMsgType(0xFF));
+        assert!(matches!(err, ProtocolError::UnknownMsgType(0xFF)));
     }
 
     #[test]
@@ -310,6 +331,33 @@ mod tests {
         assert_eq!(Frame::decode(&mut cur).unwrap().unwrap(), f2);
         assert_eq!(Frame::decode(&mut cur).unwrap().unwrap(), f3);
         assert!(Frame::decode(&mut cur).unwrap().is_none());
+    }
+
+    #[test]
+    fn frame_decode_partial_header_is_error_not_eof() {
+        let full = Frame::control(MsgType::Ping).to_bytes().unwrap();
+        for cut in 1..HEADER_LEN {
+            let err = Frame::from_bytes(&full[..cut]).unwrap_err();
+            assert!(
+                matches!(err, ProtocolError::Io(ref e) if e.kind() == io::ErrorKind::UnexpectedEof),
+                "cut at {cut}: {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn frame_decode_truncated_payload_is_error() {
+        let full = Frame::new(MsgType::Stdout, 1, b"hello".to_vec())
+            .to_bytes()
+            .unwrap();
+        assert!(Frame::from_bytes(&full[..full.len() - 2]).is_err());
+    }
+
+    #[test]
+    fn flow_payload_cbor_roundtrip() {
+        let p = FlowPayload { bytes: 123_456 };
+        let decoded: FlowPayload = decode_cbor(&encode_cbor(&p).unwrap()).unwrap();
+        assert_eq!(decoded, p);
     }
 
     #[test]

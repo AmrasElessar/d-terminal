@@ -24,6 +24,7 @@ pub fn run() {
         .map(|p| p.join("D-Terminal"))
         .unwrap_or_else(|| PathBuf::from("."));
     let log_dir = data_dir.join("logs");
+    let log_dir_for_error = log_dir.clone();
 
     // tracing — hem stderr hem dosya (daily rotate). Guard drop edilirse async
     // writer kapanır → process lifetime'ı boyunca yaşamalı. Box::leak idiomatic
@@ -31,7 +32,16 @@ pub fn run() {
     // havası bırakıyor; Box::leak niyeti netleştirir).
     Box::leak(Box::new(logger::init_tracing(&log_dir)));
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // Single-instance İLK plugin olmalı: ikinci açılış yeni bir sidecar /
+        // DB bağlantısı kurmadan önce mevcut pencereyi öne getirip çıkar.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -103,28 +113,43 @@ pub fn run() {
             // 16ms = 1 render frame, interaktif echo'da fark edilmez.
             if let Some(rx) = sidecar.take_event_receiver() {
                 let emit_handle = app_handle.clone();
-                std::thread::spawn(move || {
-                    use std::time::{Duration, Instant};
-                    const COALESCE_WINDOW: Duration = Duration::from_millis(16);
-                    const MAX_EVENTS_PER_WINDOW: usize = 64;
-                    while let Ok(first) = rx.recv() {
-                        let mut batch = vec![first];
-                        let deadline = Instant::now() + COALESCE_WINDOW;
-                        loop {
-                            let now = Instant::now();
-                            if now >= deadline || batch.len() >= MAX_EVENTS_PER_WINDOW {
-                                break;
+                // Weak: emit thread'i sidecar manager'ı canlı tutmasın.
+                let ack_target = std::sync::Arc::downgrade(&sidecar);
+                std::thread::Builder::new()
+                    .name("dterm-pty-emit".into())
+                    .spawn(move || {
+                        use std::time::{Duration, Instant};
+                        const COALESCE_WINDOW: Duration = Duration::from_millis(16);
+                        const MAX_EVENTS_PER_WINDOW: usize = 64;
+                        while let Ok(first) = rx.recv() {
+                            let mut batch = vec![first];
+                            let deadline = Instant::now() + COALESCE_WINDOW;
+                            loop {
+                                let now = Instant::now();
+                                if now >= deadline || batch.len() >= MAX_EVENTS_PER_WINDOW {
+                                    break;
+                                }
+                                match rx.recv_timeout(deadline - now) {
+                                    Ok(ev) => batch.push(ev),
+                                    Err(_) => break,
+                                }
                             }
-                            match rx.recv_timeout(deadline - now) {
-                                Ok(ev) => batch.push(ev),
-                                Err(_) => break,
+                            for ev in coalesce_pty_events(batch) {
+                                forward_event(&emit_handle, &ev);
+                                // Credit tabanlı akış kontrolü: frontend'e
+                                // iletilen byte'ları sidecar'a geri bildir.
+                                if let PtyEvent::Stdout { pane_id, data } = &ev {
+                                    if let Some(mgr) = ack_target.upgrade() {
+                                        mgr.ack_output(pane_id, data.len());
+                                    }
+                                }
                             }
                         }
-                        for ev in coalesce_pty_events(batch) {
-                            forward_event(&emit_handle, &ev);
-                        }
-                    }
-                });
+                    })
+                    .map_err(|e| {
+                        tracing::error!("pty emit thread spawn failed: {e}");
+                        e
+                    })?;
             }
 
             app.manage(AppState::new(storage, sidecar, jail));
@@ -161,15 +186,17 @@ pub fn run() {
                 }
             }
 
-            // Quake hotkey — F1 ile pencereyi gizle/göster (Win11 + Linux + Mac)
+            // Quake hotkey — Ctrl+Shift+F1 ile pencereyi gizle/göster.
+            // Modifier'sız F1 global olarak kaydedilince diğer tüm
+            // uygulamalarda Yardım (F1) tuşu çalışmaz hale geliyordu.
             #[cfg(desktop)]
             {
                 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-                let quake = Shortcut::new(Some(Modifiers::empty()), Code::F1);
+                let quake = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::F1);
                 if let Err(e) = app.global_shortcut().register(quake) {
-                    tracing::warn!("global shortcut F1 register failed: {e}");
+                    tracing::warn!("global shortcut Ctrl+Shift+F1 register failed: {e}");
                 } else {
-                    tracing::info!("quake hotkey registered: F1 (toggle window)");
+                    tracing::info!("quake hotkey registered: Ctrl+Shift+F1 (toggle window)");
                 }
             }
 
@@ -250,20 +277,38 @@ pub fn run() {
             commands::process::process_jail_active,
             commands::process::process_jail_assign_failed,
         ])
-        .build(tauri::generate_context!())
-        .expect("D-Terminal Tauri runtime failed to start")
-        .run(|app, event| {
-            // Tauri kapanırken sidecar process'i açıkça temizle. Drop impl da
-            // var ama Tauri runtime AppHandle Arc'ları sırayla drop ettiğinden
-            // sidecar drop'u state.unwrap'a kalabiliyor; ExitRequested
-            // hook'u zombi sidecar riskini kesin olarak kapatır.
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                let state = app.state::<state::AppState>();
-                state.sidecar.shutdown();
-                tracing::info!("sidecar shutdown via ExitRequested");
-            }
-        });
+        .build(tauri::generate_context!());
+
+    let app = match app {
+        Ok(app) => app,
+        Err(e) => {
+            // Setup hatası (ör. veritabanı açılamadı) → panic/abort yerine
+            // kullanıcıya görünür bir hata kutusu göster ve temiz çık.
+            tracing::error!("D-Terminal failed to start: {e}");
+            show_fatal_error(&format!(
+                "D-Terminal başlatılamadı / failed to start.\n\n{e}\n\nLog: {}",
+                log_dir_for_error.display()
+            ));
+            std::process::exit(1);
+        }
+    };
+
+    app.run(|app, event| {
+        // Tauri kapanırken sidecar process'i açıkça temizle. Drop impl da
+        // var ama Tauri runtime AppHandle Arc'ları sırayla drop ettiğinden
+        // sidecar drop'u state.unwrap'a kalabiliyor; ExitRequested
+        // hook'u zombi sidecar riskini kesin olarak kapatır.
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            let state = app.state::<state::AppState>();
+            state.sidecar.shutdown();
+            tracing::info!("sidecar shutdown via ExitRequested");
+        }
+    });
 }
+
+/// Tek bir birleştirilmiş Stdout event'inin üst sınırı. Aşılırsa yeni event
+/// başlar — WebView'e tek seferde dev bir payload gitmesini önler.
+const MAX_COALESCED_BYTES: usize = 1024 * 1024;
 
 /// Ardışık Stdout event'lerini aynı pane için tek event'te birleştir.
 /// Sıra korunur — Stdout dışı event'ler (Exit/Error/SidecarUp/Down) lifecycle
@@ -279,10 +324,11 @@ fn coalesce_pty_events(events: Vec<PtyEvent>) -> Vec<PtyEvent> {
         let can_merge = match (out.last(), &ev) {
             (
                 Some(PtyEvent::Stdout {
-                    pane_id: prev_pid, ..
+                    pane_id: prev_pid,
+                    data: prev_data,
                 }),
-                PtyEvent::Stdout { pane_id, .. },
-            ) => prev_pid == pane_id,
+                PtyEvent::Stdout { pane_id, data },
+            ) => prev_pid == pane_id && prev_data.len() + data.len() <= MAX_COALESCED_BYTES,
             _ => false,
         };
         if can_merge {
@@ -324,6 +370,32 @@ fn forward_event(app: &tauri::AppHandle, event: &PtyEvent) {
     }
 }
 
+/// Native hata kutusu (Tauri runtime ayağa kalkmadan önce de çalışır).
+fn show_fatal_error(message: &str) {
+    #[cfg(windows)]
+    {
+        use windows::core::PCWSTR;
+        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+        let to_wide = |s: &str| {
+            s.encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<u16>>()
+        };
+        let text = to_wide(message);
+        let title = to_wide("D-Terminal");
+        unsafe {
+            MessageBoxW(
+                None,
+                PCWSTR(text.as_ptr()),
+                PCWSTR(title.as_ptr()),
+                MB_OK | MB_ICONERROR,
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    eprintln!("{message}");
+}
+
 fn resolve_sidecar_path(_app: &tauri::AppHandle) -> PathBuf {
     // Prod: Tauri externalBin yapılandırması ile bundled `dterminal-pty-bridge.exe`
     // ana exe'nin yanına yerleşir (Node.js bağımsız, pkg ile snapshot edilmiş).
@@ -336,7 +408,10 @@ fn resolve_sidecar_path(_app: &tauri::AppHandle) -> PathBuf {
         }
     }
     // Dev: repo'daki kaynak script — `node sidecar/pty-bridge.js` ile çalıştırılır
-    // (manager.rs uzantı `.js` ise `node` argümanı ile spawn eder).
+    // (manager.rs uzantı `.js` ise `node` argümanı ile spawn eder). Yalnızca
+    // debug build: release'de çalışma dizininden script çalıştırmak kod
+    // enjeksiyonu yüzeyi olurdu.
+    #[cfg(debug_assertions)]
     if let Ok(cwd) = std::env::current_dir() {
         for candidate in [
             cwd.join("..").join("sidecar").join("pty-bridge.js"),
@@ -407,6 +482,20 @@ mod coalesce_tests {
     }
 
     #[test]
+    fn caps_coalesced_size() {
+        let chunk = vec![b'X'; 600 * 1024];
+        let result = coalesce_pty_events(vec![
+            stdout("a", &chunk),
+            stdout("a", &chunk),
+            stdout("a", &chunk),
+        ]);
+        // 600 KB + 600 KB > 1 MB → her biri ayrı kalır.
+        assert_eq!(result.len(), 3);
+        let small = coalesce_pty_events(vec![stdout("a", &chunk), stdout("a", b"tail")]);
+        assert_eq!(small.len(), 1);
+    }
+
+    #[test]
     fn passes_empty_input() {
         assert_eq!(coalesce_pty_events(vec![]).len(), 0);
     }
@@ -442,8 +531,7 @@ mod coalesce_tests {
     }
 
     /// Büyük payload: 64 KB'lık iki ardışık event → tek event'te 128 KB
-    /// data; boyut sınırı yok (coalesce şu an cap koymuyor — backpressure
-    /// downstream'de SyncSender'da).
+    /// data (MAX_COALESCED_BYTES altında).
     #[test]
     fn merges_large_64kb_payloads() {
         let big = vec![b'X'; 64 * 1024];
