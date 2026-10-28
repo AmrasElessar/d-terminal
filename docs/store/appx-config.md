@@ -75,7 +75,8 @@ MSI'ya WiX fragment ekleyerek MSIX wrapper'ın daha iyi kapsama almasını sağl
     "wix": {
       "language": ["en-US", "tr-TR"],
       // MSIX-friendly: registry yazma, AppData yolu sandbox-aware
-      "fragmentPaths": ["wix-fragments/msix-bridge.wxs"]
+      "fragmentPaths": ["wix-fragments/msix-bridge.wxs"],
+      "componentGroupRefs": ["DTerminalMsixBridge"]
     }
   }
 }

@@ -11,7 +11,8 @@
     "bundle": {
       "windows": {
         "wix": {
-          "fragmentPaths": ["wix-fragments/msix-bridge.wxs"]
+          "fragmentPaths": ["wix-fragments/msix-bridge.wxs"],
+          "componentGroupRefs": ["DTerminalMsixBridge"]
         }
       }
     }
@@ -51,16 +52,17 @@
     </DirectoryRef>
 
     <!--
-      Feature reference: ana installer feature'ına eklensin diye.
-      tauri.conf.json'da fragmentPaths register edildiğinde Tauri'nin ana
-      feature'ı (Main) bu component'ı pick eder.
+      Component group — Tauri'nin ana feature'ına `componentGroupRefs` ile
+      bağlanır (tauri.conf.json → bundle.windows.wix.componentGroupRefs).
 
-      Tauri Main feature ID'sini explicit referans olarak ekliyoruz; eğer
-      Tauri sürüm değişikliğinde Main → AppFeature gibi rename olursa
-      bu satırı güncelle.
+      Önceden burada `<Feature Id="Main" Level="0">` yeniden tanımlanıyordu:
+      bu, Tauri'nin kendi main.wxs'teki feature'ı ile ID çakışmasına (light.exe
+      LGHT0091 duplicate symbol) ya da Level=0 nedeniyle ana feature'ın
+      devre dışı kalmasına yol açardı. Tauri'nin desteklediği yol
+      componentGroupRefs'tir; feature tanımı Tauri'de kalır.
     -->
-    <Feature Id="Main" Level="0">
+    <ComponentGroup Id="DTerminalMsixBridge">
       <ComponentRef Id="DTerminalRegistryMetadata" />
-    </Feature>
+    </ComponentGroup>
   </Fragment>
 </Wix>

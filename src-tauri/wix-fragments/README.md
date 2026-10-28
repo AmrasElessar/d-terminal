@@ -23,7 +23,8 @@ explicit opt-in gerekir.
         "language": ["en-US", "tr-TR"],
         "bannerPath": "installer/wix-banner.bmp",
         "dialogImagePath": "installer/wix-dialog.bmp",
-        "fragmentPaths": ["wix-fragments/msix-bridge.wxs"]   // ← bunu ekle
+        "fragmentPaths": ["wix-fragments/msix-bridge.wxs"],   // ← bunu ekle
+        "componentGroupRefs": ["DTerminalMsixBridge"]
       }
     }
   }
