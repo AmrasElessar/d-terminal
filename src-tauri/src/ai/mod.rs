@@ -65,6 +65,9 @@ pub struct UsageInfo {
 /// hiç çağrılmaz; frontend o durumda tahmine düşer.
 pub type UsageSink = Box<dyn FnMut(UsageInfo) + Send>;
 
+// async_trait, trait metotlarına mesajsız #[must_use] ekliyor; dönen
+// Pin<Box<dyn Future>> zaten must_use olduğu için clippy 1.99+ uyarıyor.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
     /// Provider id ("anthropic", "openai", ...). Sentinel/dispatch için.
