@@ -13,6 +13,13 @@
 //   2. migrate_run'da Storage'ı drop et (write lock al, Arc'ı yenisi ile değiştir)
 //   3. Migration sonrası yeni Storage::open(target_dir) ile reload
 // Şu an için MIGRATION_MUTEX double-call'u engeller.
+//
+// GATE: `LEGACY_MIGRATION_ENABLED = false`. Mevcut akış yapısal olarak
+// başarılı olamaz: lib.rs setup'ı hedef DB'yi (`Storage::open`) dialog
+// gösterilmeden ÖNCE oluşturur, `migrate_from_legacy` ise "hedefte DB var"
+// guard'ıyla reddeder. Özellik, migration `Storage::open`'dan önce (setup
+// içinde, kullanıcı onayı bir önceki oturumda marker ile alınarak) çalışacak
+// şekilde lib.rs'e bağlanana kadar komutlar no-op / açık hata döner.
 
 use crate::error::{AppError, AppResult};
 use crate::storage::migrate_legacy::{self, MigrationReport, MigrationState, MigrationStatus};
@@ -27,6 +34,9 @@ static MIGRATION_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 fn migration_lock() -> &'static Mutex<()> {
     MIGRATION_MUTEX.get_or_init(|| Mutex::new(()))
 }
+
+/// Legacy → MSIX veri taşıma özelliği bayrağı (bkz. dosya başı GATE notu).
+const LEGACY_MIGRATION_ENABLED: bool = false;
 
 /// UI'a iletilen detect sonucu. Hiç dialog gerekmiyorsa None döner.
 #[derive(Debug, Clone, Serialize)]
@@ -82,6 +92,9 @@ fn shorten_path_for_display(p: &Path) -> String {
 
 #[tauri::command]
 pub fn migrate_detect_legacy() -> AppResult<Option<DetectedLegacy>> {
+    if !LEGACY_MIGRATION_ENABLED {
+        return Ok(None);
+    }
     let target = default_target_dir()?;
     let legacy = default_legacy_dir()?;
     let Some(found) = migrate_legacy::detect_legacy_install(&target, &legacy) else {
@@ -99,8 +112,18 @@ pub fn migrate_detect_legacy() -> AppResult<Option<DetectedLegacy>> {
     }))
 }
 
+/// Async + blocking pool: VACUUM INTO + dosya kopyalama UI thread'ini dondurmasın.
 #[tauri::command]
-pub fn migrate_run() -> AppResult<MigrationReport> {
+pub async fn migrate_run() -> AppResult<MigrationReport> {
+    if !LEGACY_MIGRATION_ENABLED {
+        return Err(AppError::NotImplemented(
+            "legacy migration is not available in this build",
+        ));
+    }
+    crate::error::run_blocking(migrate_run_blocking).await
+}
+
+fn migrate_run_blocking() -> AppResult<MigrationReport> {
     // Concurrent call guard — H7/H8'in tek noktadan korunması.
     // try_lock() ile beklemek yerine BUSY hatası dön; frontend zaten butonu
     // disabled yapıyor ama defansif.
@@ -188,8 +211,13 @@ mod tests {
     /// olmadan da aynı sonuç.)
     #[test]
     fn run_rejects_when_paths_equal() {
-        let err = migrate_run().unwrap_err();
+        let err = migrate_run_blocking().unwrap_err();
         assert!(matches!(err, AppError::InvalidArg(_)));
+    }
+
+    #[test]
+    fn gated_detect_returns_none() {
+        assert!(migrate_detect_legacy().unwrap().is_none());
     }
 
     #[test]
@@ -201,6 +229,8 @@ mod tests {
         assert!(!s.starts_with("…"));
     }
 
+    // Windows path ayırıcısına (`\\`) bağlı — yalnızca Windows'ta anlamlı.
+    #[cfg(windows)]
     #[test]
     fn shorten_path_collapses_long_paths_to_last_three_segments() {
         let p = Path::new("C:\\Users\\someone\\AppData\\Roaming\\D-Terminal");

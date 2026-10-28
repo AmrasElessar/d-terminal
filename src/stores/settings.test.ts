@@ -14,7 +14,7 @@ vi.mock('@/api/tauri', () => ({
   },
 }));
 
-import { useSettingsStore } from '@/stores/settings';
+import { sanitizeSetting, useSettingsStore } from '@/stores/settings';
 import { api } from '@/api/tauri';
 
 const flushPromises = () => new Promise((r) => setTimeout(r, 0));
@@ -87,5 +87,45 @@ describe('settings store — suppressConsoles ↔ ProcessJail sync', () => {
 
     expect(api.processSetSuppressConsoles).toHaveBeenLastCalledWith(false);
     expect(store.state.suppressConsoles, 'syncing temizlenmiş, ikinci toggle geçer').toBe(false);
+  });
+});
+
+describe('sanitizeSetting', () => {
+  it('tip uyuşmazlığı ve geçersiz enum default\'a düşer', () => {
+    expect(sanitizeSetting('fontSize', '12')).toBeUndefined();
+    expect(sanitizeSetting('renderer', 'quantum')).toBeUndefined();
+    expect(sanitizeSetting('aiPrefixHash', 'yes')).toBeUndefined();
+    expect(sanitizeSetting('shortcutOverrides', [1])).toBeUndefined();
+  });
+  it('sayılar aralığa sıkıştırılır, geçerli değerler korunur', () => {
+    expect(sanitizeSetting('scrollback', 10_000_000)).toBe(100_000);
+    expect(sanitizeSetting('opacity', -1)).toBe(0);
+    expect(sanitizeSetting('renderer', 'webgl')).toBe('webgl');
+    expect(sanitizeSetting('shortcutOverrides', { a: 'Ctrl+A', b: 3 })).toEqual({ a: 'Ctrl+A' });
+  });
+});
+
+describe('settings load', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+  });
+
+  it('yüklenen değerler geri yazılmaz (re-persist yok), sonraki değişiklik yazılır', async () => {
+    (api.settingsAll as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      'ui.fontSize': '14',
+      'ui.renderer': '"bogus"',
+    });
+    const store = useSettingsStore();
+    await store.load();
+    await nextTick();
+    await flushPromises();
+    expect(store.state.fontSize).toBe(14);
+    expect(store.state.renderer).toBe('auto');
+    expect(api.settingsSet).not.toHaveBeenCalled();
+    store.state.fontSize = 15;
+    await nextTick();
+    await flushPromises();
+    expect(api.settingsSet).toHaveBeenCalledWith('ui.fontSize', '15');
   });
 });

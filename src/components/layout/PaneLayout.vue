@@ -17,15 +17,15 @@ const maximized = computed(() => panes.maximizedLeaf);
     <!-- Zoom modu: tek pane tam ekran (tmux z, Warp ⌘⇧↵). ESC veya kısayolla geri dön. -->
     <template v-if="maximized">
       <div class="pane-layout__zoom">
-        <PaneSlot :leaf="maximized" />
+        <PaneSlot :key="maximized.id" :leaf="maximized" />
         <div class="pane-layout__zoom-hint">
           {{ t('pane.zoomHint') }}
         </div>
       </div>
     </template>
     <template v-else-if="root">
-      <SplitContainer v-if="root.kind === 'split'" :node="root" />
-      <PaneSlot v-else :leaf="root" />
+      <SplitContainer v-if="root.kind === 'split'" :key="root.id" :node="root" />
+      <PaneSlot v-else :key="root.id" :leaf="root" />
     </template>
     <WelcomePane v-else />
   </div>

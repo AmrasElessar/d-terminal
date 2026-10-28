@@ -56,6 +56,29 @@ struct EventMessage {
 
 pub struct Anthropic;
 
+/// Messages API `system`'i ayrı alan olarak ister. Birden fazla system
+/// mesajı varsa (ör. persona + terminal bağlamı) hepsi sırasıyla birleştirilir;
+/// eskiden yalnızca sonuncusu korunuyordu.
+fn split_system(messages: Vec<ChatMessage>) -> (Option<String>, Vec<serde_json::Value>) {
+    let mut system_parts: Vec<String> = Vec::new();
+    let mut conv = Vec::new();
+    for m in messages {
+        if m.role == "system" {
+            if !m.content.is_empty() {
+                system_parts.push(m.content);
+            }
+        } else {
+            conv.push(json!({ "role": m.role, "content": m.content }));
+        }
+    }
+    let system = if system_parts.is_empty() {
+        None
+    } else {
+        Some(system_parts.join("\n\n"))
+    };
+    (system, conv)
+}
+
 #[async_trait]
 impl ChatProvider for Anthropic {
     fn id(&self) -> &'static str {
@@ -85,16 +108,7 @@ impl ChatProvider for Anthropic {
     ) -> Result<(), String> {
         let key = key.ok_or_else(|| "noKey".to_string())?;
 
-        // System mesajını ayır
-        let mut system: Option<String> = None;
-        let mut conv = Vec::new();
-        for m in messages {
-            if m.role == "system" {
-                system = Some(m.content);
-            } else {
-                conv.push(json!({ "role": m.role, "content": m.content }));
-            }
-        }
+        let (system, conv) = split_system(messages);
 
         let mut body = json!({
             "model": options.model,
@@ -109,15 +123,10 @@ impl ChatProvider for Anthropic {
             body["system"] = json!(s);
         }
 
-        // Connect timeout: API erişilemezse UI freeze olmasın.
+        // Paylaşılan client: connect 5s + okuma arası 60s timeout, redirect yok.
         // Total timeout YOK (streaming uzun sürebilir) ama her chunk arası
-        // IDLE timeout var: 60s yeni chunk gelmezse abort. Yarım kalmış
-        // HTTP/2 stream'in Tauri runtime thread'ini sonsuza kadar tutmasını
-        // engeller (rate-limited yanıt 60dk gecikse bile bizi takmaz).
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        // IDLE timeout var: 60s yeni chunk gelmezse abort.
+        let client = super::http_client()?;
         // 429/503 için exponential backoff retry (max 3 deneme).
         let resp = send_with_retry(|| {
             client
@@ -131,9 +140,9 @@ impl ChatProvider for Anthropic {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let txt = resp.text().await.unwrap_or_default();
+            // Hata gövdesi prompt/model içeriğini echo edebilir — log'a yazılmaz
+            // (openai.rs ile aynı politika).
             tracing::warn!(provider = "anthropic", status = %status, "AI API error");
-            tracing::debug!(provider = "anthropic", body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
 
@@ -189,5 +198,36 @@ impl ChatProvider for Anthropic {
             });
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn msg(role: &str, content: &str) -> ChatMessage {
+        ChatMessage {
+            role: role.into(),
+            content: content.into(),
+        }
+    }
+
+    #[test]
+    fn split_system_joins_all_system_messages() {
+        let (sys, conv) = split_system(vec![
+            msg("system", "persona"),
+            msg("user", "hi"),
+            msg("system", "context"),
+            msg("assistant", "hello"),
+        ]);
+        assert_eq!(sys.as_deref(), Some("persona\n\ncontext"));
+        assert_eq!(conv.len(), 2);
+    }
+
+    #[test]
+    fn split_system_none_when_absent() {
+        let (sys, conv) = split_system(vec![msg("user", "hi")]);
+        assert!(sys.is_none());
+        assert_eq!(conv.len(), 1);
     }
 }

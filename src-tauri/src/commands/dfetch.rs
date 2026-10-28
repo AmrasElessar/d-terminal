@@ -602,9 +602,45 @@ fn detect_hybrid_cpu() -> Option<HybridCores> {
 // ama backend dialog'a güvenmek zorunda değil.
 
 #[tauri::command]
-pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> {
+pub async fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    // 25 MB'a kadar disk yazımı — UI thread'ini bloklamasın.
+    tauri::async_runtime::spawn_blocking(move || save_snapshot_blocking(&path, &bytes))
+        .await
+        .map_err(|e| format!("save snapshot: {e}"))?
+}
+
+fn snapshot_allowed_roots() -> Vec<std::path::PathBuf> {
+    [
+        dirs::picture_dir(),
+        dirs::desktop_dir(),
+        dirs::download_dir(),
+        dirs::document_dir(),
+        dirs::data_dir().map(|d| d.join("D-Terminal").join("snapshots")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+/// `p`'nin canonical hâli izinli köklerden birinin altında mı?
+fn canonical_within_roots(p: &std::path::Path, roots: &[std::path::PathBuf]) -> bool {
+    let Ok(canon) = p.canonicalize() else {
+        return false;
+    };
+    if crate::commands::path_policy::is_network_canonical(&canon) {
+        return false;
+    }
+    roots.iter().any(|root| {
+        root.canonicalize()
+            .map(|r| canon.starts_with(&r))
+            .unwrap_or(false)
+    })
+}
+
+fn save_snapshot_blocking(path: &str, bytes: &[u8]) -> Result<(), String> {
+    use crate::commands::path_policy;
     use std::io::Write;
-    let p = std::path::PathBuf::from(&path);
+    let p = std::path::PathBuf::from(path);
 
     // Uzantı kontrolü — yalnızca .png. Diğer hiçbir şey yazılmaz.
     let ext_ok = p
@@ -615,61 +651,23 @@ pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> 
     if !ext_ok {
         return Err("only .png files allowed".into());
     }
-
-    // UNC reddet.
-    if path.starts_with(r"\\") || path.starts_with("//") {
+    // UNC / device path reddet — FS'e dokunmadan önce.
+    if path_policy::is_unc_or_device(path) {
         return Err("UNC path not allowed".into());
     }
-
-    let parent = p
-        .parent()
-        .ok_or_else(|| "path has no parent dir".to_string())?;
-    let allowed_roots: Vec<std::path::PathBuf> = [
-        dirs::picture_dir(),
-        dirs::desktop_dir(),
-        dirs::download_dir(),
-        dirs::document_dir(),
-        dirs::data_dir().map(|d| d.join("D-Terminal").join("snapshots")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-
-    // Path traversal segmentlerini reddet (lexicographic) — mkdir'den ÖNCE.
-    // Aksi halde saldırgan `..` segmentleri ile allowed-root dışında dizin
-    // yaratabilir; canonicalize sonrası reddedilse bile mkdir side-effect kalır.
-    for comp in p.components() {
-        if matches!(comp, std::path::Component::ParentDir) {
-            return Err("path traversal segment '..' not allowed".into());
-        }
+    // Path traversal segmentlerini reddet (lexicographic).
+    if path_policy::reject_parent_dir(&p).is_err() {
+        return Err("path traversal segment '..' not allowed".into());
     }
-    // Logical prefix-match — parent henüz var olmayabilir ama mantıksal olarak
-    // izinli kök altında olmalı. Canonical kontrol mkdir sonrası tekrar yapılır.
-    let lexical_allowed = allowed_roots.iter().any(|root| parent.starts_with(root));
-    if !lexical_allowed {
-        return Err(
-            "path outside allowed roots (Pictures/Desktop/Documents/Downloads/AppData)".into(),
-        );
+    if p.file_name()
+        .and_then(|n| n.to_str())
+        .map(path_policy::is_windows_reserved_name)
+        .unwrap_or(true)
+    {
+        return Err("invalid file name".into());
     }
 
-    // Lexical check geçti; şimdi mkdir + canonicalize ile symlink/junction
-    // bypass'larını da kapat (defense-in-depth).
-    let _ = std::fs::create_dir_all(parent);
-    let canon_parent = parent
-        .canonicalize()
-        .map_err(|e| format!("canonicalize parent: {e}"))?;
-    let allowed = allowed_roots.iter().any(|root| {
-        root.canonicalize()
-            .map(|r| canon_parent.starts_with(&r))
-            .unwrap_or(false)
-    });
-    if !allowed {
-        return Err(
-            "path outside allowed roots (Pictures/Desktop/Documents/Downloads/AppData)".into(),
-        );
-    }
-
-    // Boyut sınırı — html-to-image PNG genelde &lt; 5 MB; saldırgan 1 GB
+    // Boyut sınırı — html-to-image PNG genelde < 5 MB; saldırgan 1 GB
     // gönderemesin (DoS).
     const MAX_PNG_BYTES: usize = 25 * 1024 * 1024;
     if bytes.len() > MAX_PNG_BYTES {
@@ -679,8 +677,41 @@ pub fn dfetch_save_snapshot(path: String, bytes: Vec<u8>) -> Result<(), String> 
         ));
     }
 
+    let parent = p
+        .parent()
+        .ok_or_else(|| "path has no parent dir".to_string())?;
+    let allowed_roots = snapshot_allowed_roots();
+    const OUTSIDE: &str =
+        "path outside allowed roots (Pictures/Desktop/Documents/Downloads/AppData)";
+
+    // Lexical prefix-match.
+    if !allowed_roots.iter().any(|root| parent.starts_with(root)) {
+        return Err(OUTSIDE.into());
+    }
+    // Dizin oluşturmadan ÖNCE en yakın var olan atanın canonical hâlini kontrol
+    // et: eskiden `create_dir_all` canonical kontrolden önce çalıştığı için
+    // izinli kök altındaki bir junction üzerinden kök dışında dizin
+    // yaratılabiliyordu (yan etki, kontrol sonradan reddetse bile kalıyordu).
+    let existing_ancestor = parent
+        .ancestors()
+        .find(|a| a.exists())
+        .ok_or_else(|| "no existing ancestor".to_string())?;
+    if !canonical_within_roots(existing_ancestor, &allowed_roots) {
+        return Err(OUTSIDE.into());
+    }
+    std::fs::create_dir_all(parent).map_err(|e| format!("create dir: {e}"))?;
+    if !canonical_within_roots(parent, &allowed_roots) {
+        return Err(OUTSIDE.into());
+    }
+    // Hedef dosyanın kendisi bir symlink/junction ise üzerine yazma.
+    if let Ok(meta) = p.symlink_metadata() {
+        if meta.file_type().is_symlink() {
+            return Err("refusing to overwrite a symlink".into());
+        }
+    }
+
     let mut f = std::fs::File::create(&p).map_err(|e| format!("create: {e}"))?;
-    f.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+    f.write_all(bytes).map_err(|e| format!("write: {e}"))?;
     Ok(())
 }
 
@@ -741,8 +772,20 @@ pub struct LiveStats {
     pub battery: Option<BatteryInfo>,
 }
 
+/// Async: cache miss'te WMI (pil) sorgusu thread spawn + join yapar; sync
+/// command olarak ana (UI) thread'i bloklardı. State `AppHandle` üzerinden
+/// blocking pool'da alınır (State<'_> 'static değil).
 #[tauri::command]
-pub fn dfetch_live(state: tauri::State<'_, DfetchLiveState>) -> LiveStats {
+pub async fn dfetch_live(app: tauri::AppHandle) -> Result<LiveStats, String> {
+    use tauri::Manager;
+    tauri::async_runtime::spawn_blocking(move || {
+        dfetch_live_blocking(&app.state::<DfetchLiveState>())
+    })
+    .await
+    .map_err(|e| format!("dfetch_live: {e}"))
+}
+
+fn dfetch_live_blocking(state: &DfetchLiveState) -> LiveStats {
     let mut sys = state.sys.lock();
     sys.refresh_cpu();
     sys.refresh_memory();

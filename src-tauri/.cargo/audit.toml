@@ -1,0 +1,13 @@
+# cargo-audit yapılandırması (CI: src-tauri içinde `cargo audit`).
+# Her yoksayma gerekçeli olmalı; upstream düzeltme geldiğinde kaldırın.
+[advisories]
+ignore = [
+    # zip < 9: ZipArchive::extract symlink / izin / SUID sorunları.
+    # Tek kullanıcı tauri-plugin-updater; arşiv çıkarma yalnızca macOS/Linux
+    # güncelleme yolunda kullanılıyor (Windows'ta MSI/NSIS doğrudan çalışır)
+    # ve arşiv çıkarılmadan önce minisign imzası doğrulanıyor. D-Terminal
+    # yalnızca Windows için dağıtılıyor. Updater zip 9'a geçince kaldırın.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]

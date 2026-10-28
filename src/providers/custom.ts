@@ -16,7 +16,7 @@ import { useSettingsStore } from '@/stores/settings';
 
 export class CustomProvider implements AIProvider {
   readonly id = 'custom' as const;
-  readonly name = 'Özel Endpoint';
+  readonly name = 'Custom Endpoint';
 
   async isAvailable(): Promise<boolean> {
     // Endpoint girilmişse aktif sayılır.

@@ -8,10 +8,18 @@
 //
 //  2. **Kill-on-close** (zombie process guard): Job Object
 //     `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` flag'i ile yaratılır. D-Terminal
-//     crash ederse veya abruptly kill edilirse Windows tüm job üyelerini
-//     (sidecar, git_stat'ın spawn ettiği `git`, vs.) otomatik temizler.
-//     Eskiden orphan kalmış sidecar process'leri 15s heartbeat timeout'a
-//     kadar yaşıyordu; şimdi process tree garantili yutulur.
+//     crash ederse veya abruptly kill edilirse Windows job üyesi sidecar'ı
+//     otomatik temizler. Job yalnızca açıkça `assign()` edilen process'leri
+//     (bugün: PTY sidecar'ı) içerir; `git` gibi kısa ömürlü yardımcılar job'a
+//     atanmaz, yalnızca `configure_command` ile pencere bastırması alır.
+//
+//     `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` da set edilir: job üyelerinin
+//     başlattığı child'lar (ConPTY host + shell'ler) otomatik olarak job
+//     DIŞINDA oluşur. Böylece kullanıcının terminalden başlattığı GUI
+//     uygulamaları (notepad, `code .`, `start ...`) D-Terminal kapanınca
+//     öldürülmez. Shell'lerin kendisi yine temizlenir: sidecar ölünce
+//     pseudoconsole kapanır ve konsola bağlı process'ler CTRL_CLOSE_EVENT ile
+//     sonlanır (Windows Terminal ile aynı semantik).
 //
 //  3. **Runtime toggle** (debug ergonomi): `set_suppress_consoles(false)`
 //     ile child window'lar görünür yapılabilir — geliştirici external
@@ -20,6 +28,7 @@
 // Cross-platform: macOS/Linux'ta Job Object yok; orada tüm metodlar no-op.
 // `cfg(windows)` guard'ları unsafe blokları sınırlandırır.
 
+#[cfg(windows)]
 use parking_lot::Mutex;
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -98,6 +107,7 @@ impl ProcessJail {
         use windows::Win32::System::JobObjects::{
             CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
             JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
         };
         unsafe {
             // Anonymous job (no name) — process'e bağlı, başka bir process
@@ -108,7 +118,11 @@ impl ProcessJail {
             }
 
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            // Kill-on-close: sidecar job kapanınca ölür. Silent breakaway:
+            // sidecar'ın child'ları (shell'ler ve onların başlattığı GUI
+            // uygulamaları) job'a dahil edilmez — bkz. modül yorumu.
+            info.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
             let info_size = std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32;
             let result = SetInformationJobObject(
                 handle,

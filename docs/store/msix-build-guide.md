@@ -61,14 +61,15 @@ Aşağıdakiler **bu rehbere başlamadan önce** tamamlanmış olmalı:
     "windows": {
       "wix": {
         // MSIX wrap'in WiX metadata'sını okuması için fragment'ı aktif et:
-        "fragmentPaths": ["wix-fragments/msix-bridge.wxs"]
+        "fragmentPaths": ["wix-fragments/msix-bridge.wxs"],
+        "componentGroupRefs": ["DTerminalMsixBridge"]
       }
     }
   }
 }
 ```
 
-`wix-fragments/msix-bridge.wxs` zaten scaffold halinde commit'li ([`src-tauri/wix-fragments/msix-bridge.wxs`](../../src-tauri/wix-fragments/msix-bridge.wxs)). Sadece `fragmentPaths` register edildiğinde aktif olur.
+`wix-fragments/msix-bridge.wxs` zaten scaffold halinde commit'li ([`src-tauri/wix-fragments/msix-bridge.wxs`](../../src-tauri/wix-fragments/msix-bridge.wxs)). Sadece `fragmentPaths` + `componentGroupRefs` register edildiğinde aktif olur (fragment kendi `<Feature>`ını tanımlamaz; Tauri ana feature'ına component group olarak bağlanır).
 
 ---
 

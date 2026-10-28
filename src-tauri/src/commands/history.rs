@@ -8,6 +8,7 @@ pub fn history_add(state: State<'_, AppState>, entry: NewHistoryEntry) -> AppRes
     state.storage.history.add(entry)
 }
 
+/// Limit `storage::history` içinde 1..=1000 aralığına sıkıştırılır.
 #[tauri::command]
 pub fn history_search(
     state: State<'_, AppState>,

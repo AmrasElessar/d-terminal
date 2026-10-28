@@ -1,56 +1,70 @@
-// AI provider proxy.
+// AI key maskeli gösterim.
 //
-// Frontend AI çağrılarını doğrudan provider'a gönderebilir, AMA API key bu
-// durumda frontend'e ulaşmak zorundadır. Daha güvenli olan: bu komutlar
-// üzerinden Rust tarafında key'i decrypt edip HTTP isteğini Rust yapar,
-// frontend'e sadece response stream'i gider.
-//
-// v1.0'da basit yaklaşım: frontend isteği gönderir, biz key'i decrypt edip
-// `Authorization` header'ı ekleyip aynı body'yi proxy ederiz. Streaming
-// için Tauri channel kullanırız.
-//
-// Bu dosyada şimdilik sadece `ai_get_key_masked` (UI'da göstermek için
-// son 4 karakter) ve key varlığı tespiti var. Tam HTTP proxy v1.0
-// implementasyonunda doldurulur (provider crate kararına göre).
+// API key frontend'e hiçbir zaman düz metin olarak dönmez; AI çağrıları
+// `commands::ai::ai_chat_stream` üzerinden Rust'ta yapılır. Bu dosyada
+// yalnızca Settings UI'ın "key kayıtlı" göstergesi için maskeli özet var.
 
-use crate::error::{AppError, AppResult};
+use crate::error::{run_blocking, AppError, AppResult};
 use crate::state::AppState;
-use std::sync::Arc;
 use tauri::State;
 
 #[tauri::command]
-pub fn ai_key_masked(state: State<'_, AppState>, provider: String) -> AppResult<Option<String>> {
-    let store = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
-        state.storage.pool().clone(),
-    )));
-    match store.retrieve("ai_provider", &provider) {
-        Ok(plain) => {
-            // plain: Zeroizing<Vec<u8>>. UTF-8 multi-byte içeren key (kullanıcı
-            // yanlışlıkla emoji yapıştırırsa) byte-slice ile panic atabilir;
-            // bu yüzden char tabanlı mask'liyoruz.
-            let key_str = match std::str::from_utf8(&plain) {
-                Ok(s) => s,
-                // UTF-8 değilse tüm karakterleri • ile maskele (uzunluk byte'a
-                // değil, lossy karakter sayısına dayalı — yine de güvenli).
-                Err(_) => {
-                    let len = String::from_utf8_lossy(&plain).chars().count();
-                    return Ok(Some("•".repeat(len)));
-                }
-            };
-            let chars: Vec<char> = key_str.chars().collect();
-            let len = chars.len();
-            if len <= 8 {
-                Ok(Some("•".repeat(len)))
-            } else {
-                let head: String = chars.iter().take(3).collect();
-                let tail: String = chars.iter().skip(len - 4).collect();
-                Ok(Some(format!("{head}…{tail}")))
-            }
+pub async fn ai_key_masked(
+    state: State<'_, AppState>,
+    provider: String,
+) -> AppResult<Option<String>> {
+    let storage = state.storage.clone();
+    run_blocking(move || {
+        // `peek`: last_used_at güncellenmez, legacy blob yeniden yazılmaz —
+        // maskeyi göstermek "kullanım" sayılmaz ve DB'ye yazmaz.
+        match crate::secrets::for_storage(&storage).peek("ai_provider", &provider) {
+            Ok(plain) => Ok(Some(mask_key(&plain))),
+            Err(AppError::Secret(msg)) if msg.contains("not found") => Ok(None),
+            Err(e) => Err(e),
         }
-        Err(AppError::Secret(msg)) if msg.contains("not found") => Ok(None),
-        Err(e) => Err(e),
-    }
+    })
+    .await
 }
 
-// ai_key_reveal KALDIRILDI — API key artık frontend'e sızmıyor.
-// AI çağrıları commands::ai::ai_chat_stream üzerinden Rust'tan yapılır.
+/// Key'in maskeli özeti. Uzunluk sızmasın diye maske sabit genişlikte;
+/// yalnızca yeterince uzun (≥16 karakter) key'lerde son 4 karakter gösterilir.
+/// Eskiden 9-12 karakterlik key'lerde 7 karakter (anahtarın çoğu) görünüyordu.
+/// Char tabanlı — UTF-8 çok baytlı karakterlerde byte-slice paniği yok.
+fn mask_key(plain: &[u8]) -> String {
+    const MASK: &str = "••••••••";
+    let Ok(key_str) = std::str::from_utf8(plain) else {
+        return MASK.to_string();
+    };
+    let chars: Vec<char> = key_str.chars().collect();
+    if chars.len() < 16 {
+        return MASK.to_string();
+    }
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("{MASK}{tail}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mask_key;
+
+    #[test]
+    fn short_keys_fully_masked() {
+        assert_eq!(mask_key(b"abc"), "••••••••");
+        assert_eq!(mask_key(b"123456789012"), "••••••••");
+    }
+
+    #[test]
+    fn long_keys_show_only_last_four() {
+        assert_eq!(mask_key(b"sk-abcdefghijklmnopWXYZ"), "••••••••WXYZ");
+    }
+
+    #[test]
+    fn non_utf8_masked() {
+        assert_eq!(mask_key(&[0xff, 0xfe, 0xfd]), "••••••••");
+    }
+
+    #[test]
+    fn multibyte_safe() {
+        assert_eq!(mask_key("şşşşşşşşşşşşşşşşğğğğ".as_bytes()), "••••••••ğğğğ");
+    }
+}

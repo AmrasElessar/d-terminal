@@ -63,6 +63,19 @@ impl Serialize for AppError {
 
 pub type AppResult<T> = std::result::Result<T, AppError>;
 
+/// Bloklayan işi (disk I/O, SQLite bulk insert, DPAPI, WMI) Tauri'nin blocking
+/// thread pool'unda çalıştırır. Async olmayan `#[tauri::command]`'lar ana
+/// (UI) thread'de koşar; uzun işler pencereyi dondururdu.
+pub async fn run_blocking<T, F>(f: F) -> AppResult<T>
+where
+    F: FnOnce() -> AppResult<T> + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| AppError::Internal(format!("blocking task: {e}")))?
+}
+
 impl From<refinery::Error> for AppError {
     fn from(e: refinery::Error) -> Self {
         AppError::Migration(e.to_string())

@@ -8,7 +8,7 @@
 
 import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { LeafNode } from '@/types/pane';
+import { listLeaves, type LeafNode } from '@/types/pane';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { usePanesStore } from '@/stores/panes';
 import type { AgentInfo, AgentStatus } from '@/types/agent';
@@ -42,7 +42,7 @@ const globalAgents = computed<GlobalAgentRow[]>(() => {
   if (!isGlobalMode.value) return [];
   const rows: GlobalAgentRow[] = [];
   for (const tab of panes.tabs) {
-    for (const leaf of tab.tree.root ? collectLeaves(tab.tree.root) : []) {
+    for (const leaf of listLeaves(tab.tree.root)) {
       const pv = watcher.paneView(leaf.id);
       for (const a of pv.value.agents) {
         rows.push({ paneId: leaf.id, agent: a });
@@ -58,15 +58,6 @@ const globalAgents = computed<GlobalAgentRow[]>(() => {
   });
   return rows;
 });
-
-function collectLeaves(node: unknown): LeafNode[] {
-  // Inline DFS — panes/types/pane.ts'teki listLeaves ile aynı; circular import
-  // riskini kaldırmak için burada tutuyoruz.
-  const n = node as { kind: string; first?: unknown; second?: unknown } & LeafNode;
-  if (!n) return [];
-  if (n.kind === 'leaf') return [n];
-  return [...collectLeaves(n.first), ...collectLeaves(n.second)];
-}
 
 /** Global mod'da kullanıcı bir agent seçtiğinde leaf'i güncelle (kalıcı
  *  single mode'a geçiş). Source/id leaf state'inde tutulur. */

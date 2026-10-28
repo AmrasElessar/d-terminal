@@ -52,7 +52,7 @@ Yoksa: [https://developer.microsoft.com/microsoft-edge/webview2/](https://develo
 git clone https://github.com/AmrasElessar/d-terminal.git
 cd d-terminal
 pnpm install
-cd sidecar && npm install && cd ..
+cd sidecar && npm ci && cd ..
 ```
 
 ## Geliştirme Komutları

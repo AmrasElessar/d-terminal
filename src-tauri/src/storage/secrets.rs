@@ -64,6 +64,22 @@ impl SecretsRepo {
         Ok(blob)
     }
 
+    /// `get_blob` gibi ama `last_used_at`'e dokunmaz — UI'da maskeli gösterim
+    /// gibi "kullanım" sayılmaması gereken okumalar için (DB yazma yok).
+    pub fn peek_blob(&self, scope: &str, name: &str) -> AppResult<Option<Vec<u8>>> {
+        let conn = self.pool.get()?;
+        conn.query_row(
+            "SELECT ciphertext FROM secrets WHERE scope = ?1 AND name = ?2",
+            rusqlite::params![scope, name],
+            |r| r.get::<_, Vec<u8>>(0),
+        )
+        .map(Some)
+        .or_else(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Ok(None),
+            other => Err(other.into()),
+        })
+    }
+
     pub fn delete(&self, scope: &str, name: &str) -> AppResult<()> {
         let conn = self.pool.get()?;
         conn.execute(

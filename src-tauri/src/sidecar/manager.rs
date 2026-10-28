@@ -1,33 +1,74 @@
 // PTY sidecar process manager.
 //
-// - Sidecar Node process'i `tauri-plugin-shell` üzerinden spawn edilir
-// - Bir writer thread frame'leri stdin'e seri olarak yazar (Mutex<ChildStdin>)
+// - Sidecar process'i `std::process::Command` ile spawn edilir (shell yok)
+// - Tek bir writer thread tüm giden frame'leri (SPAWN/STDIN/RESIZE/KILL/PING/
+//   FLOW_RESUME) sırayla sidecar stdin'ine yazar. Tauri command'ları yalnızca
+//   kuyruğa ekler → UI thread'i pipe yazımında asla bloklanmaz ve frame sırası
+//   (ör. SPAWN → STDIN) korunur.
 // - Bir reader thread stdout'tan frame decode edip event olarak yayınlar
 // - Pane multiplexing: tek sidecar 50 pane'e kadar (ADR-0001)
 // - Heartbeat: PING gönderir, PONG ile sidecar'ın ayakta olduğunu doğrular
+// - Her sidecar başlatması bir "generation" alır. Reader EOF'u, yazma hatası,
+//   protokol uyumsuzluğu gibi olaylar yalnızca kendi generation'ını
+//   temizler (`teardown`) → eski sidecar'ın geç gelen olayları yeni
+//   sidecar'ı bozamaz.
 
 use crate::error::{AppError, AppResult};
 use crate::process_jail::ProcessJail;
 use crate::sidecar::protocol::{
-    decode_cbor, encode_cbor, ExitPayload, Frame, MsgType, ResizePayload, SpawnPayload,
+    decode_cbor, encode_cbor, ExitPayload, FlowPayload, Frame, MsgType, ResizePayload,
+    SpawnPayload, MAX_PAYLOAD,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{BufReader, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
+use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
 const MAX_PANES_PER_SIDECAR: usize = 50;
+
+/// STDIN frame başına maksimum payload. Büyük paste'ler bu boyutta parçalanır
+/// (MAX_PAYLOAD'ı aşan tek frame sidecar'ı öldürürdü).
+const STDIN_CHUNK: usize = 1024 * 1024;
+
+/// Writer kuyruğunda bekleyebilecek toplam payload üst sınırı. Aşılırsa
+/// `pty_write` hata döner (sınırsız bellek büyümesini önler).
+const MAX_QUEUED_BYTES: usize = 64 * 1024 * 1024;
+
+/// Sidecar'ın HELLO'da ilan ettiği credit tabanlı akış kontrolü yeteneği.
+const CAP_FLOW_CREDIT: &str = "flow_credit";
+
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+
+/// PTY stdout byte'ları frontend'e standart base64 (padding'li) string olarak
+/// gider. JSON sayı dizisine göre ~3-4x daha küçük ve WebView tarafında
+/// tek bir string decode'u yeterli.
+mod b64 {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(data: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&STANDARD.encode(data))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let s = String::deserialize(d)?;
+        STANDARD.decode(s).map_err(serde::de::Error::custom)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PtyEvent {
     Stdout {
         pane_id: String,
+        #[serde(with = "b64")]
         data: Vec<u8>,
     },
     Exit {
@@ -46,6 +87,14 @@ pub enum PtyEvent {
     SidecarUp,
 }
 
+/// Writer kuyruğundaki tek iş: hangi sidecar generation'ı için yazıldığı +
+/// frame'in kendisi. Generation değişmişse (sidecar yeniden başladı) frame
+/// atılır — eski pane'lere ait STDIN yeni sidecar'a gitmez.
+struct Outgoing {
+    gen: u64,
+    frame: Frame,
+}
+
 pub struct SidecarManager {
     inner: Mutex<Inner>,
     /// Dış dünya bu Receiver'ı consume edip Tauri event olarak emit eder.
@@ -54,43 +103,54 @@ pub struct SidecarManager {
     events_tx: SyncSender<PtyEvent>,
     sidecar_path: std::path::PathBuf,
     /// Spawn edilen sidecar process'i bu Job Object jail'ine atanır.
-    /// CREATE_NO_WINDOW + KILL_ON_JOB_CLOSE garantisi.
     jail: Arc<ProcessJail>,
+    /// Writer thread kuyruğu. Manager drop edilince Sender düşer ve writer
+    /// thread kendiliğinden çıkar.
+    out_tx: Mutex<Option<Sender<Outgoing>>>,
+    queued_bytes: Arc<AtomicUsize>,
 }
 
 struct Inner {
     child: Option<Child>,
     stdin: Option<Arc<Mutex<ChildStdin>>>,
+    /// Sidecar şu an çalışıyor mu (teardown'da false).
+    running: bool,
+    /// Her başlatmada artar; reader/writer/heartbeat kendi generation'larını
+    /// taşır.
+    generation: u64,
+    /// Aktif generation'ın heartbeat durdurma bayrağı.
+    stop: Arc<AtomicBool>,
+    /// Sidecar credit modunu destekliyor ve etkinleştirildi.
+    flow_credit: bool,
     panes: HashSet<u64>,
     next_pane_id: u64,
     last_pong: Instant,
-    /// Reader/stderr/heartbeat thread join handle'ları. Sidecar restart'ında
-    /// (crash → ensure_started yeniden çağrıldığında) eski thread'ler join'le
-    /// alınır → Weak<Self> upgrade'lerinin terklisinde bile thread leak olmaz.
-    /// shutdown'da da bekle; child kill sonrasi pipe'lar EOF/EPIPE ile bitirir.
+    /// Reader/stderr/heartbeat thread join handle'ları. Restart ve
+    /// shutdown'da join edilir (çağıran thread'in kendisi hariç).
     threads: Vec<thread::JoinHandle<()>>,
 }
 
 /// PTY event kuyruğu için backpressure sınırı.
 ///
-/// Daha önce `std::sync::mpsc::channel()` (unbounded) kullanılıyordu — frontend
-/// yavaşlarsa (V8 GC pause, WebView IPC bloklama) PTY çıktısı sınırsız büyür
-/// ve OOM riski doğardı (`cat huge.log` gibi senaryolarda 100 MB/sn enqueue).
-/// `sync_channel(N)` ile sıkışınca sender bloklanır ya da `try_send` Drop yolu
-/// devreye girer; reader thread doğal olarak yavaşlar (TCP backpressure'a
-/// benzer). 16384 — coalescing window'da burst tolerans (~1-2 GB worst-case
-/// ama pratikte coalescing 60 event/sn'e düşürdüğü için 4-8 saniye buffer).
-/// Lifecycle event'lerinin (`SidecarUp/Down/Exit/Error`) drop riski bu boyutta
-/// pratik olarak sıfırdır.
+/// `sync_channel(N)` ile sıkışınca stdout send'i bloklanır; reader thread
+/// doğal olarak yavaşlar. Asıl adalet (bir pane'in diğerlerini boğmaması)
+/// sidecar tarafındaki credit tabanlı akış kontrolüyle sağlanır: her pane en
+/// fazla ~1 MB onaylanmamış çıktı biriktirebilir (bkz. `ack_output`).
 const EVENT_QUEUE_CAPACITY: usize = 16384;
 
 impl SidecarManager {
     pub fn new(sidecar_path: std::path::PathBuf, jail: Arc<ProcessJail>) -> Arc<Self> {
         let (tx, rx) = sync_channel(EVENT_QUEUE_CAPACITY);
-        Arc::new(Self {
+        let (out_tx, out_rx) = channel::<Outgoing>();
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let mgr = Arc::new(Self {
             inner: Mutex::new(Inner {
                 child: None,
                 stdin: None,
+                running: false,
+                generation: 0,
+                stop: Arc::new(AtomicBool::new(true)),
+                flow_credit: false,
                 panes: HashSet::new(),
                 next_pane_id: 1,
                 last_pong: Instant::now(),
@@ -100,30 +160,56 @@ impl SidecarManager {
             events_tx: tx,
             sidecar_path,
             jail,
-        })
+            out_tx: Mutex::new(Some(out_tx)),
+            queued_bytes: queued_bytes.clone(),
+        });
+        if let Err(e) = spawn_writer_thread(out_rx, Arc::downgrade(&mgr), queued_bytes) {
+            tracing::error!(error = %e, "failed to spawn sidecar writer thread");
+            *mgr.out_tx.lock() = None;
+        }
+        mgr
     }
 
     pub fn take_event_receiver(&self) -> Option<Receiver<PtyEvent>> {
         self.events_rx.lock().take()
     }
 
-    /// Sidecar process'i başlatır (idempotent — hâlihazırda canlıysa no-op).
-    pub fn ensure_started(self: &Arc<Self>) -> AppResult<()> {
-        let mut inner = self.inner.lock();
-        if inner.child.is_some() {
-            return Ok(());
-        }
-        // Geliştirme modunda `node sidecar/pty-bridge.js`, prod'da bundled binary
-        let mut cmd = if self.sidecar_path.extension().and_then(|s| s.to_str()) == Some("js") {
-            let mut c = Command::new("node");
-            c.arg(&self.sidecar_path);
-            c
-        } else {
-            Command::new(&self.sidecar_path)
+    /// Takip edilen (canlı kabul edilen) pane sayısı — diagnostic/test.
+    pub fn pane_count(&self) -> usize {
+        self.inner.lock().panes.len()
+    }
+
+    /// Sidecar process'i başlatır (idempotent — canlıysa no-op). Aktif
+    /// generation'ı döndürür.
+    pub fn ensure_started(self: &Arc<Self>) -> AppResult<u64> {
+        // Çalışıyor görünen ama process'i ölmüş sidecar → önce temizle.
+        let dead_gen = {
+            let mut inner = self.inner.lock();
+            if inner.running {
+                let exited = match inner.child.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                };
+                if !exited {
+                    return Ok(inner.generation);
+                }
+                Some(inner.generation)
+            } else {
+                None
+            }
         };
+        if let Some(gen) = dead_gen {
+            self.teardown(gen, "sidecar process exited");
+        }
+
+        let mut inner = self.inner.lock();
+        if inner.running {
+            // Başka bir thread araya girip başlatmış.
+            return Ok(inner.generation);
+        }
+
+        let mut cmd = self.build_command();
         // ProcessJail uygula: CREATE_NO_WINDOW + (Windows) Job Object membership.
-        // Eski manuel CREATE_NO_WINDOW satırı kaldırıldı — jail tek noktadan
-        // yönetiyor, kullanıcı Settings'ten suppress'i kapatabilir.
         self.jail.configure_command(&mut cmd);
         let mut child = cmd
             .stdin(Stdio::piped())
@@ -132,115 +218,159 @@ impl SidecarManager {
             .spawn()
             .map_err(|e| AppError::Sidecar(format!("spawn failed: {e}")))?;
         // Job'a assign — D-Terminal crash'inde sidecar otomatik temizlenir.
-        // Hata durumunda warn'la geç: spawn zaten başarılı, kill-on-close
-        // garantisi yoksa heartbeat timeout (15s) yine zombie'yi yakalar.
         match self.jail.assign(&child) {
             Ok(true) => tracing::debug!("sidecar assigned to job"),
             Ok(false) => tracing::debug!("sidecar spawn: job not configured (suppress off?)"),
             Err(e) => {
-                // UX surface (v0.9.8): Settings → Privacy ekranı bu flag'i okuyup
-                // "kill-on-close garantisi kayboldu" uyarısı gösterir. Heartbeat
-                // 15s timeout zombi fallback olarak kalır — spawn yine başarılı.
+                // Settings → Privacy ekranı bu flag'i okuyup kullanıcıya
+                // "kill-on-close garantisi kayboldu" uyarısı gösterir.
                 self.jail.mark_assign_failed();
                 tracing::warn!(error = %e, "sidecar job assign failed; kill-on-close skipped")
             }
         }
 
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| AppError::Sidecar("stdin pipe missing".into()))?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| AppError::Sidecar("stdout pipe missing".into()))?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| AppError::Sidecar("stderr pipe missing".into()))?;
+        let pipes = (child.stdin.take(), child.stdout.take(), child.stderr.take());
+        let (Some(stdin), Some(stdout), Some(stderr)) = pipes else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(AppError::Sidecar("sidecar pipes missing".into()));
+        };
 
-        let stdin_arc = Arc::new(Mutex::new(stdin));
-        inner.stdin = Some(stdin_arc.clone());
+        inner.generation += 1;
+        let gen = inner.generation;
+        let stop = Arc::new(AtomicBool::new(false));
+        inner.stop = stop.clone();
+        inner.stdin = Some(Arc::new(Mutex::new(stdin)));
         inner.child = Some(child);
+        inner.running = true;
+        inner.flow_credit = false;
         inner.last_pong = Instant::now();
-
-        // Eski thread handle'ları varsa drain et (sidecar restart senaryosu).
-        // Kill edilmiş child'in pipe'ları EOF gönderip thread'leri çıkartmıştır;
-        // burada join ile gerçekten bitmiş olduklarını doğrulayıp slot'u boşalt.
-        //
-        // Lock pattern garantisi (v0.9.8 audit notu): reader thread
-        // `handle_inbound` `mgr.inner.lock()` çağırır (panes.remove + last_pong).
-        // Burada drop(inner) ile lock bırakılır → reader thread ihtiyaç anında
-        // çakışmasız alır. Aşağıda yeni thread'leri spawn ettikten sonra
-        // `self.inner.lock().threads = ...` ile lock kısa süreliğine yeniden
-        // alınır; o sırada reader thread henüz frame işlemiyor (sidecar HELLO
-        // pipeline'ı drain edilmedi), lock-on-lock yok.
         let old_threads = std::mem::take(&mut inner.threads);
-        // Lock'u serbest bırak — thread spawn pahalı + join blocking olabilir.
+        // Lock'u bırak — join blocking olabilir ve reader thread'ler
+        // `handle_inbound` içinde inner lock'unu alır.
         drop(inner);
-        for h in old_threads {
-            let _ = h.join();
-        }
+
+        // Eski generation thread'leri: teardown child'ı öldürdü (pipe'lar EOF)
+        // ve stop bayrağını set etti; heartbeat park'tan uyandırılır.
+        join_threads(old_threads);
 
         let mut new_threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(3);
-        if let Some(h) = spawn_reader_thread(stdout, self.events_tx.clone(), Arc::downgrade(self)) {
+        if let Some(h) =
+            spawn_reader_thread(stdout, self.events_tx.clone(), Arc::downgrade(self), gen)
+        {
             new_threads.push(h);
         }
         if let Some(h) = spawn_stderr_thread(stderr) {
             new_threads.push(h);
         }
-        if let Some(h) = spawn_heartbeat_thread(stdin_arc, Arc::downgrade(self)) {
+        if let Some(h) = spawn_heartbeat_thread(Arc::downgrade(self), gen, stop) {
             new_threads.push(h);
         }
-        self.inner.lock().threads = new_threads;
+        self.inner.lock().threads.extend(new_threads);
 
         try_send_lifecycle(&self.events_tx, PtyEvent::SidecarUp);
-        tracing::info!("sidecar process started");
-        Ok(())
+        tracing::info!(generation = gen, "sidecar process started");
+        Ok(gen)
     }
 
-    fn write_frame(&self, frame: &Frame) -> AppResult<()> {
-        let inner = self.inner.lock();
-        let stdin = inner
-            .stdin
-            .as_ref()
-            .ok_or_else(|| AppError::Sidecar("sidecar not started".into()))?
-            .clone();
-        drop(inner);
-        // Frame doğrudan stdin'e encode edilir — daha önce to_bytes() ile
-        // ara Vec alloc oluyordu (heartbeat 5sn'de bir + her keystroke + her
-        // resize). Şimdi 0 alloc/frame; allocator pressure düşer.
-        let mut guard = stdin.lock();
-        let result = (|| -> AppResult<()> {
-            frame
-                .encode(&mut *guard)
-                .map_err(|e| AppError::Sidecar(format!("stdin write: {e}")))?;
-            guard
-                .flush()
-                .map_err(|e| AppError::Sidecar(format!("stdin flush: {e}")))?;
-            Ok(())
-        })();
-        if result.is_err() {
-            // Pipe broken / sidecar crashed — child handle'ı temizle ki
-            // sonraki ensure_started yeniden başlatabilsin (Sidecar audit O10).
-            drop(guard);
+    fn build_command(&self) -> Command {
+        // Geliştirme modunda `node sidecar/pty-bridge.js`, prod'da bundled
+        // binary. `.js` yolu yalnızca debug build'de kabul edilir — release'de
+        // PATH'teki `node` ile çalışma dizininden script çalıştırmak kod
+        // enjeksiyonu yüzeyi olurdu.
+        #[cfg(debug_assertions)]
+        if self.sidecar_path.extension().and_then(|s| s.to_str()) == Some("js") {
+            let mut c = Command::new("node");
+            c.arg(&self.sidecar_path);
+            return c;
+        }
+        Command::new(&self.sidecar_path)
+    }
+
+    /// Bir generation'ı kalıcı olarak kapatır: child'ı öldürür, pane'leri
+    /// boşaltır ve her yetim pane için `Exit` + bir `SidecarDown` emit eder.
+    /// Thread join ETMEZ (reader/writer thread'lerinden güvenle çağrılabilir);
+    /// join bir sonraki `ensure_started` veya `shutdown`'da yapılır.
+    /// Generation eşleşmiyorsa (zaten temizlenmiş / yeni sidecar çalışıyor)
+    /// no-op.
+    fn teardown(&self, gen: u64, reason: &str) {
+        let (child, orphans, threads_to_wake) = {
             let mut inner = self.inner.lock();
-            inner.child = None;
+            if inner.generation != gen || !inner.running {
+                return;
+            }
+            inner.running = false;
+            inner.flow_credit = false;
+            inner.stop.store(true, Ordering::SeqCst);
             inner.stdin = None;
+            let child = inner.child.take();
+            let mut orphans: Vec<u64> = inner.panes.drain().collect();
+            orphans.sort_unstable();
+            let wake: Vec<thread::Thread> =
+                inner.threads.iter().map(|h| h.thread().clone()).collect();
+            (child, orphans, wake)
+        };
+        for t in threads_to_wake {
+            t.unpark();
+        }
+        if let Some(mut child) = child {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        tracing::warn!(generation = gen, orphans = orphans.len(), %reason, "sidecar torn down");
+        for pane in orphans {
             try_send_lifecycle(
                 &self.events_tx,
-                PtyEvent::SidecarDown {
-                    reason: "stdin write failed".into(),
+                PtyEvent::Exit {
+                    pane_id: pane.to_string(),
+                    exit_code: -1,
+                    signal: Some("sidecar_lost".into()),
                 },
             );
         }
-        result
+        try_send_lifecycle(
+            &self.events_tx,
+            PtyEvent::SidecarDown {
+                reason: reason.to_string(),
+            },
+        );
+    }
+
+    /// Frame'i writer kuyruğuna ekler (non-blocking).
+    fn enqueue(&self, gen: u64, frame: Frame) -> AppResult<()> {
+        if frame.payload.len() > MAX_PAYLOAD {
+            return Err(AppError::InvalidArg(format!(
+                "payload too large: {} bytes (max {MAX_PAYLOAD})",
+                frame.payload.len()
+            )));
+        }
+        let n = frame.payload.len();
+        let guard = self.out_tx.lock();
+        let tx = guard
+            .as_ref()
+            .ok_or_else(|| AppError::Sidecar("sidecar writer unavailable".into()))?;
+        self.queued_bytes.fetch_add(n, Ordering::SeqCst);
+        if tx.send(Outgoing { gen, frame }).is_err() {
+            self.queued_bytes.fetch_sub(n, Ordering::SeqCst);
+            return Err(AppError::Sidecar("sidecar writer stopped".into()));
+        }
+        Ok(())
+    }
+
+    /// Aktif generation (çalışıyorsa).
+    fn live_generation(&self) -> Option<u64> {
+        let inner = self.inner.lock();
+        inner.running.then_some(inner.generation)
     }
 
     pub fn spawn_pane(self: &Arc<Self>, payload: SpawnPayload) -> AppResult<u64> {
-        self.ensure_started()?;
+        let gen = self.ensure_started()?;
+        let cbor = encode_cbor(&payload)?;
         let pane_id = {
             let mut inner = self.inner.lock();
+            if !inner.running || inner.generation != gen {
+                return Err(AppError::Sidecar("sidecar restarted during spawn".into()));
+            }
             if inner.panes.len() >= MAX_PANES_PER_SIDECAR {
                 return Err(AppError::Sidecar(format!(
                     "pane limit reached ({MAX_PANES_PER_SIDECAR})"
@@ -251,70 +381,109 @@ impl SidecarManager {
             inner.panes.insert(id);
             id
         };
-        let shell_for_log = payload.shell.clone();
-        let cbor = encode_cbor(&payload)?;
-        tracing::info!(
-            pane_id,
-            shell = %shell_for_log,
-            "→ SPAWN frame to sidecar"
-        );
-        self.write_frame(&Frame::new(MsgType::Spawn, pane_id, cbor))?;
+        tracing::info!(pane_id, shell = %payload.shell, "→ SPAWN frame to sidecar");
+        if let Err(e) = self.enqueue(gen, Frame::new(MsgType::Spawn, pane_id, cbor)) {
+            // Slot sızdırma: SPAWN hiç gönderilemediyse pane'i geri al.
+            self.inner.lock().panes.remove(&pane_id);
+            return Err(e);
+        }
         Ok(pane_id)
     }
 
     pub fn write_stdin(&self, pane_id: u64, data: &[u8]) -> AppResult<()> {
-        let inner = self.inner.lock();
-        if !inner.panes.contains(&pane_id) {
-            return Err(AppError::PaneNotFound(pane_id.to_string()));
+        let gen = {
+            let inner = self.inner.lock();
+            if !inner.running || !inner.panes.contains(&pane_id) {
+                return Err(AppError::PaneNotFound(pane_id.to_string()));
+            }
+            inner.generation
+        };
+        if self.queued_bytes.load(Ordering::SeqCst) + data.len() > MAX_QUEUED_BYTES {
+            return Err(AppError::Sidecar("pty write queue full".into()));
         }
-        drop(inner);
         tracing::trace!(pane_id, bytes = data.len(), "→ STDIN");
-        self.write_frame(&Frame::new(MsgType::Stdin, pane_id, data.to_vec()))
+        for chunk in data.chunks(STDIN_CHUNK) {
+            self.enqueue(gen, Frame::new(MsgType::Stdin, pane_id, chunk.to_vec()))?;
+        }
+        Ok(())
     }
 
     pub fn resize(&self, pane_id: u64, cols: u16, rows: u16) -> AppResult<()> {
+        let Some(gen) = self.live_generation() else {
+            return Ok(());
+        };
         let cbor = encode_cbor(&ResizePayload { cols, rows })?;
-        self.write_frame(&Frame::new(MsgType::Resize, pane_id, cbor))
+        self.enqueue(gen, Frame::new(MsgType::Resize, pane_id, cbor))
     }
 
     pub fn kill(&self, pane_id: u64) -> AppResult<()> {
-        // Pane'i HEMEN panes set'inden silmiyoruz — eğer silersek aradaki
-        // STDOUT/EXIT frame'leri "bu pane bilinmiyor" sayılıp drop edilir,
-        // frontend EXIT bildirimini almadan UI'dan pane silinir (Sidecar
-        // audit HIGH#5). Doğru akış: KILL frame yolla, sidecar PTY'yi
+        // Pane'i HEMEN panes set'inden silmiyoruz — sidecar PTY'yi
         // sonlandırınca EXIT frame gönderir, handle_inbound EXIT'te
-        // panes.remove yapar — frontend'e EXIT garanti edilir.
-        self.write_frame(&Frame::new(MsgType::Kill, pane_id, Vec::new()))
+        // panes.remove yapar — frontend'e EXIT garanti edilir. Sidecar yoksa
+        // teardown zaten Exit emit etmiştir.
+        let Some(gen) = self.live_generation() else {
+            return Ok(());
+        };
+        self.enqueue(gen, Frame::new(MsgType::Kill, pane_id, Vec::new()))
+    }
+
+    /// Emit thread'i `bytes` kadar stdout'u frontend'e ilettikten sonra
+    /// çağırır; sidecar bu pane için credit'i geri kazanır (FLOW_RESUME).
+    pub fn ack_output(&self, pane_id: &str, bytes: usize) {
+        let Ok(id) = pane_id.parse::<u64>() else {
+            return;
+        };
+        let gen = {
+            let inner = self.inner.lock();
+            if !inner.running || !inner.flow_credit || !inner.panes.contains(&id) {
+                return;
+            }
+            inner.generation
+        };
+        if let Ok(cbor) = encode_cbor(&FlowPayload {
+            bytes: bytes as u64,
+        }) {
+            let _ = self.enqueue(gen, Frame::new(MsgType::FlowResume, id, cbor));
+        }
     }
 
     pub fn shutdown(&self) {
-        let mut inner = self.inner.lock();
-        if let Some(mut child) = inner.child.take() {
+        let (child, threads) = {
+            let mut inner = self.inner.lock();
+            inner.running = false;
+            inner.flow_credit = false;
+            inner.stop.store(true, Ordering::SeqCst);
+            inner.stdin = None;
+            inner.panes.clear();
+            (inner.child.take(), std::mem::take(&mut inner.threads))
+        };
+        for h in &threads {
+            h.thread().unpark();
+        }
+        if let Some(mut child) = child {
             let _ = child.kill();
-            // Sidecar'ın temiz kapanması için kısa bir wait — child.kill()
-            // SIGKILL eşdeğeri Windows TerminateProcess; sidecar tarafındaki
-            // pty cleanup için 100ms tolerance ver. Tauri exit'inde bu yeterli.
             let _ = child.wait();
         }
-        inner.stdin = None;
-        inner.panes.clear();
-        // Thread handle'larını lock dışında join et (deadlock riskini önle).
-        let threads = std::mem::take(&mut inner.threads);
-        drop(inner);
-        for h in threads {
-            // Pipe'lar EOF aldığı için thread'ler hızla biter; yine de
-            // sentetik bir bekleme limiti gerekirse spawn-then-detach pattern'a
-            // geçilebilir. Şimdilik tam join — thread leak garantisiz biter.
-            let _ = h.join();
+        join_threads(threads);
+    }
+}
+
+/// Thread'leri join eder; çağıran thread'in kendisini (ör. reader thread
+/// üzerinde son Arc düşüp Drop → shutdown çalıştıysa) join etmeye çalışmaz —
+/// self-join Windows'ta sonsuz bekleme, POSIX'te EDEADLK panic'i olurdu.
+fn join_threads(threads: Vec<thread::JoinHandle<()>>) {
+    let me = thread::current().id();
+    for h in threads {
+        if h.thread().id() == me {
+            continue; // detach
         }
+        h.thread().unpark();
+        let _ = h.join();
     }
 }
 
 /// Sidecar process'i Tauri kapanırken / SidecarManager Arc'ı drop edilirken
-/// otomatik olarak temizle. Bu olmadan child handle drop edildiğinde Windows
-/// `dterminal-pty-bridge.exe` process'i orphan kalabilir (15s heartbeat
-/// timeout'a kadar). Drop impl + Tauri RunEvent::ExitRequested handler
-/// kombinasyonu zombi sidecar riskini kapatır.
+/// otomatik olarak temizle.
 impl Drop for SidecarManager {
     fn drop(&mut self) {
         self.shutdown();
@@ -336,65 +505,106 @@ fn try_send_lifecycle(tx: &SyncSender<PtyEvent>, ev: PtyEvent) {
     }
 }
 
+fn spawn_writer_thread(
+    rx: Receiver<Outgoing>,
+    weak: Weak<SidecarManager>,
+    queued_bytes: Arc<AtomicUsize>,
+) -> std::io::Result<thread::JoinHandle<()>> {
+    thread::Builder::new()
+        .name("dterm-sidecar-writer".into())
+        .spawn(move || {
+            while let Ok(out) = rx.recv() {
+                let n = out.frame.payload.len();
+                let Some(mgr) = weak.upgrade() else {
+                    queued_bytes.fetch_sub(n, Ordering::SeqCst);
+                    break;
+                };
+                let stdin = {
+                    let inner = mgr.inner.lock();
+                    if inner.running && inner.generation == out.gen {
+                        inner.stdin.clone()
+                    } else {
+                        None
+                    }
+                };
+                if let Some(stdin) = stdin {
+                    let result = {
+                        let mut guard = stdin.lock();
+                        out.frame
+                            .encode(&mut *guard)
+                            .map_err(|e| e.to_string())
+                            .and_then(|_| guard.flush().map_err(|e| e.to_string()))
+                    };
+                    if let Err(e) = result {
+                        tracing::warn!(error = %e, "sidecar stdin write failed");
+                        // Gerçek I/O hatası → sidecar'ı öldür + pane'leri
+                        // temizle; sonraki spawn yeni sidecar başlatır.
+                        mgr.teardown(out.gen, "stdin write failed");
+                    }
+                }
+                queued_bytes.fetch_sub(n, Ordering::SeqCst);
+            }
+        })
+}
+
 fn spawn_reader_thread(
     stdout: ChildStdout,
     tx: SyncSender<PtyEvent>,
-    weak: std::sync::Weak<SidecarManager>,
+    weak: Weak<SidecarManager>,
+    gen: u64,
 ) -> Option<thread::JoinHandle<()>> {
     let tx_for_err = tx.clone();
+    let weak_for_err = weak.clone();
     let result = thread::Builder::new()
         .name("dterm-sidecar-reader".into())
         .spawn(move || {
-            // 64 KB buffer — PTY frame'leri 4-256 KB tipik; default 8 KB ile
-            // büyük chunk'larda 4-32 underlying read syscall'u olur. 64 KB
-            // syscall sayisini 1-4'e indirir (perf O1).
+            // 64 KB buffer — PTY frame'leri 4-256 KB tipik.
             let mut reader = BufReader::with_capacity(64 * 1024, stdout);
-            loop {
-                match Frame::decode(&mut reader) {
+            let reason = loop {
+                match crate::sidecar::protocol::Frame::decode(&mut reader) {
                     Ok(Some(frame)) => {
-                        if let Some(mgr) = weak.upgrade() {
-                            handle_inbound(&mgr, &tx, frame);
-                        } else {
-                            break;
+                        let Some(mgr) = weak.upgrade() else {
+                            return;
+                        };
+                        if !handle_inbound(&mgr, &tx, gen, frame) {
+                            break "protocol version mismatch".to_string();
                         }
                     }
-                    Ok(None) => {
-                        try_send_lifecycle(
-                            &tx,
-                            PtyEvent::SidecarDown {
-                                reason: "stdout closed".into(),
-                            },
-                        );
-                        break;
-                    }
-                    Err(e) => {
-                        try_send_lifecycle(
-                            &tx,
-                            PtyEvent::SidecarDown {
-                                reason: format!("decode error: {e}"),
-                            },
-                        );
-                        break;
-                    }
+                    Ok(None) => break "stdout closed".to_string(),
+                    Err(e) => break format!("decode error: {e}"),
                 }
+            };
+            if let Some(mgr) = weak.upgrade() {
+                mgr.teardown(gen, &reason);
             }
         });
     match result {
         Ok(handle) => Some(handle),
         Err(e) => {
             tracing::error!(error = %e, "failed to spawn sidecar reader thread");
-            try_send_lifecycle(
-                &tx_for_err,
-                PtyEvent::SidecarDown {
-                    reason: format!("reader thread spawn failed: {e}"),
-                },
-            );
+            if let Some(mgr) = weak_for_err.upgrade() {
+                mgr.teardown(gen, &format!("reader thread spawn failed: {e}"));
+            } else {
+                try_send_lifecycle(
+                    &tx_for_err,
+                    PtyEvent::SidecarDown {
+                        reason: format!("reader thread spawn failed: {e}"),
+                    },
+                );
+            }
             None
         }
     }
 }
 
-fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: Frame) {
+/// Gelen frame'i işler. `false` dönerse bağlantı kapatılmalıdır (uyumsuz
+/// protokol) — reader thread döngüden çıkıp kendi generation'ını temizler.
+fn handle_inbound(
+    mgr: &Arc<SidecarManager>,
+    tx: &SyncSender<PtyEvent>,
+    gen: u64,
+    frame: Frame,
+) -> bool {
     tracing::trace!(
         msg_type = ?frame.msg_type,
         pane_id = frame.pane_id,
@@ -403,11 +613,9 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
     );
     match frame.msg_type {
         MsgType::Stdout => {
-            // Stdout için BLOCKING send — backpressure: kuyruk doluysa reader
-            // thread bloklanır → sidecar stdout pipe dolar → sidecar Node
-            // process'inde proc.write doğal yavaşlar → PTY shell'i yavaşlatır.
-            // Bu zincir OOM riskini ortadan kaldırır; kullanıcı UI'da kısa
-            // gecikme görür ama hiçbir output kaybetmez.
+            // Stdout için BLOCKING send — kuyruk doluysa reader thread
+            // bloklanır, hiçbir çıktı kaybolmaz. Pane başına birikim sidecar
+            // credit kontrolüyle sınırlıdır.
             let _ = tx.send(PtyEvent::Stdout {
                 pane_id: frame.pane_id.to_string(),
                 data: frame.payload,
@@ -434,11 +642,12 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
             let (code, message) = parsed
                 .map(|p| (p.code, p.message))
                 .unwrap_or_else(|e| ("unknown".into(), e.to_string()));
-            let pane = if frame.pane_id == 0 {
-                None
-            } else {
-                Some(frame.pane_id.to_string())
-            };
+            if frame.pane_id != 0 && code == "spawn_failed" {
+                // Sidecar ayrıca EXIT gönderir; yine de slot'u burada da
+                // serbest bırak (EXIT kaybolsa bile limit sızmasın).
+                mgr.inner.lock().panes.remove(&frame.pane_id);
+            }
+            let pane = (frame.pane_id != 0).then(|| frame.pane_id.to_string());
             try_send_lifecycle(
                 tx,
                 PtyEvent::Error {
@@ -450,6 +659,10 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
         }
         MsgType::Pong => {
             mgr.inner.lock().last_pong = Instant::now();
+        }
+        MsgType::Ping => {
+            mgr.inner.lock().last_pong = Instant::now();
+            let _ = mgr.enqueue(gen, Frame::control(MsgType::Pong));
         }
         MsgType::Hello => {
             use crate::sidecar::protocol::{HelloPayload, PROTOCOL_VERSION};
@@ -463,23 +676,29 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
                             sidecar_version = %h.sidecar_version,
                             "sidecar protocol version mismatch — incompatible binary"
                         );
-                        try_send_lifecycle(
-                            tx,
-                            PtyEvent::SidecarDown {
-                                reason: format!(
-                                    "protocol version mismatch (Tauri v{PROTOCOL_VERSION}, sidecar v{})",
-                                    h.protocol_version
-                                ),
-                            },
-                        );
-                        // Mismatch'te sidecar shutdown — child kill edilecek.
-                        mgr.shutdown();
-                    } else {
-                        tracing::info!(
-                            sidecar_version = %h.sidecar_version,
-                            capabilities = ?h.capabilities,
-                            "sidecar handshake OK"
-                        );
+                        // Reader thread'den shutdown() ÇAĞIRMA (kendi
+                        // handle'ını join ederdi). Çağıran teardown yapar.
+                        return false;
+                    }
+                    tracing::info!(
+                        sidecar_version = %h.sidecar_version,
+                        capabilities = ?h.capabilities,
+                        "sidecar handshake OK"
+                    );
+                    if h.capabilities.iter().any(|c| c == CAP_FLOW_CREDIT) {
+                        let enabled = {
+                            let mut inner = mgr.inner.lock();
+                            if inner.running && inner.generation == gen {
+                                inner.flow_credit = true;
+                                true
+                            } else {
+                                false
+                            }
+                        };
+                        if enabled {
+                            // Pane 0 + boş payload = credit modunu aç.
+                            let _ = mgr.enqueue(gen, Frame::control(MsgType::FlowResume));
+                        }
                     }
                 }
                 Err(e) => {
@@ -487,11 +706,10 @@ fn handle_inbound(mgr: &Arc<SidecarManager>, tx: &SyncSender<PtyEvent>, frame: F
                 }
             }
         }
-        // Ping yöneticiden gelmez; gelse bile bilgi notu yeter
-        MsgType::Ping => {}
         // Sidecar→Tauri yönünde anlam taşımayan tipler
         _ => {}
     }
+    true
 }
 
 fn spawn_stderr_thread(stderr: std::process::ChildStderr) -> Option<thread::JoinHandle<()>> {
@@ -525,33 +743,38 @@ fn spawn_stderr_thread(stderr: std::process::ChildStderr) -> Option<thread::Join
 }
 
 fn spawn_heartbeat_thread(
-    stdin: Arc<Mutex<ChildStdin>>,
-    weak: std::sync::Weak<SidecarManager>,
+    weak: Weak<SidecarManager>,
+    gen: u64,
+    stop: Arc<AtomicBool>,
 ) -> Option<thread::JoinHandle<()>> {
     let weak_for_err = weak.clone();
     let result = thread::Builder::new()
         .name("dterm-sidecar-heartbeat".into())
         .spawn(move || {
-            // System sleep/suspend (Windows uyku, lid close) sırasında bu thread
-            // de sidecar Node process'i de donar. Uyanışta PONG son 30s+ önce
-            // gelmiş görünür → sidecar yanlışlıkla "ölü" sayılır. Çözüm:
-            //  (1) loop iterasyonları arası gerçek elapsed'i ölç → sleep/suspend
-            //      tespit edilirse watchdog'u sıfırla, peer'a taze PING ile yanıt
-            //      fırsatı ver.
-            //  (2) Gerçek timeout durumunda BİLE `mgr.shutdown()` çağırma — bu
-            //      sidecar'ı ve tüm PTY pane'lerini öldürürdü (uzun süren bir job
-            //      çalışıyorsa felaket). Sadece SidecarDown event'i emit et;
-            //      gerçekten ölü ise zaten reader thread EOF veya `write_frame`
-            //      EPIPE yolu state'i temizler. Hung-but-alive durumda user
-            //      manuel müdahale eder, veri kaybı olmaz.
-            // Timeout eşiği 15s → 30s yükseltildi: GC/disk-IO kaynaklı geçici
-            // duraklamalarda false-positive riskini düşürür.
+            // System sleep/suspend sırasında bu thread de sidecar da donar.
+            // Uyanışta PONG eski görünür → yanlışlıkla "ölü" sayılmasın diye
+            // iterasyonlar arası gerçek süre ölçülür ve watchdog sıfırlanır.
+            // Gerçek timeout'ta bile sidecar ÖLDÜRÜLMEZ (uzun süren job'lar
+            // yanmasın) — yalnızca SidecarDown emit edilir; gerçekten ölü ise
+            // reader EOF / writer hatası teardown yapar.
+            //
+            // `park_timeout` ile beklenir: teardown/shutdown thread'i unpark
+            // eder ve stop bayrağı set edildiği için join anında döner.
             const PEER_TIMEOUT: Duration = Duration::from_secs(30);
             const SLEEP_DETECT: Duration = Duration::from_secs(15);
             let mut last_loop = Instant::now();
+            let mut next_tick = Instant::now() + HEARTBEAT_INTERVAL;
             let mut down_emitted = false;
             loop {
-                thread::sleep(Duration::from_secs(5));
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                let now = Instant::now();
+                if now < next_tick {
+                    thread::park_timeout(next_tick - now);
+                    continue;
+                }
+                next_tick = now + HEARTBEAT_INTERVAL;
                 let Some(mgr) = weak.upgrade() else { break };
 
                 let actual_elapsed = last_loop.elapsed();
@@ -578,24 +801,15 @@ fn spawn_heartbeat_thread(
                             );
                             down_emitted = true;
                         }
-                        // mgr.shutdown() ÇAĞIRMA — pane state'i, child handle,
-                        // thread'leri ayakta tut. Peer geri dönerse SidecarUp ile
-                        // recovery sinyali ver; gerçekten ölmüşse write/reader
-                        // path'leri doğal temizlik yapar.
                     } else if down_emitted {
-                        // Peer recovered (e.g. uzun GC pause bitti) — UI'ı bilgilendir.
                         tracing::info!("heartbeat: peer recovered after silence — emitting SidecarUp");
                         try_send_lifecycle(&mgr.events_tx, PtyEvent::SidecarUp);
                         down_emitted = false;
                     }
                 }
-                // Heartbeat frame doğrudan stdin'e — ara Vec alloc yok.
-                let frame = Frame::control(MsgType::Ping);
-                let mut guard = stdin.lock();
-                if frame.encode(&mut *guard).is_err() {
+                if mgr.enqueue(gen, Frame::control(MsgType::Ping)).is_err() {
                     break;
                 }
-                let _ = guard.flush();
             }
         });
     match result {
@@ -612,5 +826,425 @@ fn spawn_heartbeat_thread(
             }
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stdout_event_serializes_data_as_base64() {
+        let ev = PtyEvent::Stdout {
+            pane_id: "7".into(),
+            data: b"hi\x00\xff".to_vec(),
+        };
+        let json = serde_json::to_value(&ev).unwrap();
+        assert_eq!(json["kind"], "stdout");
+        assert_eq!(json["pane_id"], "7");
+        assert_eq!(json["data"], "aGkA/w==");
+        let back: PtyEvent = serde_json::from_value(json).unwrap();
+        match back {
+            PtyEvent::Stdout { data, .. } => assert_eq!(data, b"hi\x00\xff"),
+            _ => panic!("expected stdout"),
+        }
+    }
+
+    fn node_available() -> bool {
+        Command::new("node")
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    fn fake_sidecar(name: &str, body: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("dterm-sidecar-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join(format!("{name}.js"));
+        std::fs::write(&p, body).unwrap();
+        p
+    }
+
+    fn recv_until<F: Fn(&PtyEvent) -> bool>(rx: &Receiver<PtyEvent>, pred: F) -> Option<PtyEvent> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if let Ok(ev) = rx.recv_timeout(Duration::from_millis(100)) {
+                if pred(&ev) {
+                    return Some(ev);
+                }
+            }
+        }
+        None
+    }
+
+    /// Sidecar SPAWN'dan sonra ölürse pane slot'u serbest kalmalı, frontend'e
+    /// Exit gitmeli ve bir sonraki spawn yeni sidecar başlatmalı.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn sidecar_death_frees_panes_and_restarts() {
+        if !node_available() {
+            eprintln!("node not available — skipping");
+            return;
+        }
+        // stdin'den ilk veri gelince çık (SPAWN alındıktan sonra ölüm).
+        let script = fake_sidecar("dies", "process.stdin.once('data', () => process.exit(0));");
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let payload = SpawnPayload {
+            shell: "cmd.exe".into(),
+            args: vec![],
+            cwd: None,
+            env: vec![],
+            cols: 80,
+            rows: 24,
+        };
+        let pane = mgr.spawn_pane(payload.clone()).unwrap();
+        let exit = recv_until(&rx, |e| matches!(e, PtyEvent::Exit { .. }));
+        match exit {
+            Some(PtyEvent::Exit {
+                pane_id, signal, ..
+            }) => {
+                assert_eq!(pane_id, pane.to_string());
+                assert_eq!(signal.as_deref(), Some("sidecar_lost"));
+            }
+            other => panic!("expected Exit, got {other:?}"),
+        }
+        assert_eq!(mgr.pane_count(), 0);
+        // Yeni spawn yeni bir sidecar generation'ı başlatmalı (EPIPE değil).
+        let pane2 = mgr.spawn_pane(payload).unwrap();
+        assert!(pane2 > pane);
+        mgr.shutdown();
+    }
+
+    /// Gerçek `sidecar/pty-bridge.js` ile uçtan uca: HELLO (CBOR) handshake,
+    /// node-pty yokken SPAWN → ERROR(spawn_failed) + EXIT ve slot'un
+    /// serbest kalması. cbor-x kurulu değilse atlanır.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn real_sidecar_spawn_failure_frees_slot() {
+        let sidecar_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sidecar");
+        let has_cbor = Command::new("node")
+            .args(["-e", "require.resolve('cbor-x')"])
+            .current_dir(&sidecar_dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        let has_pty = Command::new("node")
+            .args(["-e", "require('node-pty')"])
+            .current_dir(&sidecar_dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(true);
+        if !has_cbor || has_pty {
+            eprintln!("needs node + cbor-x and no working node-pty — skipping");
+            return;
+        }
+        let mgr = SidecarManager::new(sidecar_dir.join("pty-bridge.js"), ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = mgr
+            .spawn_pane(SpawnPayload {
+                shell: "cmd.exe".into(),
+                args: vec![],
+                cwd: None,
+                env: vec![],
+                cols: 80,
+                rows: 24,
+            })
+            .unwrap();
+        let err = recv_until(&rx, |e| matches!(e, PtyEvent::Error { .. }));
+        match err {
+            Some(PtyEvent::Error { pane_id, code, .. }) => {
+                assert_eq!(pane_id, Some(pane.to_string()));
+                assert_eq!(code, "spawn_failed");
+            }
+            other => panic!("expected Error, got {other:?}"),
+        }
+        let exit = recv_until(&rx, |e| matches!(e, PtyEvent::Exit { .. }));
+        assert!(
+            matches!(exit, Some(PtyEvent::Exit { exit_code: -1, .. })),
+            "{exit:?}"
+        );
+        assert_eq!(mgr.pane_count(), 0);
+        // Sidecar ayakta kalmalı (tek hata tüm sidecar'ı düşürmez) ve credit
+        // modu HELLO capability'si ile açılmış olmalı.
+        assert!(mgr.inner.lock().running);
+        assert!(mgr.inner.lock().flow_credit);
+        mgr.shutdown();
+    }
+
+    // ---- Windows uçtan uca (gerçek sidecar + node-pty + ConPTY) ----
+    //
+    // CI'da `DTERM_REQUIRE_E2E=1` ile koşulur (sidecar `npm ci` sonrası);
+    // node-pty yüklenemiyorsa yerelde atlanır, CI'da başarısız olur.
+
+    #[cfg(all(windows, debug_assertions))]
+    fn real_sidecar_or_skip() -> Option<std::path::PathBuf> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sidecar");
+        let ok = Command::new("node")
+            .args(["-e", "require('node-pty');require('cbor-x')"])
+            .current_dir(&dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            return Some(dir.join("pty-bridge.js"));
+        }
+        if std::env::var_os("DTERM_REQUIRE_E2E").is_some() {
+            panic!("DTERM_REQUIRE_E2E set but node-pty/cbor-x not loadable in sidecar/");
+        }
+        eprintln!("node-pty not available — skipping Windows e2e");
+        None
+    }
+
+    /// Pane çıktısını `needle` görünene kadar biriktirir.
+    /// Pane çıktısını `needle` görünene kadar biriktirir. Uygulamadaki emit
+    /// thread'i gibi okunan byte'ları sidecar'a ack'ler (flow control credit);
+    /// aksi halde sidecar 1 MB'ta pane'i duraklatır.
+    #[cfg(all(windows, debug_assertions))]
+    fn wait_output(
+        mgr: &Arc<SidecarManager>,
+        rx: &Receiver<PtyEvent>,
+        pane: u64,
+        needle: &str,
+        secs: u64,
+    ) -> String {
+        fn tail(s: &str) -> &str {
+            let mut i = s.len().saturating_sub(2000);
+            while !s.is_char_boundary(i) {
+                i += 1;
+            }
+            &s[i..]
+        }
+        let mut out = String::new();
+        let deadline = Instant::now() + Duration::from_secs(secs);
+        while Instant::now() < deadline {
+            if let Ok(ev) = rx.recv_timeout(Duration::from_millis(100)) {
+                match ev {
+                    PtyEvent::Stdout { pane_id, data } if pane_id == pane.to_string() => {
+                        mgr.ack_output(&pane_id, data.len());
+                        out.push_str(&String::from_utf8_lossy(&data));
+                        if out.contains(needle) {
+                            return out;
+                        }
+                    }
+                    PtyEvent::Exit { pane_id, .. } if pane_id == pane.to_string() => {
+                        panic!("pane exited early; output tail:\n{}", tail(&out));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        panic!(
+            "timed out waiting for {needle:?}; output tail:\n{}",
+            tail(&out)
+        );
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn win_shell(rel: &str) -> String {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        format!(r"{root}\{rel}")
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn spawn_shell(mgr: &Arc<SidecarManager>, shell: String, args: &[&str]) -> u64 {
+        mgr.spawn_pane(SpawnPayload {
+            shell,
+            args: args.iter().map(|a| a.to_string()).collect(),
+            cwd: None,
+            env: vec![],
+            cols: 120,
+            rows: 30,
+        })
+        .expect("spawn")
+    }
+
+    /// cmd.exe ConPTY üzerinden açılır, komut çalışır, çıktı base64/coalesce
+    /// zincirinden bozulmadan gelir; kill sonrası Exit gelir ve slot boşalır.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_cmd_roundtrip() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(&mgr, win_shell(r"System32\cmd.exe"), &[]);
+        // `set /a` sonucu yalnızca gerçekten çalışırsa çıkar (echo'dan ayırt edilir).
+        mgr.write_stdin(pane, b"set /a 6*7+1000\r").unwrap();
+        wait_output(&mgr, &rx, pane, "1042", 20);
+        mgr.kill(pane).unwrap();
+        let exit = recv_until(
+            &rx,
+            |e| matches!(e, PtyEvent::Exit { pane_id, .. } if *pane_id == pane.to_string()),
+        );
+        assert!(exit.is_some(), "no Exit after kill");
+        assert_eq!(mgr.pane_count(), 0);
+        mgr.shutdown();
+    }
+
+    /// Windows PowerShell 5.1: komut çalışır ve Türkçe/Unicode çıktı UTF-8
+    /// olarak bozulmadan gelir.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_powershell_roundtrip_unicode() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        mgr.write_stdin(
+            pane,
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; 'DT' + 'OK-' + [string](40+2) + ' şğüİ'\r"
+                .as_bytes(),
+        )
+        .unwrap();
+        let out = wait_output(&mgr, &rx, pane, "DTOK-42", 40);
+        assert!(out.contains("DTOK-42 şğüİ"), "unicode mangled:\n{out}");
+        mgr.shutdown();
+    }
+
+    /// Büyük çıktı (flow control + coalescing): ~3 MB üretip son satırın
+    /// geldiğini doğrular; sidecar takılmamalı.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_large_output_flow_control() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        mgr.write_stdin(
+            pane,
+            b"1..30000 | % { 'satir-' + $_ + ('x' * 80) }; 'SON' + 'BITTI'\r",
+        )
+        .unwrap();
+        wait_output(&mgr, &rx, pane, "SONBITTI", 120);
+        // Ardından pane hâlâ etkileşimli olmalı.
+        mgr.write_stdin(pane, b"'HALA' + 'CANLI'\r").unwrap();
+        wait_output(&mgr, &rx, pane, "HALACANLI", 20);
+        mgr.shutdown();
+    }
+
+    /// Kapanış: sidecar kapatılınca shell ölür, ama shell'den başlatılan
+    /// bağımsız bir program (Job Object silent breakaway) hayatta kalır.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_shutdown_kills_shell_but_not_launched_apps() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        let cmd = "$c = Start-Process ping -ArgumentList '-n','120','127.0.0.1' -WindowStyle Hidden -PassThru; \
+                   'PIDS:' + $PID + ':' + $c.Id + ':ZZ' + 'END'\r";
+        mgr.write_stdin(pane, cmd.as_bytes()).unwrap();
+        let out = wait_output(&mgr, &rx, pane, ":ZZEND", 40);
+        let line = out
+            .lines()
+            .rev()
+            .find(|l| l.contains("PIDS:") && l.contains(":ZZEND") && !l.contains('$'))
+            .unwrap_or_else(|| panic!("no PIDS line:\n{out}"));
+        let parts: Vec<u32> = line
+            .split("PIDS:")
+            .nth(1)
+            .unwrap()
+            .split(':')
+            .take(2)
+            .map(|p| p.trim().parse().unwrap())
+            .collect();
+        let (shell_pid, child_pid) = (parts[0], parts[1]);
+        assert!(pid_alive(shell_pid) && pid_alive(child_pid));
+
+        mgr.shutdown();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while pid_alive(shell_pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(200));
+        }
+        let shell_alive = pid_alive(shell_pid);
+        let child_alive = pid_alive(child_pid);
+        let _ = Command::new("taskkill")
+            .args(["/F", "/PID", &child_pid.to_string()])
+            .output();
+        assert!(!shell_alive, "shell {shell_pid} survived app shutdown");
+        assert!(
+            child_alive,
+            "user-launched process {child_pid} was killed on shutdown"
+        );
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn pid_alive(pid: u32) -> bool {
+        let out = Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
+            .output()
+            .expect("tasklist");
+        String::from_utf8_lossy(&out.stdout).contains(&format!("\"{pid}\""))
+    }
+
+    #[test]
+    fn oversized_frame_is_rejected_before_write() {
+        let mgr = SidecarManager::new("nonexistent".into(), ProcessJail::new(true));
+        let err = mgr
+            .enqueue(1, Frame::new(MsgType::Stdin, 1, vec![0u8; MAX_PAYLOAD + 1]))
+            .unwrap_err();
+        assert!(matches!(err, AppError::InvalidArg(_)));
+    }
+
+    #[test]
+    fn write_to_unknown_pane_is_pane_not_found() {
+        let mgr = SidecarManager::new("nonexistent".into(), ProcessJail::new(true));
+        assert!(matches!(
+            mgr.write_stdin(42, b"x"),
+            Err(AppError::PaneNotFound(_))
+        ));
+        // Sidecar yokken resize/kill sessizce Ok.
+        assert!(mgr.resize(42, 80, 24).is_ok());
+        assert!(mgr.kill(42).is_ok());
+    }
+
+    #[test]
+    fn join_threads_skips_the_calling_thread() {
+        // Bir thread kendi JoinHandle'ını içeren listeyi join etmeye çalışırsa
+        // (Drop → shutdown reader thread'inde çalıştığında olduğu gibi)
+        // takılmamalı.
+        let (handles_tx, handles_rx) = std::sync::mpsc::channel::<Vec<thread::JoinHandle<()>>>();
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+        let h = thread::spawn(move || {
+            let hs = handles_rx.recv().unwrap();
+            join_threads(hs);
+            done_tx.send(()).unwrap();
+        });
+        handles_tx.send(vec![h]).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).is_ok());
     }
 }

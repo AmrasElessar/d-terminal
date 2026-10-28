@@ -3,6 +3,73 @@
 [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) formatına göre.
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.12.0] — 2026-10-28
+
+**Kapsamlı güvenlik + kararlılık geçişi** (çok-ajanlı tam repo denetimi sonrası). Ayrıntılar commit geçmişinde.
+
+### Güvenlik
+
+- **AI anahtar bağlama + SSRF:** Saklanan API anahtarı yalnızca kendi sağlayıcısının host'una gönderilir; frontend'den gelen `endpoint` resmi sağlayıcılarda yok sayılır. SSRF filtresi IPv4-mapped IPv6, CGNAT/benchmark/reserved aralıklar ve redirect takibine karşı sıkılaştırıldı.
+- **Git sertleştirme:** `git_diff_shortstat` artık `safe.directory=*` kullanmaz; `core.fsmonitor`, harici diff/textconv kapalı; UNC yolu varlık kontrolünden *önce* reddedilir. OSC 7 ile gelen cwd yalnızca yerel (host'suz/localhost) sürücü yolu olarak kabul edilir (NTLM hash sızıntısı önlendi).
+- **Dosya/komut yüzeyi:** Log Stream okuma yolu daraltıldı; shell allowlist tam yol + UNC reddi; env blocklist'e profiler/DLL-injection değişkenleri eklendi; rezerve ayar anahtarları webview'dan yazılamaz; CSP'den dev origin'leri `devCsp`'ye taşındı.
+- **Terminal girdisi:** etkileşimli girdiler (parola istemleri) komut geçmişine yazılmaz; AI'ya giden terminal çıktısı `redact()`'ten geçer; çok satırlı AI "Insert" çalıştırmadan eklenir.
+- **Release pipeline:** build job'u imza anahtarını görmez; installer'lar korumalı `release` Environment'ında ayrı job'da imzalanır; release yalnızca main üzerindeki + CI'ı yeşil commit'lerin tag'lerinden çıkar; tüm Actions commit SHA'ya pinli; sidecar `npm ci`.
+- **Installer:** NSIS hook `taskkill`'i tam yolla ve yalnızca kuran kullanıcının süreçleri için çağırır.
+- **Bağımlılıklar:** vite 6.4.5, vitest 4.1.12, vue 3.5.44 + transitive yamalar — `pnpm audit` temiz.
+
+### Düzeltilen
+
+- **Pane anahtarlama:** layout bileşenlerine `:key` eklendi — sekme değişince tuş vuruşlarının başka shell'e gitmesi düzeldi; arka plandaki pane çıktısı artık kaybolmaz.
+- **Global Escape dinleyici sızıntısı:** modal'lar kapandıktan sonra Esc'in yutulması düzeldi.
+- **Sidecar sağlamlığı:** bozuk frame decoder'ı kalıcı bozmaz; başarısız spawn pane slotu sızdırmaz; sürüm uyumsuzluğunda reader thread kendini join etmez; büyük yapıştırma ikinci sidecar başlatmaz; per-pane backpressure.
+- **Log Stream Windows'ta tail etmiyordu** (notify `ModifyKind::Any`) — düzeldi; UTF-8 dışı içerik akışı kilitlemez.
+- Ollama akışında çok baytlı karakter bozulması, block panelinin canlı güncellenmemesi, açılırken kapatılan pane'de yetim PTY/polling ve diğer yaşam döngüsü hataları.
+
+### Değiştirilen
+
+- PTY çıktısı webview'a JSON sayı dizisi yerine base64 olarak taşınır.
+- Uzun süren senkron komutlar ana thread'i bloklamaz.
+- Quake kısayolu **Ctrl+Shift+F1** oldu (F1 tüm sistemde yakalanıyordu).
+- Satır içi öneri yalnızca **→** ile kabul edilir; Tab shell tamamlamasına gider.
+- Terminalde satır içi resim (sixel/iTerm2) kaldırıldı — WebAssembly gerektiriyor, yeni CSP engelliyor.
+- Dosya yoluna tıklamak yolu açmaz, panoya kopyalar; Log Stream `.json`/`.csv` açmaz.
+- Başka kullanıcıya ait veya filtre tanımlı (ör. Git LFS) repolarda git rozeti gösterilmez.
+- Custom AI endpoint değişince anahtarın yeniden girilmesi gerekir.
+- Otomatik snippet çalıştıran tetikleyiciler açık izin ister (min. 5 sn bekleme, dakikada en fazla 6).
+- Yeni açılan veya bölünen pane klavye odağını alır.
+
+### Test
+
+- Windows CI'da gerçek ConPTY uçtan uca testleri: cmd/PowerShell (Türkçe UTF-8), büyük çıktı + akış kontrolü, kapanış davranışı, shell yolu çözümleme, Log Stream, DPAPI.
+
+---
+
+## [0.11.0] — 2026-05-27
+
+**In-app dialog'lar + MSIX-hazır migration + kapsamlı test paketi + 5-ajanlı audit kapatıldı.**
+
+### Eklenen
+
+- **In-app `ConfirmDialog`** — Win32 TaskDialog yerine Mica/Acrylic uyumlu, accent renkli, ARIA-tam modal. 8 onay noktası (pane/tab kapat, snippet/session sil, Settings restart/import, AI cost/Block clear) uygulama temasıyla render edilir.
+- **MS Store hazırlığı (10/13)** — migration backend (`storage/migrate_legacy.rs`, `commands/migrate.rs`; `VACUUM INTO`, path traversal koruması, `MIGRATION_MUTEX`), `MigrationDialog` UI, MSIX build rehberi, `release-msix.yml` taslağı, WiX fragment scaffold. v0.11.x'te dormant (legacy == target).
+- **`useFocusTrap` composable** — modal içinde Tab/Shift+Tab döngüsü + kapanışta focus restore (WCAG 2.1.2, 2.4.3).
+- **GitHub Pages** — TR/EN iki dilli landing + privacy TL;DR.
+
+### Güvenlik / Erişilebilirlik (5-ajanlı audit: 10 HIGH + 8 MEDIUM + 6 LOW)
+
+- Path traversal (CWE-73), atomic rename junction güvenliği, TOCTOU, hot-swap veri kaybı penceresi.
+- `aria-describedby`, `aria-modal`, aria-live bölgeleri, WCAG 1.4.11 kontrast.
+- Migration DTO'larında kullanıcı adı içeren tam yolların kısaltılması (CWE-200).
+- Stub locale subset parity testi.
+
+### Test
+
+- Vitest 153 → 370 test (35 dosya); `@vue/test-utils` ile ConfirmDialog + MigrationDialog; OSC 133 block tracker state machine testi.
+
+---
+
 ## [0.10.0] — 2026-05-26
 
 **GPL-3.0-or-later relisans + post-audit sertleştirme + UX iyileştirmeleri.** 6-agent paralel audit'in HIGH/MEDIUM bulguları ve kullanıcı UX raporundaki 3 sorun (git diff sayacı, kapatma onayı, agent view modu) bir release'de bağlandı. Yeni feature: AgentView pane global mode + close confirm dialog + tab git aggregate.

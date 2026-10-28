@@ -1,6 +1,6 @@
 {
   "name": "d-terminal",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Agent-aware Windows terminal — tek pencerede CMD, PowerShell, AI agent stream'leri ve özel pane'ler",
   "private": true,
   "type": "module",
@@ -48,7 +48,6 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-image": "^0.9.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-unicode11": "^0.9.0",
@@ -58,7 +57,7 @@
     "html-to-image": "^1.11.13",
     "pinia": "^2.2.0",
     "uuid": "^11.0.0",
-    "vue": "^3.5.0",
+    "vue": "^3.5.44",
     "vue-i18n": "^11.4.0"
   },
   "devDependencies": {
@@ -77,8 +76,8 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.4.0",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.0",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12",
     "vue-eslint-parser": "^9.4.3",
     "vue-tsc": "^2.1.0"
   },

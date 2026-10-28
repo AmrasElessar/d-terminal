@@ -79,24 +79,24 @@ export interface BundledFont {
 export const BUNDLED_FONTS: BundledFont[] = [
   // — Programlama (popüler) —
   { family: 'JetBrains Mono', label: 'JetBrains Mono', license: 'Apache 2.0', ligatures: true,  multiScript: true,  hint: 'JetBrains, modern, ligature' },
-  { family: 'Fira Code',      label: 'Fira Code',      license: 'OFL',        ligatures: true,  multiScript: true,  hint: 'Mozilla, ligature, terminal klasik' },
+  { family: 'Fira Code',      label: 'Fira Code',      license: 'OFL',        ligatures: true,  multiScript: true,  hint: 'Mozilla, ligature, terminal classic' },
   { family: 'Cascadia Code',  label: 'Cascadia Code',  license: 'OFL',        ligatures: true,  multiScript: true,  hint: 'Microsoft, Win11 default' },
   { family: 'Geist Mono',     label: 'Geist Mono',     license: 'OFL',        ligatures: true,  multiScript: false, hint: 'Vercel, modern minimal' },
-  { family: 'Victor Mono',    label: 'Victor Mono',    license: 'OFL',        ligatures: true,  multiScript: false, hint: 'Cursive italic, dev favori' },
-  { family: 'IBM Plex Mono',  label: 'IBM Plex Mono',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'IBM, kurumsal, geniş Unicode' },
-  { family: 'Source Code Pro',label: 'Source Code Pro',license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Adobe, klasik dev font' },
+  { family: 'Victor Mono',    label: 'Victor Mono',    license: 'OFL',        ligatures: true,  multiScript: false, hint: 'Cursive italic, dev favorite' },
+  { family: 'IBM Plex Mono',  label: 'IBM Plex Mono',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'IBM, corporate, wide Unicode' },
+  { family: 'Source Code Pro',label: 'Source Code Pro',license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Adobe, classic dev font' },
   { family: 'Roboto Mono',    label: 'Roboto Mono',    license: 'Apache 2.0', ligatures: false, multiScript: true,  hint: 'Google, geometric' },
-  { family: 'Inconsolata',    label: 'Inconsolata',    license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Klasik humanist' },
-  { family: 'Red Hat Mono',   label: 'Red Hat Mono',   license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Red Hat, kurumsal' },
+  { family: 'Inconsolata',    label: 'Inconsolata',    license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Classic humanist' },
+  { family: 'Red Hat Mono',   label: 'Red Hat Mono',   license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Red Hat, corporate' },
 
   // — Çoklu dil king —
   { family: 'Noto Sans Mono', label: 'Noto Sans Mono', license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Google Noto — TR/RU/EL/AR/CJK fallback' },
 
   // — Linux/terminal klasikleri —
-  { family: 'Ubuntu Mono',    label: 'Ubuntu Mono',    license: 'UFL',        ligatures: false, multiScript: true,  hint: 'Linux klasik, Canonical' },
-  { family: 'Cousine',        label: 'Cousine',        license: 'Apache 2.0', ligatures: false, multiScript: true,  hint: 'Liberation Mono benzeri' },
-  { family: 'Courier Prime',  label: 'Courier Prime',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Yenilenmiş Courier' },
-  { family: 'Anonymous Pro',  label: 'Anonymous Pro',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Klasik kod editör' },
+  { family: 'Ubuntu Mono',    label: 'Ubuntu Mono',    license: 'UFL',        ligatures: false, multiScript: true,  hint: 'Linux classic, Canonical' },
+  { family: 'Cousine',        label: 'Cousine',        license: 'Apache 2.0', ligatures: false, multiScript: true,  hint: 'Liberation Mono-like' },
+  { family: 'Courier Prime',  label: 'Courier Prime',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Refreshed Courier' },
+  { family: 'Anonymous Pro',  label: 'Anonymous Pro',  license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Classic code editor' },
 
   // — Stil/retro —
   { family: 'Space Mono',     label: 'Space Mono',     license: 'OFL',        ligatures: false, multiScript: true,  hint: 'Google, retro NASA hissi' },

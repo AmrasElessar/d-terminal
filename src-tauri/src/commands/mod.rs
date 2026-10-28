@@ -11,6 +11,7 @@ pub mod history;
 pub mod logger;
 pub mod logstream;
 pub mod migrate;
+pub mod path_policy;
 pub mod process;
 pub mod psreadline;
 pub mod pty;

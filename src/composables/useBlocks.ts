@@ -2,8 +2,9 @@
 // Her TerminalPane mount'unda ayrı bir state instance'ı.
 // Global registry — her component paneId ile tracker'a erişir.
 
-import { ref, type Ref } from 'vue';
+import { ref, shallowReactive, type Ref } from 'vue';
 import { type CommandBlock, newBlock } from '@/types/block';
+import { redact } from '@/utils/redact';
 
 /** Block output buffer üst sınırı — büyük log akışlarında (npm install,
  *  cargo build) string'in sınırsız büyümesini engelle. V8'de string append
@@ -27,8 +28,16 @@ export interface BlockTracker {
   onCwd: (cwd: string) => void;
   /** Sidecar STDOUT — output topla (raw bytes). */
   onOutput: (text: string) => void;
-  /** Kullanıcı klavye girişi — komutu yakala. */
-  onUserInput: (data: string) => void;
+  /** Kullanıcı klavye girişi — komutu yakala. Yalnızca OSC 133 B (komut
+   *  girişi) ile komutun çalışması arasında dikkate alınır; çalışan bir
+   *  komutun stdin'ine yazılanlar (şifre, `Read-Host`, ssh parola istemi)
+   *  ya da alternate screen (vim, less) girdileri asla komut sayılmaz. */
+  onUserInput: (data: string, opts?: { altBuffer?: boolean }) => void;
+  /** Komut geçmişe yazılmalı mı? Boşlukla başlayan komutlar (bash/zsh
+   *  HISTCONTROL=ignorespace geleneği) ve secret içeren komutlar hariç. */
+  historyCommand: (block: CommandBlock) => string | null;
+  /** Shell OSC 133 marker'ı yayınladı mı (cmd.exe yayınlamaz). */
+  hasShellIntegration: () => boolean;
   /** Block silme. */
   remove: (id: string) => void;
   /** Hepsini temizle. */
@@ -42,20 +51,45 @@ export function createBlockTracker(): BlockTracker {
   let activeBlock: CommandBlock | null = null;
   let pendingCwd: string | null = null;
   let inputAccumulator = ''; // user typed bytes between B and C/Enter
+  /** Komut girişi evresi — yalnızca 'input' iken klavye girdisi biriktirilir.
+   *  'idle'   : prompt yok / bilinmiyor (A öncesi veya D sonrası)
+   *  'input'  : B geldi, kullanıcı komut satırını yazıyor
+   *  'running': komut çalışıyor (Enter / C) — girdi komutun stdin'idir */
+  let phase: 'idle' | 'input' | 'running' = 'idle';
+  /** Satır geçmiş gezinmesiyle değişti — yakalanan metin güvenilmez. */
+  let unreliable = false;
+  let sawMarker = false;
 
   function pushNew(): CommandBlock {
     const b = newBlock();
     if (pendingCwd) b.cwd = pendingCwd;
     blocks.value.push(b);
-    activeBlock = b;
-    return b;
+    // Reactive proxy'yi tut — ham nesneyi mutate etmek watcher'ları
+    // tetiklemez (BlockPanel canlı güncellenmiyordu).
+    const reactiveBlock = blocks.value[blocks.value.length - 1]!;
+    activeBlock = reactiveBlock;
+    return reactiveBlock;
+  }
+
+  function startRunning(command: string) {
+    if (!activeBlock) pushNew();
+    const raw = command;
+    activeBlock!.command = raw.trim();
+    activeBlock!.private = /^\s/.test(raw);
+    activeBlock!.startedAt = new Date();
+    activeBlock!.status = 'running';
+    inputAccumulator = '';
+    phase = 'running';
   }
 
   return {
     blocks,
     active: () => activeBlock,
 
+    hasShellIntegration: () => sawMarker,
+
     onPromptStart() {
+      sawMarker = true;
       // Önceki block hala "pending" ise (D gelmediyse), kapatma — kullanıcı henüz
       // bir komut çalıştırmadan yeni prompt aldı (Ctrl+C gibi). Aborted işaretle.
       if (activeBlock && activeBlock.status === 'pending' && !activeBlock.command) {
@@ -67,31 +101,37 @@ export function createBlockTracker(): BlockTracker {
       }
       activeBlock = null;
       inputAccumulator = '';
+      phase = 'idle';
     },
 
     onCommandStart() {
+      sawMarker = true;
       // Prompt sonrası, kullanıcı yazma evresi
       if (!activeBlock) pushNew();
       inputAccumulator = '';
+      unreliable = false;
+      phase = 'input';
     },
 
     onCommandRun(command: string) {
-      if (!activeBlock) pushNew();
-      activeBlock!.command = command || inputAccumulator.trim();
-      activeBlock!.startedAt = new Date();
-      activeBlock!.status = 'running';
-      inputAccumulator = '';
+      // C, Enter ile zaten 'running'e geçmiş bir block için tekrar gelebilir —
+      // yakalanmış komutu ezme.
+      if (phase === 'running' && activeBlock?.status === 'running' && !command) return;
+      startRunning(command || inputAccumulator);
     },
 
     onCommandEnd(exitCode: number) {
       if (!activeBlock) return;
+      // Komut yakalanmadıysa (Enter gözlenmeden D geldi) input'tan al
+      if (!activeBlock.command && phase === 'input' && inputAccumulator.trim()) {
+        activeBlock.command = inputAccumulator.trim();
+        activeBlock.private = /^\s/.test(inputAccumulator);
+      }
       activeBlock.endedAt = new Date();
       activeBlock.exitCode = exitCode;
       activeBlock.status = exitCode === 0 ? 'success' : 'error';
-      // Komut zaten yakalandıysa input'u sıfırla; yakalanmadıysa input'tan al
-      if (!activeBlock.command && inputAccumulator.trim()) {
-        activeBlock.command = inputAccumulator.trim();
-      }
+      inputAccumulator = '';
+      phase = 'idle';
     },
 
     onCwd(cwd: string) {
@@ -116,22 +156,43 @@ export function createBlockTracker(): BlockTracker {
       activeBlock.outputLineCount += (text.match(/\n/g) || []).length;
     },
 
-    onUserInput(data: string) {
+    onUserInput(data: string, opts?: { altBuffer?: boolean }) {
+      // Yalnızca prompt'ta (B ile komut çalışması arası) yazılanlar komuttur.
+      // Çalışan komuta giden girdi (parola, y/n onayı) veya TUI girdisi
+      // kaydedilmez — aksi halde `ssh`/`sudo` parolası geçmişe sızar.
+      if (phase !== 'input' || !activeBlock || opts?.altBuffer) return;
       // Enter veya newline — komutu yakala
       if (data.includes('\r') || data.includes('\n')) {
         const finished = (inputAccumulator + data).split(/[\r\n]/)[0] ?? '';
-        if (finished.trim() && activeBlock) {
-          activeBlock.command = finished.trim();
-          activeBlock.startedAt = new Date();
-          activeBlock.status = 'running';
-        }
-        inputAccumulator = '';
+        if (finished.trim() && !unreliable) startRunning(finished);
+        else if (unreliable) startRunning('');
+        else inputAccumulator = '';
+        unreliable = false;
       } else if (data === '\x7f' || data === '\b') {
         // Backspace
         inputAccumulator = inputAccumulator.slice(0, -1);
+      } else if (data.charCodeAt(0) === 0x03) {
+        // Ctrl+C satırı iptal eder
+        inputAccumulator = '';
+      } else if (data === '\x1b[A' || data === '\x1b[B') {
+        // ↑/↓ geçmiş gezinmesi satırı bizim göremediğimiz şekilde değiştirir —
+        // yanlış komut kaydetmektense satırı "bilinmiyor" say.
+        inputAccumulator = '';
+        unreliable = true;
+      } else if (data.charCodeAt(0) === 0x1b) {
+        // Diğer ESC dizileri (←/→ vb.) — biriktirmeye dahil etme
       } else if (data.charCodeAt(0) >= 32 || data === '\t') {
         inputAccumulator += data;
       }
+    },
+
+    historyCommand(block: CommandBlock) {
+      if (!block.command || block.private) return null;
+      const { text, redactedLines } = redact(block.command);
+      // Secret içeren komut geçmişe yazılmaz (redacte edilmiş hali de
+      // anlamsız — tekrar çalıştırılamaz).
+      if (redactedLines > 0 || text !== block.command) return null;
+      return block.command;
     },
 
     remove(id: string) {
@@ -142,6 +203,7 @@ export function createBlockTracker(): BlockTracker {
       blocks.value = [];
       activeBlock = null;
       inputAccumulator = '';
+      phase = 'idle';
     },
 
     toggleCollapsed(id: string) {
@@ -151,9 +213,9 @@ export function createBlockTracker(): BlockTracker {
   };
 }
 
-// Global registry — pane id'sinden tracker erişimi. Plain Map; tracker içindeki
-// `blocks` zaten reactive Ref olduğu için reactivity kaybolmuyor.
-const trackerByPane = new Map<string, BlockTracker>();
+// Global registry — pane id'sinden tracker erişimi. shallowReactive: BlockPanel
+// tracker kaydından önce mount olursa, kayıt geldiğinde computed yeniden çalışsın.
+const trackerByPane = shallowReactive(new Map<string, BlockTracker>());
 
 export function registerBlockTracker(paneId: string, tracker: BlockTracker) {
   trackerByPane.set(paneId, tracker);

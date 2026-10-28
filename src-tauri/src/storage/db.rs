@@ -52,17 +52,19 @@ impl Storage {
             .map_err(|e| AppError::Internal(format!("pool build: {e}")))?;
 
         // Migration: pool dışında, tek bağlantıyla çalışır.
-        // Önce backup snapshot — pending migration varsa current DB'yi
+        // Önce backup snapshot — YALNIZCA pending migration varsa current DB'yi
         // `dterminal.YYYYMMDD-HHMMSS.bak` olarak kopyala (VACUUM INTO).
-        // Migration başarısız olursa kullanıcı manuel restore edebilir.
-        if db_path.exists() {
-            if let Err(e) = backup_before_migration(&db_path) {
-                // Backup başarısızlığı migration'ı engellemez — uyar ve geç.
-                tracing::warn!(error = %e, "DB backup before migration failed (proceeding)");
-            }
-        }
+        // Eskiden her açılışta tam yedek alınıyordu: açılış yavaşlıyor ve
+        // kullanıcının sildiği geçmiş / secret ciphertext 5 kopyada kalıyordu.
         {
+            let existed = db_path.exists();
             let mut conn = Connection::open(&db_path)?;
+            if existed && super::migrations::has_pending(&mut conn).unwrap_or(true) {
+                if let Err(e) = backup_before_migration(&db_path) {
+                    // Backup başarısızlığı migration'ı engellemez — uyar ve geç.
+                    tracing::warn!(error = %e, "DB backup before migration failed (proceeding)");
+                }
+            }
             super::migrations::run(&mut conn)?;
         }
 

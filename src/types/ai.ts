@@ -38,6 +38,8 @@ export interface ChatMessage {
   /** Token + maliyet tahmini (frontend heuristik; exact usage Rust stream'inde
    *  henüz yok). Stream tamamlandıktan sonra hesaplanır. */
   usage?: UsageEstimate;
+  /** Asistan mesajı bir hata metnidir — sonraki isteklerin bağlamına girmez. */
+  error?: boolean;
 }
 
 export interface ChatOptions {

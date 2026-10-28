@@ -21,7 +21,7 @@ vi.mock('@/utils/dialog', () => ({
 
 // i18n minimal mock — `t('foo', params)` çağrısı `foo` + params JSON döner;
 // test mesaj formatlamayı bizzat doğrular.
-vi.mock('@/main', () => ({
+vi.mock('@/i18n', () => ({
   i18n: {
     global: {
       t: (key: string, params?: Record<string, unknown>) =>

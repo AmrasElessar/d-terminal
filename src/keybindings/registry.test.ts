@@ -128,4 +128,17 @@ describe('KeybindingRegistry', () => {
     window.dispatchEvent(keydown({ key: 'F4', altKey: true }));
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('handles(): yalnızca handler kayıtlı kombolar terminalden alınır', () => {
+    expect(reg.handles(keydown({ key: 't', ctrlKey: true }))).toBe(false);
+    reg.register('tab.new', vi.fn());
+    expect(reg.handles(keydown({ key: 't', ctrlKey: true }))).toBe(true);
+    expect(reg.handles(keydown({ key: 'c', ctrlKey: true }))).toBe(false);
+    expect(reg.handles(keydown({ key: 'a' }))).toBe(false);
+  });
+
+  it('handles(): prefix combo ve aktif prefix modu', () => {
+    reg.setPrefix('Ctrl+B', { v: 'pane.splitVertical' });
+    expect(reg.handles(keydown({ key: 'b', ctrlKey: true }))).toBe(true);
+  });
 });

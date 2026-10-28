@@ -44,7 +44,7 @@ https://github.com/AmrasElessar/d-terminal/raw/main/docs/media/d-terminal-showca
 [![VT NSIS](https://img.shields.io/badge/VT_NSIS-analyzing-blue?logo=virustotal&logoColor=white)](https://www.virustotal.com/gui/file/4c5431c7d3a28f839a14b4f21cdf66ea3f18f10ec3c794845f3a01ff31a8b8e3)
 [![Code Signing](https://img.shields.io/badge/code_signing-SignPath_FOSS_pending-orange)](https://signpath.org/foundation)
 [![DPAPI](https://img.shields.io/badge/secret_storage-Windows_DPAPI-blue?logo=windows)](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection)
-[![CSP](https://img.shields.io/badge/CSP-strict_(no_unsafe--eval)-success)](./src-tauri/tauri.conf.json)
+[![CSP](https://img.shields.io/badge/CSP-no_unsafe--eval_scripts-success)](./docs/adr/0007-csp-allowlist-scope.md)
 
 </div>
 
@@ -77,7 +77,7 @@ It is a **personal-use** D Brand project under the **GPL-3.0-or-later** license.
 > - 🎨 **In-app ConfirmDialog** — Win32 TaskDialog (eski Windows estetiği) yerine Mica/Acrylic uyumlu, accent renkli, ARIA-tam in-app modal. Tüm 8 onay noktası (pane/tab kapat, snippet/session sil, Settings restart/import, AI cost/Block clear) artık uygulama temasıyla render edilir.
 > - 🛒 **MS Store hazırlığı 10/13** — Migration backend (`storage/migrate_legacy.rs` + `commands/migrate.rs`) + MigrationDialog UI + MSIX build guide + CI workflow taslağı + WiX fragment scaffold. v0.10.x'te dormant (legacy == target → detect None); MSIX feature flag aktif olunca devreye girer.
 > - 🛡 **5-agent security/a11y/quality audit kapatıldı** — TypeScript + Rust + Security + A11y + Code-review paralel taraması: **10 HIGH + 8 MEDIUM + 6 LOW** bulgu, hepsi düzeltildi. Path traversal (CWE-73), atomic rename junction safety, MIGRATION_MUTEX, focus trap (WCAG 2.1.2 + 2.4.3), aria-describedby, WCAG 1.4.11 contrast, username path gizleme (CWE-200), stub locale subset parity test.
-> - 🧪 **Comprehensive test suite** — 370 vitest test (35 dosya) + 112 cargo test. Önceki 153 → 370 (217 yeni: stores/composables/components/utils/types). @vue/test-utils ile ConfirmDialog + MigrationDialog davranış testleri. useFocusTrap composable testi (Tab wrap + focus restoration). OSC 133 block tracker state machine testi. Bu sürüm sonrası "bu eksikti gözden kaçtı" denemez.
+> - 🧪 **Comprehensive test suite** — 370 vitest test (35 dosya) + 112 cargo test. Önceki 153 → 370 (217 yeni: stores/composables/components/utils/types). @vue/test-utils ile ConfirmDialog + MigrationDialog davranış testleri. useFocusTrap composable testi (Tab wrap + focus restoration). OSC 133 block tracker state machine testi. 
 > - 🌐 **GitHub Pages bilingual** — TR + EN landing yeniden tasarlandı (https://amraselessar.github.io/d-terminal/); privacy policy TL;DR kutusu + dil banner'ı.
 > - 🔧 **useFocusTrap composable** — modal'larda Tab/Shift+Tab paneli sınırında döndürür, kapanışta önceki focus hedefine geri döner.
 
@@ -355,7 +355,7 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 
 - Windows DPAPI ile credential storage (master parola yok)
 - AI key Rust tarafında, frontend'e sızmaz
-- CSP enforced (`script-src 'self'`), `wasm-unsafe-eval` limited
+- CSP: `script-src 'self' 'wasm-unsafe-eval'` (inline script / `unsafe-eval` yok). `style-src` hâlâ `'unsafe-inline'` içerir (Vue scoped style + xterm); dev sunucu origin'leri yalnızca `devCsp`'dedir
 - FAZ A/B güvenlik audit fixleri uygulandı (M7/M8 kritik)
 
 <details>
@@ -363,7 +363,7 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 
 - Credential storage via Windows DPAPI (no master password)
 - AI keys live on the Rust side and never leak to the frontend
-- CSP enforced (`script-src 'self'`), `wasm-unsafe-eval` limited
+- CSP: `script-src 'self' 'wasm-unsafe-eval'` (no inline scripts / `unsafe-eval`). `style-src` still allows `'unsafe-inline'` (Vue scoped styles + xterm); dev-server origins live only in `devCsp`
 - Phase A/B security audit fixes applied (critical M7/M8)
 
 </details>
@@ -428,10 +428,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | Katman / Layer | Test sayısı / Count | Kapsamı / Scope |
 |---|---|---|
 | **Vitest (frontend)** | **370** in 35 files | stores (12) · composables (7) · components (2) · utils + types + locales |
-| **Cargo (Rust)** | **112** | storage modülleri · Tauri command'lar · migration (16) · sidecar protocol |
+| **Cargo (Rust)** | **100+** | storage modülleri · Tauri command'lar · migration (16) · sidecar protocol |
 | **i18n parity** | TR ↔ EN tam parite + 31 stub locale subset check (partial translation drift catch) |
 | **A11y** | Focus trap (WCAG 2.1.2 + 2.4.3) · aria-modal + describedby · contrast (1.4.11) |
 | **Security audit** | 5-agent paralel (TS + Rust + Security + A11y + Code) — **10 HIGH + 8 MEDIUM + 6 LOW** bulgu kapatıldı |
+
+> Sayılar v0.11.0 anlık görüntüsüdür; güncel değer için `pnpm test` ve `cargo test` çıktısına bakın. / Counts are a v0.11.0 snapshot — run `pnpm test` / `cargo test` for current numbers.
 
 ---
 

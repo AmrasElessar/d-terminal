@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/tauri';
-import type { SystemInfo, DiskInfo, NetIface, LiveStats, BatteryInfo } from '@/types/events';
+import type { SystemInfo, DiskInfo, NetIface, BatteryInfo } from '@/types/events';
+import { useDfetch } from '@/composables/useDfetch';
 import { keybindings } from '@/keybindings/registry';
 import { useToastsStore } from '@/stores/toasts';
 import { useSettingsStore } from '@/stores/settings';
@@ -10,10 +11,8 @@ import { useThemeStore } from '@/stores/theme';
 import MatrixRain from '@/components/ui/MatrixRain.vue';
 
 const { t } = useI18n();
-const info = ref<SystemInfo | null>(null);
-/** Canlı stats — 1.5sn poll. CPU%, RAM (güncel), network throughput, battery. */
-const live = ref<LiveStats | null>(null);
-let livePollTimer: number | undefined;
+// Veri + canlı polling (unmount-safe) — animasyondan ayrı composable.
+const { info, live, refresh, startLivePolling } = useDfetch();
 const toasts = useToastsStore();
 const settings = useSettingsStore();
 const themeStore = useThemeStore();
@@ -479,45 +478,6 @@ function clearTimers() {
   typeTimers = [];
 }
 
-async function refresh() {
-  info.value = await api.dfetchGet();
-}
-
-async function pollLive() {
-  try {
-    live.value = await api.dfetchLive();
-  } catch {
-    /* sessiz — bir tick atlayabiliriz */
-  }
-}
-
-function startLivePolling() {
-  if (livePollTimer !== undefined) return;
-  const interval = settings.state.dfetchPollIntervalMs;
-  // 0 = polling kapalı (kullanıcı statik snapshot ister, batarya tasarrufu vb).
-  if (interval <= 0) return;
-  // Çok düşük değerler (<300ms) hem CPU yer hem WMI battery latency'sini iter.
-  // 500ms altına izin verme.
-  const safeInterval = Math.max(500, interval);
-  // İlk tick hemen — sysinfo Networks ilk refresh'te delta üretmez (baseline),
-  // ikinci tick'ten itibaren throughput dolar.
-  void pollLive();
-  livePollTimer = window.setInterval(pollLive, safeInterval);
-}
-function stopLivePolling() {
-  if (livePollTimer !== undefined) {
-    window.clearInterval(livePollTimer);
-    livePollTimer = undefined;
-  }
-}
-// Settings'ten poll aralığı değişirse interval'ı yeniden başlat (canlı reaktif).
-watch(
-  () => settings.state.dfetchPollIntervalMs,
-  () => {
-    stopLivePolling();
-    startLivePolling();
-  },
-);
 
 /** Welcome panel'in PNG snapshot'ını oluşturup kullanıcının seçtiği yere yazdır.
  *  Sadece `.welcome__capture` alanı (logo + info + renk blokları) yakalanır;
@@ -639,19 +599,26 @@ async function play() {
   await typeInto(typedHint, hint, 12, 200);
 }
 
+let unmounted = false;
 onMounted(async () => {
   cursorTimer = window.setInterval(() => {
     showCursor.value = !showCursor.value;
   }, 500);
-  await refresh();
-  await play();
-  // Reveal animasyonu bittikten sonra canlı stats'ı başlat — dfetch_get'in
-  // ağır olan kısımlarına ek olarak hafif refresh, panel açıkken sürekli akar.
-  startLivePolling();
-  // Welcome pane mount edildiğinde snapshot + network toggle kısayolları
-  // aktif. Çoklu welcome açıksa son mount overwrite eder (rare case).
+  // Kısayollar hemen — önceden play() bitene kadar bekleniyordu; play()
+  // iptal edilirse (tema değişimi) hiç kaydedilmiyordu. Çoklu welcome açıksa
+  // son mount overwrite eder (rare case).
   keybindings.register('dfetch.snapshot', () => takeSnapshot());
   keybindings.register('dfetch.toggleNetExpand', () => toggleNetExpand());
+  try {
+    await refresh();
+  } catch (e) {
+    toasts.error(t('errors.generic') + ': ' + String(e));
+  }
+  if (unmounted) return;
+  // Canlı stats animasyondan bağımsız başlar; play() beklenmez (iptal edilen
+  // bir play()'in promise'i hiç resolve olmayabilir).
+  startLivePolling();
+  void play();
 });
 
 // Tema değişince intro'yu yeniden çal — kullanıcı default→Matrix yaptığında
@@ -662,9 +629,10 @@ watch(isMatrixTheme, () => {
 });
 
 onBeforeUnmount(() => {
+  unmounted = true;
+  playToken++; // devam eden play() adımlarını iptal et
   if (cursorTimer) window.clearInterval(cursorTimer);
   clearTimers();
-  stopLivePolling();
   keybindings.unregister('dfetch.snapshot');
   keybindings.unregister('dfetch.toggleNetExpand');
 });
@@ -755,7 +723,7 @@ const WIN_LOGO_LINES = WIN_LOGO_RAW.map((line) => ({
             type="button"
             class="row row--expander"
             :class="{ open: netExpanded }"
-            :title="t('welcome.netExpandHint')"
+            :title="t('welcome.netExpandHint')" :aria-label="t('welcome.netExpandHint')"
             @click="toggleNetExpand"
           >
             <span class="row__key">{{ row.key.padEnd(maxKeyLen, ' ') }}</span>

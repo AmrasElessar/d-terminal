@@ -74,12 +74,12 @@ impl ChatProvider for Gemini {
 
     async fn models(&self, key: Option<&str>) -> Vec<AiModel> {
         let Some(key) = key else { return fallback() };
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        let Ok(client) = super::http_client() else {
+            return fallback();
+        };
         let resp = match client
             .get(MODELS_URL)
+            .timeout(std::time::Duration::from_secs(5))
             .header("Authorization", format!("Bearer {key}"))
             .send()
             .await
@@ -133,12 +133,9 @@ impl ChatProvider for Gemini {
         if let Some(m) = options.max_tokens {
             body["max_tokens"] = json!(m);
         }
-        // Connect timeout: API erişilemezse UI freeze olmasın.
+        // Paylaşılan client (connect 5s, read 60s, redirect yok).
         // Total timeout YOK ama IDLE timeout (60s/chunk) var.
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        let client = super::http_client()?;
         // 429/503 için exponential backoff retry (max 3 deneme).
         let resp = super::send_with_retry(|| {
             client
@@ -149,9 +146,8 @@ impl ChatProvider for Gemini {
         .await?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let txt = resp.text().await.unwrap_or_default();
+            // Hata gövdesi prompt içeriğini echo edebilir — log'a yazılmaz.
             tracing::warn!(provider = "gemini", status = %status, "AI API error");
-            tracing::debug!(provider = "gemini", body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
         let mut stream = resp.bytes_stream().eventsource();

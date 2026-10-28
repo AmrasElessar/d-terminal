@@ -7,33 +7,55 @@
 // Wire protokolü için bkz. ADR-0001
 // (docs/adr/0001-pty-sidecar-ipc-protocol.md).
 //
-// Process isolation (v0.9.6+): Bu sidecar process'i Tauri tarafında
-// `ProcessJail` Job Object'ine assign edilir (`AssignProcessToJobObject`).
-// `JOB_OBJECT_LIMIT_BREAKAWAY_OK` flag'i SET DEĞİL — yani node-pty.spawn
-// ile başlatılan grandchild PTY shell'ler (PowerShell, cmd, wsl) Windows
-// kernel tarafından OTOMATIK olarak aynı Job'a inherit edilir. Sonuç:
-// D-Terminal abrupt kapanırsa (taskkill /f, kernel panic) kullanıcının
-// shell session'ları + onların child'ları (npm, git, vs.) kernel
-// tarafından garantili temizlenir. Detay: ADR-0006.
+// Process isolation: Bu sidecar process'i Tauri tarafında `ProcessJail` Job
+// Object'ine assign edilir. Job `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` ile
+// kurulur: sidecar'ın kendisi job üyesidir (D-Terminal abrupt kapanırsa
+// kernel sidecar'ı öldürür) ama spawn ettiği ConPTY host + shell'ler job'a
+// dahil DEĞİLDİR. Sidecar ölünce pseudoconsole kapanır ve shell'ler
+// CTRL_CLOSE_EVENT ile sonlanır; kullanıcının terminalden başlattığı GUI
+// uygulamaları (notepad, `code .`) ise D-Terminal kapanınca öldürülmez.
+// Detay: ADR-0006.
 
 'use strict';
 
 const { Buffer } = require('node:buffer');
 
+/** Sidecar sürümü — tek kaynak sidecar/package.json (pkg bundle'a dahil). */
+const SIDECAR_VERSION = (() => {
+  try {
+    return require('./package.json').version;
+  } catch {
+    return '0.0.0';
+  }
+})();
+
 // pkg-bundle bootstrap: pkg snapshot fs içindeki .node binding'ler + conpty
 // helper'ları (conpty.dll, OpenConsole.exe) gerçek dosya sistemine extract
 // edilir. node-pty'nin C++ tarafı (conpty.cc) `conpty/conpty.dll`'yi
 // pty.node'un yanında arar — pkg'nin .node extract'i bu yapıyı korumaz.
+//
+// Güvenlik / sağlamlık:
+//  - Hedef: %LOCALAPPDATA%\D-Terminal\pty-natives\<sürüm>\<arch> (paylaşılan
+//    %TEMP% yerine kullanıcıya özel, sürüm bazlı klasör → upgrade sonrası
+//    eski ABI'li binary yeniden kullanılmaz).
+//  - Mevcut dosya her açılışta snapshot içeriğinin SHA-256'sı ile
+//    karşılaştırılır; farklıysa (bozuk / değiştirilmiş) yeniden yazılır.
+//  - Yazma geçici dosyaya yapılıp atomik rename edilir → iki instance
+//    yarım yazılmış dosyayı yüklemez.
 if (process.pkg) {
   const fs = require('node:fs');
   const path = require('node:path');
   const os = require('node:os');
+  const crypto = require('node:crypto');
   const Module = require('node:module');
 
   const arch = `${process.platform}-${process.arch}`;
-  const nativesDir = path.join(os.tmpdir(), 'dterminal-pty-bridge-natives', arch);
+  const baseDir = process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, 'D-Terminal', 'pty-natives')
+    : path.join(os.tmpdir(), 'dterminal-pty-bridge-natives');
+  const nativesDir = path.join(baseDir, SIDECAR_VERSION, arch);
   const conptyDir = path.join(nativesDir, 'conpty');
-  const logFile = path.join(os.tmpdir(), 'dterminal-pty-bridge-natives', 'bootstrap.log');
+  const logFile = path.join(baseDir, 'bootstrap.log');
 
   fs.mkdirSync(conptyDir, { recursive: true });
   const logBoot = (msg) => {
@@ -48,10 +70,26 @@ if (process.pkg) {
     arch,
   );
 
-  const extractIfMissing = (src, dst) => {
+  const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+  const extractVerified = (src, dst) => {
     try {
-      if (fs.existsSync(dst) && fs.statSync(dst).size > 0) return;
-      fs.writeFileSync(dst, fs.readFileSync(src));
+      const want = fs.readFileSync(src);
+      const wantHash = sha256(want);
+      try {
+        if (sha256(fs.readFileSync(dst)) === wantHash) return;
+        logBoot(`hash mismatch, rewriting ${path.basename(dst)}`);
+      } catch { /* yok — yaz */ }
+      const tmp = `${dst}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tmp, want);
+      try {
+        fs.renameSync(tmp, dst);
+      } catch (e) {
+        // Windows: hedef başka bir instance tarafından yüklü (kilitli) olabilir.
+        // O durumda mevcut dosya zaten doğru sürümü taşıyorsa sorun yok.
+        try { fs.unlinkSync(tmp); } catch { /* noop */ }
+        if (sha256(fs.readFileSync(dst)) !== wantHash) throw e;
+      }
       logBoot(`extracted ${path.basename(dst)}`);
     } catch (e) {
       logBoot(`extract FAILED ${src}: ${e.message}`);
@@ -60,10 +98,10 @@ if (process.pkg) {
   };
 
   for (const name of ['pty.node', 'conpty.node', 'conpty_console_list.node']) {
-    extractIfMissing(path.join(snapshotPrebuild, name), path.join(nativesDir, name));
+    extractVerified(path.join(snapshotPrebuild, name), path.join(nativesDir, name));
   }
   for (const name of ['conpty.dll', 'OpenConsole.exe']) {
-    extractIfMissing(
+    extractVerified(
       path.join(snapshotPrebuild, 'conpty', name),
       path.join(conptyDir, name),
     );
@@ -110,11 +148,36 @@ const MsgType = Object.freeze({
 });
 
 /** Protokol versiyonu — Tauri PROTOCOL_VERSION ile eşleşmeli. Breaking change'lerde
- *  ikiside birden bumpllanır. */
+ *  ikisi birden bump'lanır. Eklemeli (additive) özellikler HELLO
+ *  `capabilities` listesiyle müzakere edilir. */
 const PROTOCOL_VERSION = 1;
-const SIDECAR_VERSION = '0.9.4'; // sidecar/package.json + Tauri Cargo.toml senkron
+
+/** HELLO'da ilan edilen opsiyonel yetenekler. */
+const CAPABILITIES = Object.freeze(['flow_credit']);
+
+/** Credit tabanlı akış kontrolü: bir pane'in Tauri tarafından henüz
+ *  onaylanmamış (FLOW_RESUME ile ack'lenmemiş) çıktısı HIGH_WATER'ı aşınca
+ *  PTY okuması duraklatılır, LOW_WATER'ın altına inince devam eder. Böylece
+ *  tek bir `cat huge.log` diğer pane'leri / UI'ı boğamaz. */
+const FLOW_HIGH_WATER = 1024 * 1024;     // 1 MB
+const FLOW_LOW_WATER = 256 * 1024;       // 256 KB
 
 const KNOWN_TYPES = new Set(Object.values(MsgType));
+
+/** Shell'lere sızmaması gereken, sidecar / Tauri'ye ait iç env değişkenleri. */
+const INTERNAL_ENV_PREFIXES = ['PKG_', 'TAURI_', '__TAURI', 'DTERMINAL_SIDECAR'];
+const INTERNAL_ENV_KEYS = new Set(['PKG_EXECPATH', 'NODE_PTY_DEBUG']);
+
+function sanitizeEnv(base) {
+  const out = {};
+  for (const [k, v] of Object.entries(base)) {
+    const upper = k.toUpperCase();
+    if (INTERNAL_ENV_KEYS.has(upper)) continue;
+    if (INTERNAL_ENV_PREFIXES.some((p) => upper.startsWith(p))) continue;
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
+}
 
 // --- Frame encode/decode -------------------------------------------------
 
@@ -148,13 +211,39 @@ function toBuffer(input) {
   throw new TypeError('payload must be Buffer, Uint8Array, or string');
 }
 
+/** Stream senkronunun kaybolduğunu belirten, kurtarılamaz decode hatası. */
+class FatalDecodeError extends Error {}
+
 /**
- * Akış tabanlı frame decoder. Buffer'ı bes, frame geldikçe callback'i çağır.
+ * Akış tabanlı frame decoder. Buffer'ı besle, frame geldikçe döndür.
+ *
+ * - Chunk'lar bir listede biriktirilir ve yalnızca bir sonraki frame'i
+ *   tamamlayacak kadar veri geldiğinde birleştirilir (eski her-chunk-concat
+ *   O(n²) davranışı yerine O(n)).
+ * - Bilinmeyen mesaj tipi: uzunluk bilindiği için frame atlanır ve stream
+ *   senkronu korunur (ileri uyumluluk) — `onUnknown` callback'i bildirilir.
+ * - MAX_PAYLOAD üstü uzunluk: stream güvenilmez → iç buffer sıfırlanır ve
+ *   FatalDecodeError fırlatılır (decoder "zehirlenmiş" halde kalmaz).
  */
 class FrameDecoder {
-  constructor() {
-    /** @type {Buffer} */
-    this._buf = Buffer.alloc(0);
+  constructor({ onUnknown } = {}) {
+    /** @type {Buffer[]} */
+    this._chunks = [];
+    this._len = 0;
+    /** Bir sonraki frame'i tamamlamak için gereken toplam byte (0 = bilinmiyor). */
+    this._need = 0;
+    this._onUnknown = onUnknown ?? null;
+  }
+
+  /** Buffer'daki bekleyen byte sayısı (test/diagnostic). */
+  get pending() {
+    return this._len;
+  }
+
+  reset() {
+    this._chunks = [];
+    this._len = 0;
+    this._need = 0;
   }
 
   /**
@@ -162,37 +251,55 @@ class FrameDecoder {
    * @returns {Array<{msgType:number, paneId:bigint, payload:Buffer}>}
    */
   feed(chunk) {
-    this._buf = this._buf.length === 0 ? chunk : Buffer.concat([this._buf, chunk]);
+    if (chunk.length === 0) return [];
+    this._chunks.push(chunk);
+    this._len += chunk.length;
+    if (this._len < Math.max(this._need, HEADER_LEN)) return [];
+
+    const buf = this._chunks.length === 1 ? this._chunks[0] : Buffer.concat(this._chunks, this._len);
+    this._chunks = [];
+    this._len = 0;
+    this._need = 0;
+
     const out = [];
-    while (this._buf.length >= HEADER_LEN) {
-      const len = this._buf.readUInt32BE(0);
+    let off = 0;
+    while (buf.length - off >= HEADER_LEN) {
+      const len = buf.readUInt32BE(off);
       if (len > MAX_PAYLOAD) {
-        throw new Error(`payload too large in stream: ${len}`);
+        this.reset();
+        throw new FatalDecodeError(`payload too large in stream: ${len}`);
       }
       const total = HEADER_LEN + len;
-      if (this._buf.length < total) break;
-      const msgType = this._buf.readUInt8(4);
-      if (!KNOWN_TYPES.has(msgType)) {
-        throw new Error(`unknown msg type in stream: 0x${msgType.toString(16)}`);
+      if (buf.length - off < total) {
+        this._need = total;
+        break;
       }
-      const paneId = this._buf.readBigUInt64BE(5);
-      const payload = this._buf.subarray(HEADER_LEN, total);
-      // subarray view → bağımsız kopya almalı, arkadaki buffer'ı kaydırınca geçerliliğini kaybeder
-      out.push({ msgType, paneId, payload: Buffer.from(payload) });
-      this._buf = this._buf.subarray(total);
+      const msgType = buf.readUInt8(off + 4);
+      const paneId = buf.readBigUInt64BE(off + 5);
+      if (KNOWN_TYPES.has(msgType)) {
+        // subarray view → bağımsız kopya al; arkadaki buffer yeniden kullanılabilir
+        out.push({ msgType, paneId, payload: Buffer.from(buf.subarray(off + HEADER_LEN, off + total)) });
+      } else if (this._onUnknown) {
+        this._onUnknown(msgType, paneId);
+      }
+      off += total;
+    }
+    if (off < buf.length) {
+      const rest = buf.subarray(off);
+      this._chunks.push(rest);
+      this._len = rest.length;
     }
     return out;
   }
 }
 
-// --- CBOR (minimal — yalnızca ihtiyaç duyulan tipler) -------------------
+// --- CBOR ----------------------------------------------------------------
 
-// node:util TextEncoder/TextDecoder yerleşik. Tam CBOR spec değil — sadece
-// SpawnPayload / ResizePayload / ExitPayload / ErrorPayload için yeterli.
-// Production'da `cbor-x` veya benzeri eklenebilir; protokol bağımsız.
-
+// Rust tarafı (ciborium) CBOR konuşur. cbor-x yoksa yalnızca protokol testleri
+// (require ile kütüphane olarak yüklenince) JSON fallback'i kullanır; gerçek
+// sidecar (`runMain`) cbor-x olmadan çalışmayı reddeder — sessizce JSON'a
+// düşmek her SPAWN'ın Rust'ta decode hatasıyla başarısız olmasına yol açardı.
 const cborEncoder = (() => {
-  // Lazy require: paket henüz install edilmemiş olabilir; encoder mevcut değilse JSON fallback.
   try {
     const { encode, decode } = require('cbor-x');
     return { encode, decode };
@@ -203,7 +310,6 @@ const cborEncoder = (() => {
 
 function encodePayload(obj) {
   if (cborEncoder) return cborEncoder.encode(obj);
-  // Fallback: JSON. Tauri tarafındaki Rust ciborium ile uyum için production'da CBOR şart.
   return Buffer.from(JSON.stringify(obj), 'utf8');
 }
 
@@ -215,41 +321,62 @@ function decodePayload(buf) {
 // --- PTY Manager (multiplexer) -----------------------------------------
 
 class PtyManager {
-  constructor({ writeFrame, log }) {
-    /** @type {Map<string, import('node-pty').IPty>} */
+  constructor({ writeFrame, log, ptyImpl = pty }) {
+    /** @type {Map<string, {proc: import('node-pty').IPty, unacked: number, paused: boolean}>} */
     this._panes = new Map();
     this._writeFrame = writeFrame;
     this._log = log;
+    this._pty = ptyImpl;
+    /** Tauri credit (FLOW_RESUME ack) gönderiyor mu — HELLO sonrası pane 0
+     *  FLOW_RESUME ile etkinleşir. Eski Tauri ack göndermezse pane'ler
+     *  sonsuza dek duraklamasın diye varsayılan kapalı. */
+    this._creditMode = false;
+    /** stdout pipe'ı doldu ('drain' bekleniyor) → tüm pane'ler duraklar. */
+    this._drainWait = false;
   }
 
   spawn(paneId, payload) {
-    if (!pty) {
+    if (!this._pty) {
       throw new Error('node-pty not available — install dependencies first');
     }
     const key = String(paneId);
     if (this._panes.has(key)) {
-      throw new Error(`pane ${key} already exists`);
+      const err = new Error(`pane ${key} already exists`);
+      err.paneAlive = true;
+      throw err;
     }
-    const proc = pty.spawn(payload.shell, payload.args ?? [], {
+    if (!payload || typeof payload.shell !== 'string' || payload.shell.length === 0) {
+      throw new Error('spawn: shell missing');
+    }
+    const extraEnv = Array.isArray(payload.env) ? payload.env : [];
+    const proc = this._pty.spawn(payload.shell, Array.isArray(payload.args) ? payload.args : [], {
       cwd: payload.cwd ?? process.cwd(),
-      env: { ...process.env, ...Object.fromEntries(payload.env ?? []) },
+      env: { ...sanitizeEnv(process.env), ...Object.fromEntries(extraEnv) },
       cols: payload.cols ?? 80,
       rows: payload.rows ?? 24,
       name: 'xterm-256color',
       useConpty: true, // Windows: ConPTY (Win10 1809+)
     });
-    this._panes.set(key, proc);
+    const entry = { proc, unacked: 0, paused: false };
+    this._panes.set(key, entry);
 
     proc.onData((data) => {
       // node-pty 'data' verisi string. Binary güvenli olması için Buffer'a çevir.
-      this._writeFrame(MsgType.STDOUT, paneId, Buffer.from(data, 'utf8'));
+      const buf = Buffer.from(data, 'utf8');
+      entry.unacked += buf.length;
+      this._writeFrame(MsgType.STDOUT, paneId, buf);
+      this._updatePause(entry);
     });
     proc.onExit(({ exitCode, signal }) => {
-      this._panes.delete(key);
+      if (this._panes.get(key) === entry) this._panes.delete(key);
       this._writeFrame(
         MsgType.EXIT,
         paneId,
-        encodePayload({ exit_code: exitCode ?? 0, signal: signal ?? null }),
+        encodePayload({
+          exit_code: Number.isInteger(exitCode) ? exitCode : 0,
+          // Rust ExitPayload.signal: Option<String> — sayı gelirse string'e çevir.
+          signal: signal ? String(signal) : null,
+        }),
       );
     });
 
@@ -257,33 +384,138 @@ class PtyManager {
   }
 
   write(paneId, data) {
-    const proc = this._panes.get(String(paneId));
-    if (!proc) return; // sessiz drop — pane çoktan kapanmış olabilir
-    proc.write(data.toString('utf8'));
+    const entry = this._panes.get(String(paneId));
+    if (!entry) return; // sessiz drop — pane çoktan kapanmış olabilir
+    entry.proc.write(data.toString('utf8'));
   }
 
   resize(paneId, cols, rows) {
-    const proc = this._panes.get(String(paneId));
-    if (!proc) return;
-    proc.resize(cols, rows);
+    const entry = this._panes.get(String(paneId));
+    if (!entry) return;
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1) return;
+    entry.proc.resize(cols, rows);
   }
 
   kill(paneId) {
-    const proc = this._panes.get(String(paneId));
-    if (!proc) return;
-    proc.kill();
-    this._panes.delete(String(paneId));
+    const entry = this._panes.get(String(paneId));
+    if (!entry) return;
+    try {
+      entry.proc.kill();
+    } finally {
+      // EXIT frame'i onExit'ten gelir; map'ten burada sil ki aynı id tekrar
+      // kullanılamasın.
+      this._panes.delete(String(paneId));
+    }
   }
 
   killAll() {
-    for (const [, proc] of this._panes) {
-      try { proc.kill(); } catch { /* yutulur */ }
+    for (const [, entry] of this._panes) {
+      try { entry.proc.kill(); } catch { /* yutulur */ }
     }
     this._panes.clear();
   }
 
+  has(paneId) {
+    return this._panes.has(String(paneId));
+  }
+
   size() {
     return this._panes.size;
+  }
+
+  /** Tauri credit modunu açtı (pane 0 FLOW_RESUME). */
+  enableCreditMode() {
+    this._creditMode = true;
+  }
+
+  /** Tauri `bytes` kadar çıktıyı tükettiğini bildirdi. */
+  ack(paneId, bytes) {
+    const entry = this._panes.get(String(paneId));
+    if (!entry) return;
+    entry.unacked = Math.max(0, entry.unacked - (Number.isFinite(bytes) ? bytes : 0));
+    this._updatePause(entry);
+  }
+
+  /** stdout.write() false döndü → 'drain' gelene kadar herkesi duraklat. */
+  setDrainWait(waiting) {
+    if (this._drainWait === waiting) return;
+    this._drainWait = waiting;
+    for (const [, entry] of this._panes) this._updatePause(entry);
+  }
+
+  _updatePause(entry) {
+    let shouldPause = this._drainWait;
+    if (this._creditMode) {
+      if (entry.unacked >= FLOW_HIGH_WATER) shouldPause = true;
+      else if (entry.paused && entry.unacked > FLOW_LOW_WATER) shouldPause = true;
+    }
+    if (shouldPause === entry.paused) return;
+    entry.paused = shouldPause;
+    try {
+      if (shouldPause) entry.proc.pause();
+      else entry.proc.resume();
+    } catch { /* pause/resume desteklenmiyorsa yut */ }
+  }
+}
+
+// --- Dispatch ------------------------------------------------------------
+
+/**
+ * Tek bir frame'i işle. Hata fırlatmaz: hata durumunda ilgili pane için ERROR
+ * (ve SPAWN başarısızsa EXIT) frame'i gönderir, böylece aynı chunk'taki diğer
+ * frame'ler işlenmeye devam eder ve Rust tarafı pane slot'unu serbest bırakır.
+ */
+function dispatch(frame, manager, writeFrame, log) {
+  const { msgType, paneId, payload } = frame;
+  try {
+    switch (msgType) {
+      case MsgType.SPAWN: {
+        const spec = decodePayload(payload);
+        manager.spawn(paneId, spec);
+        break;
+      }
+      case MsgType.STDIN:
+        manager.write(paneId, payload);
+        break;
+      case MsgType.RESIZE: {
+        const { cols, rows } = decodePayload(payload);
+        manager.resize(paneId, cols, rows);
+        break;
+      }
+      case MsgType.KILL:
+        manager.kill(paneId);
+        break;
+      case MsgType.PING:
+        writeFrame(MsgType.PONG, 0n, Buffer.alloc(0));
+        break;
+      case MsgType.PONG:
+        // peer'ın yanıtı — lastTauriContact stdin 'data' handler'ında güncellenir
+        break;
+      case MsgType.FLOW_RESUME: {
+        if (paneId === 0n) {
+          manager.enableCreditMode();
+        } else {
+          const { bytes } = payload.length > 0 ? decodePayload(payload) : { bytes: Infinity };
+          manager.ack(paneId, bytes);
+        }
+        break;
+      }
+      default:
+        log(`ignored msg type: 0x${msgType.toString(16)}`);
+    }
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    log(`dispatch error (type 0x${msgType.toString(16)}, pane ${paneId}): ${message}`);
+    const code = msgType === MsgType.SPAWN ? 'spawn_failed' : 'dispatch_error';
+    try {
+      writeFrame(MsgType.ERROR, paneId, encodePayload({ code, message }));
+      if (msgType === MsgType.SPAWN && paneId !== 0n && !(err && err.paneAlive)) {
+        // Rust tarafı EXIT'te pane slot'unu siler ve frontend'e bildirir.
+        writeFrame(MsgType.EXIT, paneId, encodePayload({ exit_code: -1, signal: 'spawn_failed' }));
+      }
+    } catch (e) {
+      log(`error report failed: ${e.message}`);
+    }
   }
 }
 
@@ -292,16 +524,27 @@ class PtyManager {
 function runMain() {
   const log = (msg) => process.stderr.write(`[pty-bridge] ${msg}\n`);
 
-  // stdout binary mode için: setEncoding null, raw write
-  process.stdout.write = process.stdout.write.bind(process.stdout);
+  if (!cborEncoder) {
+    // Rust CBOR konuşur; JSON fallback ile çalışmak her SPAWN'ı bozar.
+    log('FATAL: cbor-x not available — refusing to start (protocol requires CBOR)');
+    process.exit(2);
+  }
 
+  let manager = null;
   const writeFrame = (msgType, paneId, payload) => {
     const frame = encodeFrame(msgType, paneId, payload);
-    process.stdout.write(frame);
+    const ok = process.stdout.write(frame);
+    if (!ok && manager) manager.setDrainWait(true);
+    return ok;
   };
+  process.stdout.on('drain', () => {
+    if (manager) manager.setDrainWait(false);
+  });
 
-  const manager = new PtyManager({ writeFrame, log });
-  const decoder = new FrameDecoder();
+  manager = new PtyManager({ writeFrame, log });
+  const decoder = new FrameDecoder({
+    onUnknown: (type, paneId) => log(`skipped unknown msg type 0x${type.toString(16)} (pane ${paneId})`),
+  });
 
   // HELLO handshake — Tauri tarafına protokol versiyon + sidecar binary
   // versiyonunu ilet. Tauri uyumsuzluk tespit ederse SidecarDown emit edip
@@ -310,33 +553,41 @@ function runMain() {
     const helloPayload = encodePayload({
       protocol_version: PROTOCOL_VERSION,
       sidecar_version: SIDECAR_VERSION,
-      capabilities: [], // Gelecek için: ['flow_resume', 'backpressure', ...]
+      capabilities: CAPABILITIES,
     });
     writeFrame(MsgType.HELLO, 0n, helloPayload);
   } catch (e) {
     log(`HELLO write failed: ${e.message}`);
-    // Tauri tarafı stdout'u dinlemiyorsa ileride zaten EPIPE alacak — devam et.
   }
 
   // Heartbeat (iki yönlü):
   //  - Tauri 5s'de bir PING gönderir, sidecar PONG döner (dispatch'te).
   //  - Sidecar 5s'de bir PING gönderir, Tauri PONG döner (manager.rs).
-  //  - Sidecar son Tauri PING/PONG'unu izler. Sessizlik uzun sürerse
-  //    UYARI ver — ama PTY'leri ÖLDÜRME. Uzun süren bir job (build, dump,
-  //    veri taşıma) varken false-positive timeout kullanıcının işini
-  //    yakar; Tauri gerçekten ölmüşse stdout EPIPE yine bizi temizler ve
-  //    Windows'ta Job Object kill-on-close orphan riskini kapatır.
+  //  - Sidecar son Tauri temasını izler. Sessizlik uzun sürerse UYARI ver —
+  //    ama PTY'leri ÖLDÜRME (uzun süren job'ları yakmamak için); Tauri
+  //    gerçekten ölmüşse stdout EPIPE / stdin 'end' bizi temizler.
   //
   // System sleep/suspend: setInterval host uyurken donar; uyanışta
-  // `Date.now() - lastTauriContact` aşırı büyür → yanlışlıkla Tauri "ölü"
-  // sayılır. `lastTick` ile tick'ler arası gerçek aralığı ölç, eşiği
-  // aşarsa uyandık say ve watchdog'u sıfırla.
+  // tick'ler arası gerçek aralık ölçülür ve watchdog sıfırlanır.
   let lastTauriContact = Date.now();
   let lastTick = Date.now();
   let peerTimeoutLogged = false;
   const HEARTBEAT_MS = 5000;
-  const PEER_TIMEOUT_MS = 30000; // 15 → 30s: GC/IO duraklamalarına tolerans
+  const PEER_TIMEOUT_MS = 30000;
   const SLEEP_DETECT_MS = 15000;
+
+  let shuttingDown = false;
+  const shutdown = (reason, code = 0) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    clearInterval(heartbeat);
+    log(`shutdown: ${reason}`);
+    manager.killAll();
+    // node-pty'nin Windows kill'i asenkron (ConPTY kapanışı + console-list
+    // fork'u). Hemen process.exit etmek torun process'leri yetim bırakabilir;
+    // kısa bir süre tanı, sonra çık. unref → başka iş yoksa daha erken biter.
+    setTimeout(() => process.exit(code), 500).unref();
+  };
 
   const heartbeat = setInterval(() => {
     const now = Date.now();
@@ -351,92 +602,51 @@ function runMain() {
       writeFrame(MsgType.PING, 0n, Buffer.alloc(0));
     } catch (e) {
       log(`heartbeat write failed: ${e.message}`);
-      // stdout kapalıysa Tauri zaten yok — shutdown (EPIPE da aynı yola gelir)
       shutdown('stdout write failed');
       return;
     }
     const silenceMs = now - lastTauriContact;
     if (silenceMs > PEER_TIMEOUT_MS) {
       if (!peerTimeoutLogged) {
-        log(`peer (Tauri) silent for ${silenceMs}ms — NOT exiting; PTYs preserved (stdout EPIPE handler bekliyor)`);
+        log(`peer (Tauri) silent for ${silenceMs}ms — NOT exiting; PTYs preserved`);
         peerTimeoutLogged = true;
       }
-      // shutdown(...) ÇAĞIRMA — PTY'leri öldürür, kullanıcı işini kaybeder.
-      // Tauri gerçekten ölü ise stdout.on('error', EPIPE) yolu zaten shutdown
-      // edecek; ayrıca app exit'inde ProcessJail kill-on-close devreye girer.
     } else if (peerTimeoutLogged) {
       log('peer (Tauri) recovered after silence');
       peerTimeoutLogged = false;
     }
   }, HEARTBEAT_MS);
 
-  const shutdown = (reason) => {
-    clearInterval(heartbeat);
-    manager.killAll();
-    log(`shutdown: ${reason}`);
-    process.exit(0);
-  };
-
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.stdin.on('end', () => shutdown('stdin closed'));
-  // Pipe karşı tarafı yazılırken kapanırsa Node stdout'a yazma denemeleri
-  // EPIPE atar — yakalanmazsa default davranış crash. Açıkça yakala + shutdown.
   process.stdout.on('error', (e) => {
     if (e && e.code === 'EPIPE') shutdown('stdout EPIPE');
   });
 
   process.stdin.on('data', (chunk) => {
-    // Herhangi bir veri Tauri'nin yaşadığını gösterir
     lastTauriContact = Date.now();
+    let frames;
     try {
-      for (const frame of decoder.feed(chunk)) {
-        dispatch(frame, manager, writeFrame, log);
-      }
+      frames = decoder.feed(chunk);
     } catch (err) {
-      log(`decode error: ${err.message}`);
-      writeFrame(
-        MsgType.ERROR,
-        0n,
-        encodePayload({ code: 'decode_error', message: err.message }),
-      );
+      // Stream senkronu kayboldu (ör. bozuk uzunluk alanı). Decoder kendini
+      // sıfırladı ama byte hizası artık bilinmiyor — devam etmek her sonraki
+      // frame'i yanlış yorumlar. Fatal ERROR gönder ve çık; Rust reader EOF
+      // görür, pane'leri temizler ve sonraki spawn'da sidecar'ı yeniden başlatır.
+      log(`fatal decode error: ${err.message}`);
+      try {
+        writeFrame(MsgType.ERROR, 0n, encodePayload({ code: 'decode_fatal', message: err.message }));
+      } catch { /* noop */ }
+      shutdown('decode error', 1);
+      return;
+    }
+    for (const frame of frames) {
+      dispatch(frame, manager, writeFrame, log);
     }
   });
 
-  log(`ready — pid ${process.pid}`);
-}
-
-function dispatch(frame, manager, writeFrame, log) {
-  const { msgType, paneId, payload } = frame;
-  switch (msgType) {
-    case MsgType.SPAWN: {
-      const spec = decodePayload(payload);
-      manager.spawn(paneId, spec);
-      break;
-    }
-    case MsgType.STDIN:
-      manager.write(paneId, payload);
-      break;
-    case MsgType.RESIZE: {
-      const { cols, rows } = decodePayload(payload);
-      manager.resize(paneId, cols, rows);
-      break;
-    }
-    case MsgType.KILL:
-      manager.kill(paneId);
-      break;
-    case MsgType.PING:
-      writeFrame(MsgType.PONG, 0n, Buffer.alloc(0));
-      break;
-    case MsgType.PONG:
-      // peer'ın yanıtı — heartbeat takibi ileride manager'a taşınır
-      break;
-    case MsgType.FLOW_RESUME:
-      // backpressure release; v1.0 manager implementasyonunda kullanılır
-      break;
-    default:
-      log(`ignored msg type: 0x${msgType.toString(16)}`);
-  }
+  log(`ready — pid ${process.pid} (v${SIDECAR_VERSION})`);
 }
 
 // Entrypoint when run directly (not when required as a library for tests).
@@ -448,9 +658,16 @@ module.exports = {
   MsgType,
   MAX_PAYLOAD,
   HEADER_LEN,
+  PROTOCOL_VERSION,
+  SIDECAR_VERSION,
+  FLOW_HIGH_WATER,
+  FLOW_LOW_WATER,
   encodeFrame,
   FrameDecoder,
+  FatalDecodeError,
   encodePayload,
   decodePayload,
+  sanitizeEnv,
+  dispatch,
   PtyManager,
 };

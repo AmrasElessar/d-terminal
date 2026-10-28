@@ -97,6 +97,37 @@ payload: type'a göre değişken (raw bytes veya CBOR)
 - Frame parser fuzz testi yazılır (`cargo-fuzz` ile)
 - Frame size limiti (16 MB) DoS koruması — overflow → connection reset
 
+## Amendment (2026-10) — implementation vs. original decision
+
+The original decision above describes the *planned* design. The shipped
+implementation differs in these points; this section is authoritative for
+the current code (`sidecar/pty-bridge.js`, `src-tauri/src/sidecar/`):
+
+- **Spawn/transport:** the sidecar is started with `std::process::Command`
+  (piped stdio, `CREATE_NO_WINDOW`), not `tauri-plugin-shell`.
+- **No ring buffer / SIGSTOP / SuspendThread.** Backpressure is credit/flow
+  based instead: the sidecar tracks per-pane unacknowledged output, calls
+  node-pty `pause()` above a high-water mark and `resume()` when Tauri sends
+  `FLOW_RESUME` (or the backlog drains), and honours `stdout.write()`
+  return values. No output is silently dropped. Exact thresholds live in
+  the code.
+- **Webview transport:** PTY output is forwarded to the webview as base64
+  strings (not JSON number arrays), and coalesced chunks are size-capped.
+- **Decoder robustness:** a malformed / unknown / oversize frame resets the
+  decoder state and is reported as a fatal protocol error so the manager
+  can restart the sidecar, instead of poisoning the input buffer.
+  Per-pane spawn failures are reported with the real `pane_id` so the
+  Rust side releases the pane slot.
+- **Single sidecar, no pool:** the 50-pane limit is per app instance; the
+  sidecar pool / least-loaded selection was never implemented.
+- **Heartbeat:** see ADR-0006 — Job Object handles zombie cleanup; the
+  heartbeat is non-destructive (sleep/suspend aware) and its timeout is the
+  value in `manager.rs`, not the 15 s stated above.
+- **Protocol version:** exchanged in a `HELLO` frame at startup; a
+  mismatch shuts the sidecar down without the reader thread joining itself.
+- **Fuzzing:** `cargo-fuzz` frame-parser fuzzing is still a TODO; unit
+  tests cover framing, size caps and unknown types on both sides.
+
 ## Alternatifler
 
 ### JSON üzerinden satır bazlı IPC

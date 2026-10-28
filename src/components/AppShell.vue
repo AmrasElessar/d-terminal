@@ -463,7 +463,7 @@ watch(
         <button type="button" @click="openSnippets">{{ t('snippet.title') }}</button>
         <span class="spacer" data-tauri-drag-region />
         <button id="cmd-palette-trigger" type="button" @click="openPalette">⌘ {{ t('commandPalette.placeholder') }}</button>
-        <button type="button" :title="t('about.title')" @click="modals.open('about')">ℹ</button>
+        <button type="button" :title="t('about.title')" :aria-label="t('about.title')" @click="modals.open('about')">ℹ</button>
         <button
           type="button"
           class="shell__menu-icon"

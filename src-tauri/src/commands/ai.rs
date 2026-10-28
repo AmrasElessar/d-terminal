@@ -6,7 +6,6 @@
 
 use crate::ai::{provider_for, AiModel, ChatMessage, ChatOptions, UsageInfo};
 use crate::state::AppState;
-use std::sync::Arc;
 use tauri::{ipc::Channel, State};
 use tokio::sync::oneshot;
 use zeroize::Zeroizing;
@@ -35,6 +34,9 @@ pub async fn ai_chat_stream(
 ) -> Result<(), String> {
     let p = provider_for(&provider).ok_or_else(|| format!("unknown provider: {provider}"))?;
     let key = retrieve_key(&state, &provider);
+    if key.is_some() {
+        check_key_binding(&state, &provider, &options)?;
+    }
 
     // Channel send'i background thread'da safe — clone yap.
     let chunk_sink: crate::ai::ChunkSink = Box::new(move |text: String| {
@@ -52,7 +54,16 @@ pub async fn ai_chat_stream(
     // `()` gönderir; tokio::select! chat future'ını drop eder, reqwest HTTP
     // bağlantısı kapatılır, daha fazla token harcanmaz (AI providers H1).
     let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
-    state.ai_aborts.lock().insert(stream_id, cancel_tx);
+    {
+        // Aynı id ile ikinci stream eskisinin sender'ını eziyordu: eski stream
+        // `cancel_rx` Err ile abort oluyor, bitince de yeni stream'in entry'sini
+        // silip onu iptal edilemez bırakıyordu. Çakışan id'yi reddet.
+        let mut aborts = state.ai_aborts.lock();
+        if aborts.contains_key(&stream_id) {
+            return Err("duplicateStreamId".to_string());
+        }
+        aborts.insert(stream_id, cancel_tx);
+    }
 
     let chat_future = p.chat(
         key.as_deref().map(|s| s.as_str()),
@@ -106,12 +117,110 @@ fn retrieve_key(state: &State<'_, AppState>, provider: &str) -> Option<Zeroizing
     if provider == "ollama" {
         return None;
     }
-    let secrets = crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
-        state.storage.pool().clone(),
-    )));
+    let secrets = crate::secrets::for_storage(&state.storage);
     let bytes = secrets.retrieve("ai_provider", provider).ok()?;
     // bytes: Zeroizing<Vec<u8>>. UTF-8 invalid ise None döndür — provider
     // sadece ASCII/UTF-8 key kabul eder; bozuk byte zaten kullanılmaz.
     let s = std::str::from_utf8(&bytes).ok()?.to_owned();
     Some(Zeroizing::new(s))
+}
+
+/// Custom provider key'inin bağlı olduğu origin'i tutan rezerve settings key'i.
+/// `_` önekli key'ler webview'dan `settings_set`/`settings_delete` ile
+/// değiştirilemez (bkz. `commands::settings`).
+pub(crate) const BOUND_ORIGIN_PREFIX: &str = "_ai_bound_origin.";
+
+/// Frontend settings store'unun custom endpoint'i sakladığı key
+/// (`src/stores/settings.ts` → `ui.` + `aiCustomEndpoint`, JSON string).
+const CUSTOM_ENDPOINT_SETTING: &str = "ui.aiCustomEndpoint";
+
+/// Saklı bir key'in yalnızca kaydedildiği endpoint'e gönderilmesini garanti eder.
+///
+/// Custom provider'da endpoint her çağrıda webview'dan gelir; XSS ile
+/// `endpoint: "https://evil.example/v1"` verilirse vault'taki key oraya
+/// `Authorization: Bearer` olarak giderdi. Key kaydedilirken (veya ilk
+/// kullanımda) endpoint origin'i backend'de saklanır; farklı bir origin'e
+/// key eklenmez — kullanıcı endpoint'i değiştirdiyse key'i yeniden girmelidir.
+fn check_key_binding(
+    state: &State<'_, AppState>,
+    provider: &str,
+    options: &ChatOptions,
+) -> Result<(), String> {
+    if provider != "custom" {
+        // openai: endpoint override yok sayılır; yerel runtime'lar: yalnızca
+        // loopback override (bkz. ai::openai::resolve_base_url).
+        return Ok(());
+    }
+    let endpoint = options.endpoint.as_deref().unwrap_or("").trim();
+    let origin = crate::ai::openai::origin_of(endpoint).ok_or("invalidUrl")?;
+    let setting = format!("{BOUND_ORIGIN_PREFIX}{provider}");
+    let bound = state
+        .storage
+        .settings
+        .get(&setting)
+        .map_err(|e| e.to_string())?;
+    if binding_allows(bound.as_deref(), &origin)? && bound.is_none() {
+        state
+            .storage
+            .settings
+            .set(&setting, &origin)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// `Ok(true)` → izin ver; bound yoksa çağıran TOFU olarak origin'i kaydeder.
+fn binding_allows(bound: Option<&str>, origin: &str) -> Result<bool, String> {
+    match bound {
+        None => Ok(true),
+        Some(b) if b == origin => Ok(true),
+        Some(_) => Err("endpointNotBoundToKey".to_string()),
+    }
+}
+
+/// Bir provider key'i kaydedildiğinde / silindiğinde bağlı origin'i sıfırlar.
+/// Custom provider için o an ayarlarda kayıtlı endpoint varsa key hemen ona
+/// bağlanır (TOFU penceresi kalmaz).
+pub(crate) fn rebind_key_origin(storage: &crate::storage::Storage, provider: &str, stored: bool) {
+    let setting = format!("{BOUND_ORIGIN_PREFIX}{provider}");
+    if let Err(e) = storage.settings.delete(&setting) {
+        tracing::warn!("ai key rebind: delete failed: {e}");
+    }
+    if !stored || provider != "custom" {
+        return;
+    }
+    let endpoint = storage
+        .settings
+        .get(CUSTOM_ENDPOINT_SETTING)
+        .ok()
+        .flatten()
+        .and_then(|json| serde_json::from_str::<String>(&json).ok());
+    if let Some(origin) = endpoint.as_deref().and_then(crate::ai::openai::origin_of) {
+        if let Err(e) = storage.settings.set(&setting, &origin) {
+            tracing::warn!("ai key rebind: set failed: {e}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::binding_allows;
+
+    #[test]
+    fn binding_first_use_allowed() {
+        assert_eq!(binding_allows(None, "https://a.example:443"), Ok(true));
+    }
+
+    #[test]
+    fn binding_same_origin_allowed() {
+        assert_eq!(
+            binding_allows(Some("https://a.example:443"), "https://a.example:443"),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn binding_other_origin_rejected() {
+        assert!(binding_allows(Some("https://a.example:443"), "https://evil.example:443").is_err());
+    }
 }

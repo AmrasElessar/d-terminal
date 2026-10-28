@@ -31,80 +31,149 @@ pub(crate) fn validate_endpoint(url: &str) -> Result<(), String> {
         "http" | "https" => {}
         other => return Err(format!("invalidScheme:{other}")),
     }
+    // Kimlik bilgisi gömülü URL (`https://user:pass@host`) ve query/fragment
+    // kabul edilmez: path sonuna `/chat/completions` eklenirken query'li bir
+    // URL (`http://localhost/admin?x=/chat/completions`) keyfi yerel path'e
+    // POST atmaya izin veriyordu.
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("credentialsInUrl".to_string());
+    }
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return Err("queryNotAllowed".to_string());
+    }
     let host = parsed.host_str().ok_or_else(|| "noHost".to_string())?;
-    if host.eq_ignore_ascii_case("localhost") {
+    if is_localhost_name(host) {
         return Ok(());
     }
-    // url crate IPv6'yı `[...]` parantez içinde döndürür; IpAddr parse için sıyır.
-    let host_for_ip = host
-        .strip_prefix('[')
-        .and_then(|s| s.strip_suffix(']'))
-        .unwrap_or(host);
-    if let Ok(ip) = host_for_ip.parse::<IpAddr>() {
+    if let Some(ip) = host_ip_literal(host) {
         return check_ip_public(&ip);
     }
     Ok(())
 }
 
-/// Tek bir IP'nin public olup olmadığını kontrol eder. Loopback geçerli kabul
-/// edilir (yerel runtime'lar için). Private/link-local/multicast reddedilir.
+/// `localhost` / `localhost.` / `*.localhost` (RFC 6761) — hepsi loopback'e çözülür.
+fn is_localhost_name(host: &str) -> bool {
+    let h = host.trim_end_matches('.').to_ascii_lowercase();
+    h == "localhost" || h.ends_with(".localhost")
+}
+
+/// url crate IPv6'yı `[...]` parantez içinde döndürür; IpAddr parse için sıyır.
+fn host_ip_literal(host: &str) -> Option<IpAddr> {
+    host.strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(host)
+        .parse::<IpAddr>()
+        .ok()
+}
+
+/// Host loopback mu (localhost adı veya loopback IP literal)? Yerel runtime
+/// endpoint override'ları yalnızca bu durumda kabul edilir.
+pub(crate) fn is_loopback_host(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    if is_localhost_name(host) {
+        return true;
+    }
+    match host_ip_literal(host) {
+        Some(IpAddr::V4(v4)) => v4.is_loopback(),
+        Some(IpAddr::V6(v6)) => {
+            v6.is_loopback() || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback())
+        }
+        None => false,
+    }
+}
+
+/// `scheme://host:port` — key'in hangi origin'e bağlı olduğunu karşılaştırmak için.
+pub(crate) fn origin_of(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    let port = parsed.port_or_known_default()?;
+    Some(format!("{}://{}:{}", parsed.scheme(), host, port))
+}
+
+/// Tek bir IP'nin bağlanılabilir olup olmadığını kontrol eder. Loopback geçerli
+/// kabul edilir (yerel runtime'lar için). Global unicast olmayan her şey
+/// (private, link-local, CGNAT, benchmark, reserved, multicast, dokümantasyon,
+/// IPv4-mapped/NAT64/6to4 içine gömülü private IPv4) reddedilir.
 pub(crate) fn check_ip_public(ip: &IpAddr) -> Result<(), String> {
     match ip {
-        IpAddr::V4(v4) => {
-            if v4.is_loopback() {
-                return Ok(());
-            }
-            if v4.is_private()
-                || v4.is_link_local()
-                || v4.is_broadcast()
-                || v4.is_documentation()
-                || v4.is_unspecified()
-                || v4.is_multicast()
-            {
-                return Err(format!("privateIp:{v4}"));
-            }
-        }
+        IpAddr::V4(v4) => check_v4(*v4),
         IpAddr::V6(v6) => {
             if v6.is_loopback() {
                 return Ok(());
             }
-            if v6.is_unspecified() || v6.is_multicast() {
-                return Err(format!("privateIp:{v6}"));
+            // ::ffff:a.b.c.d (IPv4-mapped) — `[::ffff:169.254.169.254]` eskiden geçiyordu.
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return check_v4(v4);
             }
             let segs = v6.segments();
-            // fc00::/7 unique-local
-            if segs[0] & 0xfe00 == 0xfc00 {
+            let embedded_v4 = |hi: u16, lo: u16| {
+                std::net::Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8)
+            };
+            // 64:ff9b::/96 NAT64 — gömülü IPv4'ü kontrol et.
+            if segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2..6] == [0, 0, 0, 0] {
+                return check_v4(embedded_v4(segs[6], segs[7]));
+            }
+            // 2002::/16 6to4 — gömülü IPv4 segs[1..3].
+            if segs[0] == 0x2002 {
+                return check_v4(embedded_v4(segs[1], segs[2]));
+            }
+            let reject = v6.is_unspecified()
+                || v6.is_multicast()
+                // Global unicast yalnızca 2000::/3; geri kalan her şey (::/8
+                // IPv4-compatible dahil, fc00::/7 ULA, fe80::/10, fec0::/10) reddedilir.
+                || segs[0] & 0xe000 != 0x2000
+                // 2001::/32 Teredo, 2001:db8::/32 dokümantasyon, 2001:10::/28 ORCHID
+                || (segs[0] == 0x2001 && (segs[1] == 0 || segs[1] == 0x0db8))
+                || (segs[0] == 0x2001 && segs[1] & 0xfff0 == 0x0010);
+            if reject {
                 return Err(format!("privateIp:{v6}"));
             }
-            // fe80::/10 link-local
-            if segs[0] & 0xffc0 == 0xfe80 {
-                return Err(format!("privateIp:{v6}"));
-            }
+            Ok(())
         }
+    }
+}
+
+fn check_v4(v4: std::net::Ipv4Addr) -> Result<(), String> {
+    if v4.is_loopback() {
+        return Ok(());
+    }
+    let o = v4.octets();
+    let reject = v4.is_private()
+        || v4.is_link_local()
+        || v4.is_broadcast()
+        || v4.is_documentation()
+        || v4.is_unspecified()
+        || v4.is_multicast()
+        || o[0] == 0 // 0.0.0.0/8 "this network"
+        || (o[0] == 100 && (o[1] & 0xc0) == 64) // 100.64.0.0/10 CGNAT
+        || (o[0] == 192 && o[1] == 0 && o[2] == 0) // 192.0.0.0/24 IETF protocol
+        || (o[0] == 198 && (o[1] & 0xfe) == 18) // 198.18.0.0/15 benchmark
+        || o[0] >= 240; // 240.0.0.0/4 reserved
+    if reject {
+        return Err(format!("privateIp:{v4}"));
     }
     Ok(())
 }
 
 /// Async DNS resolve check — public hostname'in tüm resolved IP'lerinin de
-/// public olduğunu doğrular. DNS rebinding (saldırgan-controlled domain
-/// → 127.0.0.1 / 169.254.169.254) saldırılarını kapatır. Chat path'inde
-/// (her chat çağrısı öncesi) çağrılmalı; önbellekten yararlanmaz çünkü
-/// reqwest her HTTP bağlantısı için kendi resolve'unu yapar — bu yüzden
-/// ilk validate gerçek bir resolve'u göstermeyebilir, ama "ilk requestte
-/// rebinding" senaryosu pratikte gözlemlenmiyor (TTL=0 saldırgan zaten
-/// sürekli rebinding yapamaz). Defense-in-depth amaçlı.
+/// public olduğunu doğrular ve kullanıcıya anlamlı bir hata verir.
+///
+/// Asıl koruma `ai::http_client()`'ın DNS resolver'ındadır: reqwest'in
+/// gerçekte bağlandığı adresler orada süzülür, böylece bu ön kontrol ile
+/// bağlantı arasındaki DNS rebinding (TOCTOU) penceresi de kapanır.
 pub(crate) async fn validate_endpoint_dns(url: &str) -> Result<(), String> {
     validate_endpoint(url)?;
     let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalidUrl:{e}"))?;
     let host = parsed.host_str().ok_or_else(|| "noHost".to_string())?;
-    if host.eq_ignore_ascii_case("localhost") {
+    if is_localhost_name(host) {
         return Ok(());
     }
-    let host_for_ip = host
-        .strip_prefix('[')
-        .and_then(|s| s.strip_suffix(']'))
-        .unwrap_or(host);
-    if host_for_ip.parse::<IpAddr>().is_ok() {
+    if host_ip_literal(host).is_some() {
         return Ok(()); // literal IP — sync validate_endpoint zaten kontrol etti
     }
     let port = parsed.port_or_known_default().unwrap_or(443);
@@ -239,15 +308,30 @@ impl OpenAi {
         }
     }
 
+    /// Endpoint override politikası:
+    /// - resmi OpenAI: override YOK SAYILIR. Aksi halde webview'dan gelen
+    ///   `endpoint` ile vault'taki `sk-…` key'i keyfi bir host'a
+    ///   `Authorization: Bearer` olarak gönderilebiliyordu.
+    /// - yerel runtime'lar (LM Studio, Jan, llama.cpp, Foundry): yalnızca
+    ///   loopback host'a override (port değiştirme amaçlı).
+    /// - custom: doğrulanmış her endpoint; key'in bu endpoint'e bağlı olup
+    ///   olmadığı `commands::ai` içinde kontrol edilir.
     fn resolve_base_url<'a>(&'a self, options: &'a ChatOptions) -> Result<&'a str, String> {
         if let Some(ep) = options.endpoint.as_deref() {
             let trimmed = ep.trim();
             if !trimmed.is_empty() {
-                // SSRF koruması: yalnızca http/https + (localhost | loopback IP | açık host).
-                // Custom provider için zorunlu, yerel runtime'lar default URL'e
-                // sahip olduğu için bu yol genelde override içindir.
-                validate_endpoint(trimmed)?;
-                return Ok(trimmed);
+                if self.is_official {
+                    tracing::warn!(
+                        provider = self.id,
+                        "endpoint override ignored for official provider"
+                    );
+                } else {
+                    validate_endpoint(trimmed)?;
+                    if !self.default_base_url.is_empty() && !is_loopback_host(trimmed) {
+                        return Err("endpointMustBeLocal".to_string());
+                    }
+                    return Ok(trimmed);
+                }
             }
         }
         if self.default_base_url.is_empty() {
@@ -293,11 +377,10 @@ impl ChatProvider for OpenAi {
             self.default_base_url
         };
         let url = format!("{}/models", base.trim_end_matches('/'));
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
-        let mut req = client.get(&url);
+        let Ok(client) = super::http_client() else {
+            return self.fallback_models();
+        };
+        let mut req = client.get(&url).timeout(std::time::Duration::from_secs(5));
         if let Some(k) = key {
             req = req.header("Authorization", format!("Bearer {k}"));
         }
@@ -379,12 +462,9 @@ impl ChatProvider for OpenAi {
         if let Some(m) = options.max_tokens {
             body["max_tokens"] = json!(m);
         }
-        // Connect timeout: yerel/uzak runtime kapalıysa UI freeze olmasın.
+        // Paylaşılan client: connect 5s, redirect yok, DNS filtreli.
         // Total timeout YOK ama stream içinde IDLE timeout (60s) var.
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        let client = super::http_client()?;
         // 429/503 için exponential backoff retry (max 3 deneme).
         let resp = super::send_with_retry(|| {
             let mut r = client.post(&endpoint).json(&body);
@@ -445,7 +525,7 @@ impl ChatProvider for OpenAi {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_endpoint;
+    use super::*;
 
     #[test]
     fn allows_localhost_http() {
@@ -495,5 +575,103 @@ mod tests {
     fn rejects_invalid_url() {
         assert!(validate_endpoint("not a url").is_err());
         assert!(validate_endpoint("").is_err());
+    }
+
+    #[test]
+    fn rejects_ipv4_mapped_and_embedded_private() {
+        assert!(validate_endpoint("http://[::ffff:169.254.169.254]/").is_err());
+        assert!(validate_endpoint("http://[::ffff:10.0.0.1]/").is_err());
+        assert!(validate_endpoint("http://[64:ff9b::a00:1]/").is_err()); // NAT64 → 10.0.0.1
+        assert!(validate_endpoint("http://[2002:a00:1::1]/").is_err()); // 6to4 → 10.0.0.1
+        assert!(validate_endpoint("http://[::10.0.0.1]/").is_err()); // IPv4-compatible
+        assert!(validate_endpoint("http://[fec0::1]/").is_err()); // site-local
+        assert!(validate_endpoint("http://[2001:db8::1]/").is_err());
+        // mapped loopback hâlâ loopback
+        assert!(validate_endpoint("http://[::ffff:127.0.0.1]:1234/").is_ok());
+        // gerçek global IPv6
+        assert!(validate_endpoint("https://[2606:4700::1111]/").is_ok());
+    }
+
+    #[test]
+    fn rejects_non_global_ipv4_ranges() {
+        for ip in [
+            "100.64.0.1",
+            "100.127.255.254",
+            "0.1.2.3",
+            "198.18.0.1",
+            "198.19.255.1",
+            "240.0.0.1",
+            "192.0.0.8",
+        ] {
+            assert!(validate_endpoint(&format!("http://{ip}/")).is_err(), "{ip}");
+        }
+        assert!(validate_endpoint("http://100.128.0.1/").is_ok());
+        assert!(validate_endpoint("http://8.8.8.8/").is_ok());
+    }
+
+    #[test]
+    fn rejects_query_and_credentials() {
+        assert!(validate_endpoint("http://localhost/admin?x=/chat/completions").is_err());
+        assert!(validate_endpoint("https://user:pw@example.com/v1").is_err());
+        assert!(validate_endpoint("https://example.com/v1#frag").is_err());
+    }
+
+    #[test]
+    fn loopback_host_detection() {
+        assert!(is_loopback_host("http://localhost:1234/v1"));
+        assert!(is_loopback_host("http://foo.localhost/v1"));
+        assert!(is_loopback_host("http://127.0.0.5/"));
+        assert!(is_loopback_host("http://[::1]/"));
+        assert!(!is_loopback_host("https://evil.example/v1"));
+        assert!(!is_loopback_host("http://10.0.0.1/"));
+    }
+
+    #[test]
+    fn origin_normalization() {
+        assert_eq!(
+            origin_of("https://OpenRouter.ai/api/v1").as_deref(),
+            Some("https://openrouter.ai:443")
+        );
+        assert_eq!(
+            origin_of("http://localhost:1234/v1").as_deref(),
+            Some("http://localhost:1234")
+        );
+    }
+
+    fn opts(endpoint: &str) -> ChatOptions {
+        ChatOptions {
+            model: "m".into(),
+            endpoint: Some(endpoint.into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn official_provider_ignores_endpoint_override() {
+        let p = OpenAi::cloud();
+        let o = opts("https://evil.example/v1");
+        assert_eq!(p.resolve_base_url(&o).unwrap(), "https://api.openai.com/v1");
+    }
+
+    #[test]
+    fn local_runtime_override_must_be_loopback() {
+        let p = OpenAi::lmstudio();
+        assert!(p
+            .resolve_base_url(&opts("https://evil.example/v1"))
+            .is_err());
+        assert_eq!(
+            p.resolve_base_url(&opts("http://localhost:4321/v1"))
+                .unwrap(),
+            "http://localhost:4321/v1"
+        );
+    }
+
+    #[test]
+    fn custom_accepts_public_endpoint() {
+        let p = OpenAi::custom();
+        assert!(p
+            .resolve_base_url(&opts("https://openrouter.ai/api/v1"))
+            .is_ok());
+        assert!(p.resolve_base_url(&ChatOptions::default()).is_err());
     }
 }

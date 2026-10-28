@@ -14,7 +14,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useSettingsStore, type UpdateCheckFrequency } from '@/stores/settings';
 import { useToastsStore } from '@/stores/toasts';
-import { i18n } from '@/main';
+import { i18n } from '@/i18n';
 import { createLogger } from '@/utils/logger';
 
 const log = createLogger('updater');

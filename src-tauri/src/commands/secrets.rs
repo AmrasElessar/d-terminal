@@ -2,55 +2,74 @@
 // AI proxy komutları (`ai_proxy.rs`) içinde decrypt edilip provider'a gönderilir.
 //
 // Frontend'in tek görevi: key kaydet, listele, sil. Çözme yok.
+//
+// DPAPI + SQLite çağrıları blocking pool'da koşar (`run_blocking`) — UI
+// thread'i bloklanmaz.
 
-use crate::error::AppResult;
-use crate::secrets::SecretStore;
+use crate::error::{run_blocking, AppResult};
 use crate::state::AppState;
 use crate::storage::secrets::SecretRow;
-use std::sync::Arc;
 use tauri::State;
 use zeroize::{Zeroize, Zeroizing};
 
 #[tauri::command]
-pub fn secrets_store(
+pub async fn secrets_store(
     state: State<'_, AppState>,
     scope: String,
     name: String,
     mut value: String,
 ) -> AppResult<()> {
-    let store = build_store(&state);
+    let storage = state.storage.clone();
     // String'i Vec<u8>'e taşı → Zeroizing kapsayıcısına al ki store sonrası
-    // bellekten silinsin. Tauri'nin parse ettiği orijinal String'in tampon'u
-    // `into_bytes()` ile devralındığı için ek bir kopya kalmaz; yine de
-    // dropped String hükmündeki value değişkenini fonksiyondan çıkmadan
-    // zeroize çağrısı ile garantiye alıyoruz.
+    // bellekten silinsin. `std::mem::take` + `into_bytes()` orijinal tamponu
+    // devralır; `value` artık boş String'dir (zeroize çağrısı garanti amaçlı).
     let plaintext = Zeroizing::new(std::mem::take(&mut value).into_bytes());
-    let res = store.store(&scope, &name, plaintext);
     value.zeroize();
-    res
+    run_blocking(move || {
+        crate::secrets::for_storage(&storage).store(&scope, &name, plaintext)?;
+        if scope == "ai_provider" {
+            // Yeni key → endpoint bağını yeniden kur (bkz. commands::ai).
+            crate::commands::ai::rebind_key_origin(&storage, &name, true);
+        }
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn secrets_delete(state: State<'_, AppState>, scope: String, name: String) -> AppResult<()> {
-    let store = build_store(&state);
-    store.delete(&scope, &name)
+pub async fn secrets_delete(
+    state: State<'_, AppState>,
+    scope: String,
+    name: String,
+) -> AppResult<()> {
+    let storage = state.storage.clone();
+    run_blocking(move || {
+        crate::secrets::for_storage(&storage).delete(&scope, &name)?;
+        if scope == "ai_provider" {
+            crate::commands::ai::rebind_key_origin(&storage, &name, false);
+        }
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn secrets_list(state: State<'_, AppState>, scope: String) -> AppResult<Vec<SecretRow>> {
-    let store = build_store(&state);
-    store.list(&scope)
+pub async fn secrets_list(state: State<'_, AppState>, scope: String) -> AppResult<Vec<SecretRow>> {
+    let storage = state.storage.clone();
+    run_blocking(move || crate::secrets::for_storage(&storage).list(&scope)).await
 }
 
 /// Secret'in mevcut olup olmadığını döner — değeri DEĞİL.
 #[tauri::command]
-pub fn secrets_has(state: State<'_, AppState>, scope: String, name: String) -> AppResult<bool> {
-    let rows = build_store(&state).list(&scope)?;
-    Ok(rows.iter().any(|r| r.name == name))
-}
-
-fn build_store(state: &State<'_, AppState>) -> Arc<dyn SecretStore> {
-    crate::secrets::build(Arc::new(crate::storage::secrets::SecretsRepo::new(
-        state.storage.pool().clone(),
-    )))
+pub async fn secrets_has(
+    state: State<'_, AppState>,
+    scope: String,
+    name: String,
+) -> AppResult<bool> {
+    let storage = state.storage.clone();
+    run_blocking(move || {
+        let rows = crate::secrets::for_storage(&storage).list(&scope)?;
+        Ok(rows.iter().any(|r| r.name == name))
+    })
+    .await
 }

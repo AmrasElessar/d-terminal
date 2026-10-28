@@ -105,7 +105,7 @@ const summary = computed(() => {
   <aside class="agent-panel" :aria-label="t('agentWatch.title')">
     <header class="agent-panel__head">
       <span class="agent-panel__title">👁 {{ t('agentWatch.title') }}</span>
-      <button type="button" class="agent-panel__close" :title="t('common.close')" @click="emit('close')">×</button>
+      <button type="button" class="agent-panel__close" :title="t('common.close')" :aria-label="t('common.close')" @click="emit('close')">×</button>
     </header>
     <div class="agent-panel__model-row">
       <span class="agent-panel__model-label">{{ t('agentWatch.model') }}</span>
