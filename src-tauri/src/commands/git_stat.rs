@@ -13,7 +13,9 @@
 // Repo değilse veya değişiklik yoksa GitStat { 0, 0, 0 } döner — null değil
 // ki frontend tutarlı state tutsun.
 
+use crate::commands::path_policy;
 use crate::process_jail::ProcessJail;
+use crate::error::AppResult;
 use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
@@ -40,36 +42,44 @@ pub struct GitStat {
 }
 
 #[tauri::command]
-pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> Result<GitStat, ()> {
-    // Path validation main thread'de — UNC saldırısı + missing path. İki git
-    // binary çağrısı aynı path'i kullanır; doğrulamayı tek yerde yapmak çift
-    // syscall'u önler ve security check'in iki spawn arasında bypass olmasını
-    // imkansızlaştırır.
-    if path.is_empty() || !std::path::Path::new(&path).exists() {
+pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> AppResult<GitStat> {
+    // Path doğrulaması FS'e dokunmadan ÖNCE: UNC / device path'te `exists()`
+    // bile SMB bağlantısı açıp NTLM hash'ini uzak sunucuya gönderir (path,
+    // terminal çıktısındaki güvenilmez OSC 7'den gelebilir). Canonical path ağ
+    // sürücüsünü (eşlenmiş `Z:`) işaret ediyorsa da reddedilir.
+    let Ok(canon) = path_policy::canonical_local(&path) else {
+        return Ok(GitStat::default());
+    };
+    if !canon.is_dir() {
         return Ok(GitStat::default());
     }
-    // UNC path reddedilir — \\attacker\share\.git\config saldırısını engeller
-    // (rogue config core.fsmonitor/core.editor üzerinden RCE — CVE-2022-24765
-    // sınıfı zafiyet ailesi).
-    if path.starts_with(r"\\") || path.starts_with("//") {
-        return Ok(GitStat::default());
-    }
+    let path = path_policy::strip_verbatim(&canon)
+        .to_string_lossy()
+        .into_owned();
 
     let jail = state.jail.clone();
+    // Önce repo config'i salt-okunur incele: filter driver tanımlı repo'larda
+    // `git diff` worktree dosyalarını clean filter'dan geçirir — yani repo'nun
+    // kendi config'indeki keyfi bir komutu çalıştırır. Bu repo'lar için chip
+    // gösterilmez (güvenli taraf).
+    let jail_cfg = jail.clone();
+    let path_cfg = path.clone();
+    let risky = tokio::task::spawn_blocking(move || repo_defines_filters(&jail_cfg, &path_cfg))
+        .await
+        .unwrap_or(true);
+    if risky {
+        return Ok(GitStat::default());
+    }
     let jail_diff = jail.clone();
     let path_diff = path.clone();
-    // İki git binary spawn'ı paralel — eskiden seri çağrı (run_git_diff içinde
-    // collect_untracked sequential) toplam latency'yi diff+untracked toplamı
-    // yapıyordu. Şimdi max(diff, untracked) ≈ ~yarıya iniyor (büyük repo'larda
-    // hissedilir; küçük repo'larda fark thread spawn overhead'ine yakın).
+    // İki git binary spawn'ı paralel — toplam latency max(diff, untracked).
     let diff_handle =
         tokio::task::spawn_blocking(move || run_git_diff_tracked(&jail_diff, &path_diff));
     let untracked_handle = tokio::task::spawn_blocking(move || collect_untracked(&jail, &path));
 
     let mut stat = diff_handle.await.unwrap_or_default();
     if !stat.is_repo {
-        // diff fail (repo değil) → untracked sayımını yutmak doğru; future'ı
-        // tamamlanmadan drop etmek tokio task'ı abort etmez ama spawn_blocking
+        // diff fail (repo değil) → untracked sayımını yutmak doğru; spawn_blocking
         // worker thread'inde git yine sonlanır (sub-saniye). await ile drain.
         let _ = untracked_handle.await;
         return Ok(stat);
@@ -80,37 +90,96 @@ pub async fn git_diff_shortstat(state: State<'_, AppState>, path: String) -> Res
     Ok(stat)
 }
 
+/// Kullanıcı / sistem git config'ini yok sayan null cihaz.
+#[cfg(windows)]
+const NULL_DEVICE: &str = "NUL";
+#[cfg(not(windows))]
+const NULL_DEVICE: &str = "/dev/null";
+
+/// Güvenilmeyen (başkasına ait / indirilmiş) bir repo üzerinde git çalıştırmak
+/// için ortak sertleştirme. Repo'nun kendi `.git/config`'i hâlâ okunur; bu
+/// yüzden komut çalıştırabilen config anahtarları burada etkisizleştirilir:
+///   - GIT_TERMINAL_PROMPT=0 + stdin null : credential prompt yok
+///   - GIT_CONFIG_NOSYSTEM / GLOBAL=null   : sistem/kullanıcı config'i okunmaz
+///   - core.fsmonitor=false                : rogue fsmonitor hook'u devre dışı
+///     (index okunurken çalışır — `ls-files` dahil)
+///   - core.hooksPath=<null>               : hook dizini boş
+///   - core.sshCommand / core.askPass / credential.helper boş
+///   - diff.external boş (+ `--no-ext-diff --no-textconv` bayrakları)
+///   - filter driver'lar: `repo_defines_filters` ile tespit edilip atlanır
+///
+/// `safe.directory=*` KULLANILMAZ: git'in CVE-2022-24765 sahiplik kontrolü
+/// (başka bir kullanıcının oluşturduğu `C:\.git` gibi) açık kalır; o
+/// repo'larda git hata verir ve chip gizlenir.
+fn harden_git(cmd: &mut Command) {
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.env("GIT_CONFIG_NOSYSTEM", "1");
+    cmd.env("GIT_CONFIG_GLOBAL", NULL_DEVICE);
+    cmd.env_remove("GIT_DIR");
+    cmd.env_remove("GIT_WORK_TREE");
+    cmd.env_remove("GIT_EXTERNAL_DIFF");
+    let overrides: [(&str, &str); 6] = [
+        ("core.fsmonitor", "false"),
+        ("core.hooksPath", NULL_DEVICE),
+        ("core.sshCommand", ""),
+        ("core.askPass", ""),
+        ("credential.helper", ""),
+        ("diff.external", ""),
+    ];
+    cmd.env("GIT_CONFIG_COUNT", overrides.len().to_string());
+    for (i, (k, v)) in overrides.iter().enumerate() {
+        cmd.env(format!("GIT_CONFIG_KEY_{i}"), k);
+        cmd.env(format!("GIT_CONFIG_VALUE_{i}"), v);
+    }
+}
+
+/// Repo'nun etkin config'i (include'lar dahil) filter driver tanımlıyor mu?
+/// `git config` yalnızca okur, hiçbir şey çalıştırmaz. Hata → güvenli taraf (true).
+fn repo_defines_filters(jail: &Arc<ProcessJail>, path: &str) -> bool {
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", path, "config", "--name-only", "--get-regexp", r"^filter\."]);
+    jail.configure_command(&mut cmd);
+    harden_git(&mut cmd);
+    match cmd.output() {
+        Ok(o) => filter_check_verdict(o.status.code(), &o.stdout),
+        // git binary yok → diff de çalışmayacak; zararsız
+        Err(_) => false,
+    }
+}
+
+/// `git config --get-regexp` çıkış kodu → "riskli mi?" kararı.
+fn filter_check_verdict(code: Option<i32>, stdout: &[u8]) -> bool {
+    match code {
+        // 1 = eşleşme yok
+        Some(1) => false,
+        Some(0) => !stdout.iter().all(u8::is_ascii_whitespace),
+        // repo değil / dubious ownership → diff de başarısız olur; zararsız
+        Some(128) => false,
+        _ => true,
+    }
+}
+
 /// Sadece tracked (staged + unstaged) farkı — `git diff --shortstat HEAD`.
 /// Untracked dosyalar `collect_untracked` ile ayrı spawn'da paralel toplanır
 /// (bkz. `git_diff_shortstat`). Bu fonksiyon başlı başına untracked dahil
 /// etmez — caller iki sonucu birleştirir.
 fn run_git_diff_tracked(jail: &Arc<ProcessJail>, path: &str) -> GitStat {
     let mut cmd = Command::new("git");
-    cmd.args(["-C", path, "diff", "--shortstat", "HEAD"]);
-    // Windows'ta git çağrısı için stdin'i /dev/null'a yönlendir — interaktif
-    // promp olmasın (örn. credential prompt).
-    cmd.stdin(std::process::Stdio::null());
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.stderr(std::process::Stdio::null());
+    cmd.args([
+        "-C",
+        path,
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--shortstat",
+        "HEAD",
+    ]);
     // ProcessJail: CREATE_NO_WINDOW — git binary console flash etmesin.
     jail.configure_command(&mut cmd);
-    // Güvenlik sertleştirmesi (CVE-2022-24765 ailesine karşı):
-    //   - GIT_TERMINAL_PROMPT=0  : credential prompt blocked (zaten stdin null)
-    //   - GIT_CONFIG_NOSYSTEM=1  : /etc/gitconfig bypass — yan-binary substitution kapanır
-    //   - GIT_CONFIG_GLOBAL=NUL  : ~/.gitconfig override (rogue user-level config)
-    //   - safe.directory=*       : "dubious ownership" sorununu sessiz çöz
-    //   - core.fsmonitor=        : rogue fsmonitor binary çalıştırılmasını engelle
-    //   - core.sshCommand=       : rogue ssh komutu çağrılmasın
-    cmd.env("GIT_TERMINAL_PROMPT", "0");
-    cmd.env("GIT_CONFIG_NOSYSTEM", "1");
-    cmd.env("GIT_CONFIG_GLOBAL", "NUL");
-    cmd.env("GIT_CONFIG_COUNT", "3");
-    cmd.env("GIT_CONFIG_KEY_0", "safe.directory");
-    cmd.env("GIT_CONFIG_VALUE_0", "*");
-    cmd.env("GIT_CONFIG_KEY_1", "core.fsmonitor");
-    cmd.env("GIT_CONFIG_VALUE_1", "");
-    cmd.env("GIT_CONFIG_KEY_2", "core.sshCommand");
-    cmd.env("GIT_CONFIG_VALUE_2", "");
+    harden_git(&mut cmd);
 
     let output = match cmd.output() {
         Ok(o) => o,
@@ -144,17 +213,10 @@ fn collect_untracked(jail: &Arc<ProcessJail>, repo_path: &str) -> UntrackedSumma
         "--others",
         "--exclude-standard",
     ]);
-    cmd.stdin(std::process::Stdio::null());
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.stderr(std::process::Stdio::null());
-    // ProcessJail: CREATE_NO_WINDOW.
+    // ProcessJail: CREATE_NO_WINDOW. Sertleştirme run_git_diff_tracked ile
+    // aynı — `ls-files` de index okurken core.fsmonitor hook'unu çalıştırır.
     jail.configure_command(&mut cmd);
-    cmd.env("GIT_TERMINAL_PROMPT", "0");
-    cmd.env("GIT_CONFIG_NOSYSTEM", "1");
-    cmd.env("GIT_CONFIG_GLOBAL", "NUL");
-    cmd.env("GIT_CONFIG_COUNT", "1");
-    cmd.env("GIT_CONFIG_KEY_0", "safe.directory");
-    cmd.env("GIT_CONFIG_VALUE_0", "*");
+    harden_git(&mut cmd);
 
     let output = match cmd.output() {
         Ok(o) if o.status.success() => o,
@@ -250,6 +312,14 @@ mod tests {
         assert_eq!(s.files, 2);
         assert_eq!(s.added, 15);
         assert_eq!(s.removed, 0);
+    }
+
+    #[test]
+    fn filter_check_verdicts() {
+        assert!(!filter_check_verdict(Some(1), b""));
+        assert!(filter_check_verdict(Some(0), b"filter.evil.clean\n"));
+        assert!(!filter_check_verdict(Some(128), b""));
+        assert!(filter_check_verdict(None, b""));
     }
 
     #[test]

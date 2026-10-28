@@ -3,17 +3,24 @@
 // Bkz. ADR-0002. Per-user binding (CRYPTPROTECT_LOCAL_MACHINE = 0).
 // Plaintext zeroize ile temizlenir.
 //
-// Entropy katmanı (v0.9.4+): DPAPI'nin per-user master key'inin yanı sıra
-// uygulamaya özel sabit bir entropy buffer'ı `CryptProtectData`'nın opsiyonel
-// pOptionalEntropy parametresine geçilir. Bu, aynı kullanıcı altında çalışan
-// başka bir process'in (mimikatz lsadump, başka bir uygulama) ciphertext'i
-// alıp `CryptUnprotectData(NULL, ...)` ile decrypt etmesini engeller —
-// saldırgan D-Terminal binary'sinden entropy buffer'ını çıkarmak zorunda kalır.
+// Tehdit modeli (dürüst sınırlar): DPAPI anahtarı kullanıcı oturumuna bağlar —
+// DB dosyası başka bir kullanıcıya / makineye kopyalanırsa çözülemez. AYNI
+// kullanıcı altında kod çalıştırabilen bir saldırgana karşı koruma SAĞLAMAZ:
+// o process de `CryptUnprotectData` çağırabilir.
+//
+// Entropy katmanı (v0.9.4+): uygulamaya özel sabit bir entropy buffer'ı
+// `pOptionalEntropy` olarak geçilir. Bu yalnızca "DPAPI blob'larını toptan
+// NULL entropy ile çözen" jenerik araçları (ör. DB'yi kopyalayıp toplu
+// çözmeye çalışan stealer'lar) zorlaştırır; entropy binary içinde olduğu için
+// hedefli bir saldırgan onu kolayca çıkarır. Gizli değer DEĞİLDİR.
+//
+// `CRYPTPROTECT_UI_FORBIDDEN`: DPAPI hiçbir koşulda kullanıcıya UI prompt
+// göstermez (strong-protection politikası açık sistemlerde beklenmedik
+// dialog / hang yerine hata döner).
 //
 // Migration: v0.9.3'e kadar yazılmış blob'lar entropy=NULL ile şifrelendi.
 // `unprotect` önce yeni entropy ile dener; başarısızsa NULL fallback dener.
-// NULL ile başarılı olan secret retrieve sırasında otomatik upgrade edilir
-// (caller seviyesinde re-store mekanizması). v1.0'da NULL fallback kaldırılır.
+// NULL ile başarılı olan secret retrieve sırasında otomatik upgrade edilir.
 
 use crate::error::{AppError, AppResult};
 use crate::secrets::SecretStore;
@@ -21,11 +28,11 @@ use crate::storage::secrets::{SecretRow, SecretsRepo};
 use std::sync::Arc;
 use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
-    CryptProtectData, CryptUnprotectData, CRYPT_INTEGER_BLOB,
+    CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
 };
 use zeroize::Zeroizing;
 
-/// Uygulama-özel entropy buffer'ı. Static — değiştirilirse mevcut tüm secret'lar
+/// Uygulama-özel entropy buffer'ı (gizli değil — bkz. dosya başı). Static — değiştirilirse mevcut tüm secret'lar
 /// erişilemez hale gelir; yalnızca controlled migration ile rotate edilebilir.
 const APP_ENTROPY: &[u8] = b"D-Terminal-v1-secrets-entropy-2026-05";
 
@@ -54,7 +61,15 @@ impl DpapiStore {
         let mut out_blob = CRYPT_INTEGER_BLOB::default();
         // SAFETY: in_blob & entropy ömrü çağrı süresince geçerli; out_blob LocalFree ile temizlenir.
         unsafe {
-            CryptProtectData(&in_blob, None, Some(&entropy), None, None, 0, &mut out_blob)
+            CryptProtectData(
+                &in_blob,
+                None,
+                Some(&entropy),
+                None,
+                None,
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut out_blob,
+            )
                 .map_err(|e| AppError::Secret(format!("CryptProtectData: {e}")))?;
         }
         let result = unsafe {
@@ -85,7 +100,15 @@ impl DpapiStore {
             entropy_blob.as_ref().map(|b| b as *const _);
         let mut out_blob = CRYPT_INTEGER_BLOB::default();
         unsafe {
-            CryptUnprotectData(&in_blob, None, entropy_ptr, None, None, 0, &mut out_blob)
+            CryptUnprotectData(
+                &in_blob,
+                None,
+                entropy_ptr,
+                None,
+                None,
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut out_blob,
+            )
                 .map_err(|e| AppError::Secret(format!("CryptUnprotectData: {e}")))?;
         }
         // SAFETY: out_blob.pbData DPAPI tarafından alloc edildi; LocalFree ile
@@ -149,6 +172,14 @@ impl SecretStore for DpapiStore {
             }
         }
         Ok(plaintext)
+    }
+
+    fn peek(&self, scope: &str, name: &str) -> AppResult<Zeroizing<Vec<u8>>> {
+        let blob = self
+            .repo
+            .peek_blob(scope, name)?
+            .ok_or_else(|| AppError::Secret(format!("not found: {scope}/{name}")))?;
+        Ok(Self::unprotect_with_fallback(&blob)?.0)
     }
 
     fn delete(&self, scope: &str, name: &str) -> AppResult<()> {

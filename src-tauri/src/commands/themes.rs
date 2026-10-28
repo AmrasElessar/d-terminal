@@ -1,6 +1,7 @@
 // Tema dosyalarını dahili klasörden okuma + kullanıcı temaları için AppData.
 
-use crate::error::{AppError, AppResult};
+use crate::commands::path_policy;
+use crate::error::{run_blocking, AppError, AppResult};
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::Manager;
@@ -12,11 +13,16 @@ pub struct ThemeFile {
     pub content: String,
 }
 
+/// Async + blocking pool: dizin tarama ve dosya okuma UI thread'ini bloklamasın.
 #[tauri::command]
-pub fn themes_list(app: tauri::AppHandle) -> AppResult<Vec<ThemeFile>> {
+pub async fn themes_list(app: tauri::AppHandle) -> AppResult<Vec<ThemeFile>> {
+    run_blocking(move || themes_list_blocking(&app)).await
+}
+
+fn themes_list_blocking(app: &tauri::AppHandle) -> AppResult<Vec<ThemeFile>> {
     let mut out = Vec::new();
     // Bundled (resources/themes) — dev modunda repo'daki themes/ klasörü
-    let bundled = bundled_themes_dir(&app)?;
+    let bundled = bundled_themes_dir(app)?;
     if bundled.exists() {
         scan_dir(&bundled, &mut out)?;
     }
@@ -32,19 +38,31 @@ pub fn themes_list(app: tauri::AppHandle) -> AppResult<Vec<ThemeFile>> {
 /// abartılı ama defansif. Saldırgan 1 GB tema yazıp diski dolduramasın (DoS).
 const MAX_THEME_BYTES: usize = 256 * 1024;
 
-#[tauri::command]
-pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
-    let dir = user_themes_dir()?;
-    std::fs::create_dir_all(&dir)?;
-    // Path traversal koruması — alphanumeric + - + _ dışındaki her şey
-    // sıyrılır; `..`, `/`, `\` reddedilir.
+/// Tema adı uzunluk sınırı (dosya adı + Windows MAX_PATH payı).
+const MAX_THEME_NAME_CHARS: usize = 64;
+
+/// Path traversal koruması — alphanumeric + - + _ dışındaki her şey sıyrılır;
+/// `..`, `/`, `\` reddedilir. Windows aygıt adları (`CON`, `NUL`, `COM1` …)
+/// ve `_` öneki (şablon dosyaları, listede gizli) reddedilir.
+fn sanitize_theme_name(name: &str) -> AppResult<String> {
     let safe = name
         .chars()
         .filter(|c| c.is_alphanumeric() || matches!(*c, '-' | '_'))
+        .take(MAX_THEME_NAME_CHARS)
         .collect::<String>();
-    if safe.is_empty() {
+    if safe.is_empty() || safe.starts_with('_') || path_policy::is_windows_reserved_name(&safe) {
         return Err(AppError::InvalidArg("theme name".into()));
     }
+    Ok(safe)
+}
+
+#[tauri::command]
+pub async fn themes_save_user(name: String, content: String) -> AppResult<String> {
+    run_blocking(move || save_user_blocking(&name, content)).await
+}
+
+fn save_user_blocking(name: &str, content: String) -> AppResult<String> {
+    let safe = sanitize_theme_name(name)?;
     // Boyut sınırı
     if content.len() > MAX_THEME_BYTES {
         return Err(AppError::InvalidArg(format!(
@@ -57,6 +75,8 @@ pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
     serde_json::from_str::<serde_json::Value>(&content)
         .map_err(|e| AppError::InvalidArg(format!("theme content not valid JSON: {e}")))?;
 
+    let dir = user_themes_dir()?;
+    std::fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{safe}.json"));
     std::fs::write(&path, content)?;
     Ok(path.to_string_lossy().into_owned())
@@ -64,6 +84,9 @@ pub fn themes_save_user(name: String, content: String) -> AppResult<String> {
 
 fn bundled_themes_dir(app: &tauri::AppHandle) -> AppResult<PathBuf> {
     // Dev: <project>/themes — cargo run sırasında cwd src-tauri olabilir, bir yukarı bak.
+    // Yalnızca debug build: release'te cwd (ör. kullanıcının açtığı bir
+    // klasör) tema kaynağı olmamalı — bundled temalar resource dir'den gelir.
+    #[cfg(debug_assertions)]
     if let Ok(cwd) = std::env::current_dir() {
         for candidate in [cwd.join("themes"), cwd.join("..").join("themes")] {
             if candidate.exists() {
@@ -113,7 +136,18 @@ fn scan_dir(dir: &std::path::Path, out: &mut Vec<ThemeFile>) -> AppResult<()> {
         if name.starts_with('_') {
             continue;
         }
-        let content = std::fs::read_to_string(&path)?;
+        // Symlink / aşırı büyük / okunamayan dosya tek başına tüm listeyi
+        // düşürmesin — atla.
+        let Ok(meta) = path.symlink_metadata() else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() > MAX_THEME_BYTES as u64 {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            tracing::warn!(path = %path.display(), "theme file unreadable, skipped");
+            continue;
+        };
         out.push(ThemeFile {
             name,
             path: path.to_string_lossy().into_owned(),
@@ -178,6 +212,32 @@ mod tests {
         assert_eq!(out.len(), 1, "sadece D-Real listelensin");
         assert_eq!(out[0].name, "D-Real");
 
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn theme_name_sanitization() {
+        assert_eq!(sanitize_theme_name("My Theme!").unwrap(), "MyTheme");
+        assert!(sanitize_theme_name("../..").is_err());
+        assert!(sanitize_theme_name("CON").is_err());
+        assert!(sanitize_theme_name("nul").is_err());
+        assert!(sanitize_theme_name("com3").is_err());
+        assert!(sanitize_theme_name("_template").is_err());
+        assert_eq!(
+            sanitize_theme_name(&"a".repeat(200)).unwrap().len(),
+            MAX_THEME_NAME_CHARS
+        );
+    }
+
+    #[test]
+    fn scan_dir_skips_oversized_files() {
+        let tmp = std::env::temp_dir().join(format!("dterm-test-big-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join("Big.json"), vec![b' '; MAX_THEME_BYTES + 1]).unwrap();
+        std::fs::write(tmp.join("Ok.json"), br#"{"name":"Ok"}"#).unwrap();
+        let mut out = Vec::new();
+        scan_dir(&tmp, &mut out).expect("scan_dir");
+        assert_eq!(out.len(), 1);
         std::fs::remove_dir_all(&tmp).ok();
     }
 

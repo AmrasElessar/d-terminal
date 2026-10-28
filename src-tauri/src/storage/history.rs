@@ -34,6 +34,14 @@ pub struct HistoryQuery {
     pub favorites_only: bool,
 }
 
+/// `search` limit aralığı — negatif / dev limit tüm tabloyu döndürmesin.
+pub const MAX_SEARCH_LIMIT: i64 = 1000;
+const DEFAULT_SEARCH_LIMIT: i64 = 100;
+
+/// Tek bir geçmiş kaydının azami uzunluğu (byte). Yapıştırılmış dev script /
+/// binary çöp DB'yi şişirmesin.
+pub const MAX_COMMAND_BYTES: usize = 64 * 1024;
+
 pub struct HistoryRepo {
     pool: ConnPool,
 }
@@ -44,6 +52,12 @@ impl HistoryRepo {
     }
 
     pub fn add(&self, entry: NewHistoryEntry) -> AppResult<i64> {
+        if entry.command.len() > MAX_COMMAND_BYTES {
+            return Err(crate::error::AppError::InvalidArg(format!(
+                "command too long: {} bytes (max {MAX_COMMAND_BYTES})",
+                entry.command.len()
+            )));
+        }
         let conn = self.pool.get()?;
         conn.execute(
             "INSERT INTO command_history (command, pane_id, pane_type, exit_code, duration_ms)
@@ -86,6 +100,25 @@ impl HistoryRepo {
         Ok(entries.len())
     }
 
+    /// Verilen komutlardan geçmişte zaten bulunanları döner (tam eşleşme).
+    /// PSReadLine import dedupe'u için — eskiden yalnızca son 500 kayıtla
+    /// karşılaştırıldığı için yeniden import binlerce kopya ekliyordu.
+    pub fn existing_commands(
+        &self,
+        commands: &[String],
+    ) -> AppResult<std::collections::HashSet<String>> {
+        let conn = self.pool.get()?;
+        let mut stmt =
+            conn.prepare_cached("SELECT 1 FROM command_history WHERE command = ?1 LIMIT 1")?;
+        let mut out = std::collections::HashSet::new();
+        for c in commands {
+            if stmt.exists(rusqlite::params![c])? {
+                out.insert(c.clone());
+            }
+        }
+        Ok(out)
+    }
+
     pub fn search(&self, q: HistoryQuery) -> AppResult<Vec<HistoryEntry>> {
         let conn = self.pool.get()?;
         let mut sql = String::from(
@@ -113,7 +146,13 @@ impl HistoryRepo {
             sql.push_str(" AND is_favorite = 1");
         }
         sql.push_str(" ORDER BY executed_at DESC LIMIT ?");
-        params.push(Box::new(q.limit.unwrap_or(100)));
+        // Negatif / eksik → varsayılan; üst sınır MAX_SEARCH_LIMIT (eskiden
+        // SQLite'ın "LIMIT -1 = sınırsız" davranışıyla tüm tablo dönüyordu).
+        let limit = match q.limit {
+            Some(n) if n >= 0 => n.min(MAX_SEARCH_LIMIT),
+            _ => DEFAULT_SEARCH_LIMIT,
+        };
+        params.push(Box::new(limit));
 
         let mut stmt = conn.prepare(&sql)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> = params
@@ -283,8 +322,7 @@ mod tests {
         assert_eq!(hits.len(), 1);
     }
 
-    /// Negatif limit: SQLite LIMIT -N → tüm satırlar (no-cap) davranışı; sane
-    /// kalmalı, panic atmamalı.
+    /// Negatif limit → varsayılan limit (sınırsız değil); panic atmamalı.
     #[test]
     fn search_negative_limit_does_not_panic() {
         let repo = HistoryRepo::new(fresh_pool());
@@ -295,8 +333,23 @@ mod tests {
             ..Default::default()
         };
         let hits = repo.search(q).unwrap();
-        // SQLite negatif limit → "no upper bound"; iki satır da dönmeli.
+        // Varsayılan limit (100) uygulanır; iki satır da dönmeli.
         assert_eq!(hits.len(), 2);
+    }
+
+    /// Dev limit MAX_SEARCH_LIMIT'e sıkıştırılır.
+    #[test]
+    fn search_huge_limit_is_capped() {
+        let repo = HistoryRepo::new(fresh_pool());
+        let many: Vec<NewHistoryEntry> = (0..(MAX_SEARCH_LIMIT + 5))
+            .map(|i| new_entry(&format!("c{i}"), None))
+            .collect();
+        repo.add_bulk(&many).unwrap();
+        let q = HistoryQuery {
+            limit: Some(i64::MAX),
+            ..Default::default()
+        };
+        assert_eq!(repo.search(q).unwrap().len() as i64, MAX_SEARCH_LIMIT);
     }
 
     /// limit=0 → boş Vec.

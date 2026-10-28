@@ -22,8 +22,19 @@ pub trait SecretStore: Send + Sync {
     fn store(&self, scope: &str, name: &str, value: Zeroizing<Vec<u8>>) -> AppResult<()>;
     /// Şifreli blob'u çözüp düz değeri döndürür. Zeroizing ile bellek temizlenir.
     fn retrieve(&self, scope: &str, name: &str) -> AppResult<Zeroizing<Vec<u8>>>;
+    /// `retrieve` gibi çözer ama yan etkisizdir: `last_used_at` güncellenmez,
+    /// legacy blob yeniden şifrelenip yazılmaz (ör. maskeli gösterim için).
+    fn peek(&self, scope: &str, name: &str) -> AppResult<Zeroizing<Vec<u8>>> {
+        self.retrieve(scope, name)
+    }
     fn delete(&self, scope: &str, name: &str) -> AppResult<()>;
     fn list(&self, scope: &str) -> AppResult<Vec<SecretRow>>;
+}
+
+/// Komutların ortak giriş noktası: storage pool'u üzerinden platform
+/// SecretStore'unu kurar (repo yalnızca pool clone'u tutar — ucuz).
+pub fn for_storage(storage: &crate::storage::Storage) -> Arc<dyn SecretStore> {
+    build(Arc::new(SecretsRepo::new(storage.pool().clone())))
 }
 
 #[cfg(target_os = "windows")]

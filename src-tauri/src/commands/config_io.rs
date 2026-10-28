@@ -7,7 +7,7 @@
 //
 // Hot-reload v1.0.5+ — notify crate zaten dependency'de, bu commit eklemiyor.
 
-use crate::error::{AppError, AppResult};
+use crate::error::{run_blocking, AppError, AppResult};
 use crate::state::AppState;
 use std::path::PathBuf;
 use tauri::State;
@@ -25,14 +25,21 @@ pub fn config_dotfile_path() -> AppResult<String> {
 }
 
 #[tauri::command]
-pub fn config_export(state: State<'_, AppState>) -> AppResult<String> {
+pub async fn config_export(state: State<'_, AppState>) -> AppResult<String> {
+    let storage = state.storage.clone();
+    run_blocking(move || export_to_file(&storage)).await
+}
+
+fn export_to_file(storage: &crate::storage::Storage) -> AppResult<String> {
     let path = dotfile_path()?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let all = state.storage.settings.all()?;
+    let all = storage.settings.all()?;
     let mut tbl = toml::value::Table::new();
-    for (k, v) in all {
+    // `_` önekli backend-rezerve key'ler (`_app_version`, key-endpoint bağı)
+    // export edilmez.
+    for (k, v) in all.into_iter().filter(|(k, _)| !k.starts_with('_')) {
         // SQLite settings tablosunda key formatı `ui.<name>` — config.toml'a
         // direkt aynı key ile yazıyoruz. Değer raw JSON string'i.
         tbl.insert(k, toml::Value::String(v));
@@ -69,7 +76,12 @@ const ALLOWED_SETTING_PREFIXES: &[&str] = &[
 ];
 
 #[tauri::command]
-pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
+pub async fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
+    let storage = state.storage.clone();
+    run_blocking(move || import_from_file(&storage)).await
+}
+
+fn import_from_file(storage: &crate::storage::Storage) -> AppResult<usize> {
     let path = dotfile_path()?;
     if !path.exists() {
         return Err(AppError::InvalidArg(format!(
@@ -96,7 +108,7 @@ pub fn config_import(state: State<'_, AppState>) -> AppResult<usize> {
             toml::Value::String(s) => s.clone(),
             other => other.to_string(),
         };
-        state.storage.settings.set(k, &value_str)?;
+        storage.settings.set(k, &value_str)?;
         count += 1;
     }
     Ok(count)

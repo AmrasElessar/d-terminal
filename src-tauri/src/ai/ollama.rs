@@ -35,6 +35,18 @@ struct ChatLine {
 
 pub struct Ollama;
 
+/// `buf` içindeki tamamlanmış (`\n` ile biten) satırları çıkarıp UTF-8'e
+/// çevirir; yarım kalan son satır (ve yarım çok baytlı karakter) buffer'da
+/// sonraki chunk için bekler.
+fn drain_lines(buf: &mut Vec<u8>) -> Vec<String> {
+    let mut out = Vec::new();
+    while let Some(idx) = buf.iter().position(|&b| b == b'\n') {
+        let line: Vec<u8> = buf.drain(..=idx).collect();
+        out.push(String::from_utf8_lossy(&line).trim().to_string());
+    }
+    out
+}
+
 #[async_trait]
 impl ChatProvider for Ollama {
     fn id(&self) -> &'static str {
@@ -42,12 +54,16 @@ impl ChatProvider for Ollama {
     }
 
     async fn models(&self, _key: Option<&str>) -> Vec<AiModel> {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        let Ok(client) = super::http_client() else {
+            return Vec::new();
+        };
         let url = format!("{DEFAULT_BASE}/api/tags");
-        let resp = match client.get(&url).send().await {
+        let resp = match client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+        {
             Ok(r) if r.status().is_success() => r,
             _ => return Vec::new(),
         };
@@ -89,34 +105,32 @@ impl ChatProvider for Ollama {
             "stream": true,
             "options": if ollama_opts.is_empty() { serde_json::Value::Null } else { serde_json::Value::Object(ollama_opts) },
         });
-        // Connect timeout: yerel Ollama kapalıysa UI freeze olmasın.
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .build()
-            .unwrap_or_default();
+        // Paylaşılan client: connect timeout 5s — yerel Ollama kapalıysa UI
+        // freeze olmasın.
+        let client = super::http_client()?;
         let url = format!("{DEFAULT_BASE}/api/chat");
         // Ollama yerel runtime — 429 nadir ama 503 (model load) yaygın.
         let resp = super::send_with_retry(|| client.post(&url).json(&body)).await?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let txt = resp.text().await.unwrap_or_default();
+            // Hata gövdesi prompt içeriğini echo edebilir — log'a yazılmaz.
             tracing::warn!(provider = "ollama", status = %status, "AI API error");
-            tracing::debug!(provider = "ollama", body = %&txt[..txt.len().min(80)], "AI API error body");
             return Err(format!("apiFailed:{status}"));
         }
-        // NDJSON: bytes stream, satır bazlı buffer + IDLE timeout (60s/chunk)
+        // NDJSON: bytes stream, satır bazlı buffer + IDLE timeout (60s/chunk).
+        // Buffer byte olarak tutulur ve yalnızca tam satırlar UTF-8'e çevrilir:
+        // ağ chunk'ı çok baytlı bir karakterin (ş, ğ, ı, emoji) ortasından
+        // bölünürse chunk başına lossy decode U+FFFD üretiyordu.
         let mut stream = resp.bytes_stream();
-        let mut buf = String::new();
+        let mut buf: Vec<u8> = Vec::new();
         loop {
             let next = tokio::time::timeout(std::time::Duration::from_secs(60), stream.next())
                 .await
                 .map_err(|_| "stream: idle timeout (60s)".to_string())?;
             let Some(chunk) = next else { break };
             let chunk = chunk.map_err(|e| format!("stream: {e}"))?;
-            buf.push_str(&String::from_utf8_lossy(&chunk));
-            while let Some(idx) = buf.find('\n') {
-                let line = buf[..idx].trim().to_string();
-                buf.drain(..=idx);
+            buf.extend_from_slice(&chunk);
+            for line in drain_lines(&mut buf) {
                 if line.is_empty() {
                     continue;
                 }
@@ -141,5 +155,31 @@ impl ChatProvider for Ollama {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::drain_lines;
+
+    #[test]
+    fn multibyte_char_split_across_chunks_is_preserved() {
+        let full = "{\"x\":\"ş\"}\n".as_bytes();
+        // 'ş' = C5 9F; ikinci baytın öncesinden böl.
+        let split = full.iter().position(|&b| b == 0xC5).unwrap() + 1;
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&full[..split]);
+        assert!(drain_lines(&mut buf).is_empty());
+        buf.extend_from_slice(&full[split..]);
+        let lines = drain_lines(&mut buf);
+        assert_eq!(lines, vec!["{\"x\":\"ş\"}".to_string()]);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn keeps_partial_trailing_line() {
+        let mut buf = b"a\nb\npartial".to_vec();
+        assert_eq!(drain_lines(&mut buf), vec!["a", "b"]);
+        assert_eq!(buf, b"partial");
     }
 }
