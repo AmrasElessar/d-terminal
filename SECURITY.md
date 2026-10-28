@@ -6,8 +6,8 @@ Yalnızca en son stable sürüm güvenlik güncellemeleri alır.
 
 | Sürüm  | Destek      |
 | ------ | ----------- |
-| 0.9.x  | ✓ Aktif     |
-| < 0.9  | ✗ Destek dışı |
+| 0.11.x | ✓ Aktif     |
+| < 0.11 | ✗ Destek dışı |
 
 ## Güvenlik Açığı Bildirimi
 
@@ -57,7 +57,9 @@ Aktif önlemler:
 
 - ✓ DPAPI (Windows Data Protection) + per-user entropy ile secret storage
 - ✓ Tauri capabilities ACL (`src-tauri/capabilities/default.json`)
-- ✓ CSP politikası (yalnızca whitelist edilmiş localhost portları)
+- ✓ CSP politikası: `script-src 'self' 'wasm-unsafe-eval'` (inline script /
+  `unsafe-eval` yok). Bilinen sınır: `style-src 'unsafe-inline'`. Dev sunucu
+  origin'leri yalnızca `devCsp`'de (ADR-0007)
 - ✓ PTY shell whitelist (`commands/pty.rs`) + env var blacklist + UNC reddi
 - ✓ Path canonicalize + traversal segment reddi (snapshot save vb.)
 - ✓ SQL prepared statements (rusqlite `params!` 100%)
@@ -65,7 +67,13 @@ Aktif önlemler:
 - ✓ Tauri updater minisign signature doğrulaması
 - ✓ Release artifact'lar VirusTotal + Hybrid Analysis ile taranır
 - ✓ `cargo audit` CI job'u her commit'te
-- ✓ Dependabot grouped PR'larla minor/patch otomatik
+- ✓ Dependabot grouped PR'larla minor/patch otomatik (npm, cargo, GitHub Actions)
+- ✓ GitHub Actions commit SHA'ya pinli; sidecar bağımlılıkları `npm ci` ile
+  lockfile-exact kurulur
+- ✓ Release pipeline: build job'u imza anahtarı görmez; installer'lar korumalı
+  `release` Environment'ındaki ayrı bir job'da `tauri signer sign` ile
+  imzalanır. Release yalnızca main üzerindeki ve CI'ı yeşil commit'lerin
+  tag'lerinden çıkar
 
 ## Açıklama Politikası
 
@@ -81,5 +89,12 @@ Bir güvenlik açığını düzelttikten sonra:
   rotation v0.9.4'te yapıldı. Legacy (NULL entropy) blob'lar v1.0'da
   kaldırılacak.
 - **Tauri Updater:** minisign public key uygulamada embedded
-  (`src-tauri/tauri.conf.json:73`). Key compromise durumunda v1.0'da
-  rollover key mekanizması eklenecek.
+  (`src-tauri/tauri.conf.json` → `plugins.updater.pubkey`). Özel anahtar
+  yalnızca GitHub `release` Environment secret'ı olarak tutulur ve sadece
+  imzalama job'unda kullanılır. Key rollover mekanizması henüz yok —
+  compromise durumunda yeni pubkey ile manuel güncelleme (yeniden kurulum)
+  gerekir; rollover desteği yol haritasında.
+- **Authenticode:** Installer'lar henüz Authenticode ile imzalı değil
+  (SignPath FOSS başvurusu beklemede). SmartScreen uyarısı bu yüzden
+  görünebilir; bütünlük için release'teki SHA-256 + minisign `.sig`
+  dosyalarını doğrulayın.

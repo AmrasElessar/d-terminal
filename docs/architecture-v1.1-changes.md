@@ -22,7 +22,7 @@ Bu belge v1.0 mimari belgesindeki tutarsızlıkları, eksikleri ve scope düzelt
 
 **v1.0**: "Tauri'nin IPC köprüsü üzerinden iletişim" — protokol detayı yok.
 
-**v1.1**: Length-prefixed binary frame, tek sidecar multiplexing (max 50 pane), ring buffer + SIGSTOP backpressure, heartbeat tabanlı crash detection.
+**v1.1**: Length-prefixed binary frame, tek sidecar multiplexing (max 50 pane), credit tabanlı per-pane backpressure (node-pty pause/resume; planlanan ring buffer + SIGSTOP uygulanmadı — bkz. ADR-0001 Amendment), heartbeat + Job Object tabanlı crash/zombie yönetimi.
 
 **Detay**: ADR-0001.
 

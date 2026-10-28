@@ -1,6 +1,6 @@
 # ADR-0007: CSP Allowlist Scope (localhost ports)
 
-**Status**: Accepted
+**Status**: Accepted — amended 2026-10 (see "Amendment" below)
 **Date**: 2026-05-12
 **Author**: Orhan Engin OKAY
 
@@ -72,6 +72,27 @@ AI runtime portlarının frontend CSP'sinde gerekli olmadığını doğrula —
 yerel runtime chat'i tamamen Rust proxy üzerinden yapılıyor ise CSP'den
 5 portu çıkarabiliriz. Bu, CSP'yi minimal hale getirir + audit gürültüsünü
 kapatır.
+
+## Amendment (2026-10) — current state
+
+- **AI runtime ports removed (Alternative C applied, v0.10.0).** All AI
+  traffic goes through the Rust `reqwest` proxy; `connect-src` no longer
+  lists 1234/1337/5273/8080/11434. The "Açık eylem" item above is closed.
+- **Dev-server origins moved to `devCsp` (Alternative B, simplified).**
+  Tauri 2 supports `app.security.devCsp`, which is used only by
+  `tauri dev`. `ws://localhost:1420` / `http://localhost:1420` now live
+  there; the production `csp` contains only `'self'`, `ipc:` and
+  `http://ipc.localhost` in `connect-src`. No second config file or
+  pipeline change is needed, which removes the original objection.
+- **Additional directives:** production CSP also sets restrictive
+  `base-uri`, `form-action` and `frame-src` / `object-src`.
+- **Known remaining gap:** `style-src 'unsafe-inline'` is still required
+  (Vue scoped/inline styles, xterm.js). `script-src` keeps
+  `'wasm-unsafe-eval'` for the WebGL/image addons; there is no
+  `unsafe-eval` and no inline script.
+
+The authoritative CSP strings are in `src-tauri/tauri.conf.json`
+(`app.security.csp` and `app.security.devCsp`).
 
 ## Alternatifler
 

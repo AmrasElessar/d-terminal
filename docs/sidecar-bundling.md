@@ -6,87 +6,65 @@ Bkz. [ADR-0001 — PTY Sidecar IPC Protokolü](./adr/0001-pty-sidecar-ipc-protoc
 
 ## Strateji
 
-Tauri v2 `externalBin` mekanizması binary'i bundle'a dahil eder ve runtime path'i platform için doğru hedeflenir. `tauri.conf.json` zaten bu konfigürasyonu içerir:
+Tauri v2 `externalBin` mekanizması binary'i bundle'a dahil eder ve runtime path'i platform için doğru hedeflenir. `tauri.conf.json`:
 
 ```json
 "externalBin": ["binaries/dterminal-pty-bridge"]
 ```
 
-Tauri otomatik olarak hedef triple suffix'ini ekler:
-`binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe`
+Tauri hedef triple suffix'ini otomatik ekler:
 
-## Binary üretimi
+- `src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe`
+- `src-tauri/binaries/dterminal-pty-bridge-aarch64-pc-windows-msvc.exe`
 
-İki yaygın araç:
+`src-tauri/binaries/` `.gitignore`'dadır; binary'ler her build'de üretilir.
 
-### 1. `@yao-pkg/pkg` (önerilen — `vercel/pkg` fork'u, aktif bakımda)
+## Binary üretimi — `@yao-pkg/pkg`
 
-```bash
-cd sidecar
-npm install --save-dev @yao-pkg/pkg
-npx pkg pty-bridge.js \
-  --targets node20-win-x64 \
-  --output ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
-```
-
-Avantajlar:
-- Tek dosya, ~40-50 MB (Node v8 snapshot dahil)
-- node-pty native modülü otomatik dahil edilir
-- Hızlı startup (~50ms)
-
-Dezavantajlar:
-- node-pty `.node` binary'sini paket içinde extract etmesi gerekiyor (pkg bunu otomatik yapar ama `--public` flag'i gerekebilir)
-
-### 2. `nexe`
+Paketleme `@yao-pkg/pkg` ile yapılır (`vercel/pkg`'nin bakımı süren fork'u, `sidecar/package.json` → `devDependencies`). Komutlar **`sidecar/package.json` script'leri** üzerinden çalıştırılır; script'ler `pkg .` kullanır, böylece `package.json` içindeki `"pkg"` bloğu (node-pty prebuild'leri, `lib/`, `cbor-x` asset/script listesi) devreye girer. `npx pkg pty-bridge.js` gibi doğrudan dosya hedefleyen çağrılar bu config'i **yok sayar** ve native modülleri eksik paketler — kullanmayın.
 
 ```bash
 cd sidecar
-npm install --save-dev nexe
-npx nexe pty-bridge.js \
-  --target windows-x64-20.10.0 \
-  --output ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
+npm ci                 # lockfile-exact (pkg devDependency dahil)
+npm run bundle:x64     # → ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
+npm run bundle:arm64   # → ../src-tauri/binaries/dterminal-pty-bridge-aarch64-pc-windows-msvc.exe
+# veya ikisi birden:
+npm run bundle:all
 ```
 
-Daha yavaş build, ama daha küçük binary üretebilir (custom Node build).
+Notlar:
 
-## node-pty native modül sorunu
+- ARM64 hedefi `--no-bytecode --public --public-packages "*"` ile derlenir (x64 host'ta ARM64 V8 bytecode üretilemez).
+- node-pty 1.x Windows'ta yalnızca **ConPTY** kullanır (Windows 10 1809+ yerleşik). winpty DLL'lerini kopyalamaya gerek yoktur.
+- node-pty'nin native dosyaları (`pty.node`, `conpty.dll`, `OpenConsole.exe`) pkg snapshot'ından çalışma anında diske açılır; konum ve doğrulama ayrıntıları için `sidecar/pty-bridge.js` → native extraction bölümüne bakın.
 
-`node-pty` Windows'ta `winpty.dll` ve `conpty.dll`'e bağlanır. ConPTY API Windows 10 1809+'da yerleşik gelir, ek dağıtım gerekmez. Eski Windows'lar için winpty fallback'ini bundle'a eklemek istersen:
-
-```bash
-# winpty binary'lerini sidecar/ altına kopyala — pkg bunları toplar
-cp node_modules/node-pty/build/Release/winpty*.dll sidecar/
-```
-
-## Build sırası
+## Build sırası (lokal)
 
 ```bash
-# 1. Sidecar'ı binary'e çevir
-cd sidecar && npx pkg pty-bridge.js \
-  --targets node20-win-x64 \
-  --output ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
+# 1. Sidecar binary'si
+cd sidecar && npm ci && npm run bundle:x64
 
 # 2. Tauri build
-cd .. && pnpm tauri:build
+cd .. && pnpm tauri build --target x86_64-pc-windows-msvc
 ```
-
-`src-tauri/binaries/` klasörü `.gitignore`'da; binary'ler her CI run'ında üretilir.
 
 ## CI entegrasyonu
 
-`.github/workflows/release.yml` içinde sidecar binary üretim adımı eklemen gerekir. Önerilen sıra:
+`.github/workflows/release.yml` (build job, her mimari için matrix):
 
 ```yaml
-- name: Sidecar install + bundle
+- name: Sidecar install (lockfile-exact, with dev deps for pkg)
   working-directory: sidecar
-  run: |
-    npm install --omit=dev
-    npm install --no-save @yao-pkg/pkg
-    npx pkg pty-bridge.js --targets node20-win-x64 --output ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
+  run: npm ci
 
-- name: Tauri build
-  run: pnpm tauri:build
+- name: Sidecar bundle (pkg standalone exe)
+  working-directory: sidecar
+  run: npm run ${{ matrix.sidecar_script }}   # bundle:x64 | bundle:arm64
 ```
+
+Ardından `pnpm tauri build --target <triple>` çalışır. Build job'u updater imza anahtarını görmez; installer'lar ayrı, korumalı bir `publish` job'unda imzalanır (bkz. `release.yml` başındaki güvenlik modeli notu).
+
+CI job'u (`ci.yml` → `sidecar`) yalnızca `npm ci && npm test` çalıştırır; Rust job'ları için `src-tauri/binaries/` altına boş stub dosyalar oluşturulur (Tauri `externalBin` varlık kontrolü).
 
 ## Alternatif: Node embed yerine Rust port
 
@@ -97,13 +75,13 @@ Uzun vadede `portable-pty` (Rust crate) kullanarak sidecar'ı tamamen Rust'a ta�
 
 Maliyet:
 - node-pty'nin Windows ConPTY entegrasyonu daha olgun, edge case'ler test edilmiş
-- Rust port'u v1.1+ scope, MVP'yi geciktirmemeli
+- Rust port'u v1.1+ scope
 
 Karar: **v1.0'da Node sidecar + pkg, v2.0'da Rust port değerlendir.**
 
 ## Dev modu
 
-Geliştirmede `cargo run` çağrıldığında `lib.rs::resolve_sidecar_path()` repo'daki `sidecar/pty-bridge.js`'i bulup `node` ile çalıştırır. Binary üretimi gerekmez, hot-reload Vite tarafında.
+Debug build'de (`cargo run` / `pnpm tauri dev`) bundled binary bulunamazsa `lib.rs::resolve_sidecar_path()` repo'daki `sidecar/pty-bridge.js`'i `node` ile çalıştırır. Bu fallback yalnızca debug build içindir; release build'de bundled sidecar zorunludur.
 
 ## Smoke test
 
@@ -114,6 +92,6 @@ echo -ne "\x00\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x00" | \
   ./src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe
 ```
 
-(13 byte: zero payload + PING type + zero pane_id) → sidecar PONG ile yanıtlamalı (stdout'a 13 byte). Stdin kapanınca temiz çıkış.
+(13 byte: zero payload + PING type + zero pane_id) → sidecar önce `HELLO`, ardından PONG ile yanıtlamalı. Stdin kapanınca temiz çıkış.
 
-Otomatik test için: `sidecar/tests/protocol.test.js` zaten frame protokolünü doğruluyor; pkg ile derlenmiş binary için ek bir round-trip test ekleyebilirsin.
+Otomatik test: `sidecar/tests/protocol.test.js` frame protokolünü doğrular (`cd sidecar && npm test`).
