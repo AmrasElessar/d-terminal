@@ -22,6 +22,8 @@ export interface CommandBlock {
   outputLineCount: number;
   /** Block hidden/collapsed mu (UI). */
   collapsed: boolean;
+  /** Boşlukla başlayan komut — geçmişe / autocomplete'e yazılmaz. */
+  private?: boolean;
 }
 
 export function newBlock(): CommandBlock {

@@ -13,6 +13,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { listen } from '@tauri-apps/api/event';
 import { api } from '@/api/tauri';
+import { decodePtyData } from '@/api/events';
 import { type LeafNode, type PaneType, PANE_FONT_MIN, PANE_FONT_MAX } from '@/types/pane';
 import type { PtyEvent } from '@/types/events';
 import { usePanesStore } from '@/stores/panes';
@@ -344,7 +345,7 @@ async function listenStdout(ptyId: string) {
     if (e.payload.kind !== 'stdout') return;
     if (e.payload.pane_id !== ptyId) return;
     if (!term) return;
-    const bytes = new Uint8Array(e.payload.data);
+    const bytes = decodePtyData(e.payload.data);
     pendingChunks.push(bytes);
     pendingLen += bytes.length;
     if (stdoutRafId === null) {
@@ -396,7 +397,7 @@ function attachInput() {
     if (bufferChanged) scheduleSuggestion();
 
     // Block tracker — kullanıcı input'unu yakala (komut metni için)
-    blockTracker.onUserInput(data);
+    blockTracker.onUserInput(data, { altBuffer: term?.buffer.active.type === 'alternate' });
     const bytes = new TextEncoder().encode(data);
     if (panes.broadcastInput) {
       // Aktif tab'daki tüm çalışan terminal pane'lerine paralel yaz (tmux sync-panes)
@@ -452,12 +453,13 @@ function attachInput() {
         blockTracker.onCommandEnd(code);
         // Komutu geçmişe yaz — history-based autocomplete + Settings → History modal
         const block = blockTracker.active();
-        if (block?.command) {
+        const histCmd = block ? blockTracker.historyCommand(block) : null;
+        if (block && histCmd) {
           const dur = block.endedAt && block.startedAt
             ? block.endedAt.getTime() - block.startedAt.getTime()
             : undefined;
           api.historyAdd({
-            command: block.command,
+            command: histCmd,
             paneId: props.leaf.id,
             paneType: props.leaf.type,
             exitCode: code,

@@ -53,8 +53,8 @@ const secondStyle = computed(() => ({
 <template>
   <div class="split" :class="{ horizontal: isHorizontal, vertical: !isHorizontal }">
     <div class="split__pane" :style="firstStyle">
-      <SplitContainer v-if="node.first.kind === 'split'" :node="node.first" />
-      <PaneSlot v-else :leaf="node.first" />
+      <SplitContainer v-if="node.first.kind === 'split'" :key="node.first.id" :node="node.first" />
+      <PaneSlot v-else :key="node.first.id" :leaf="node.first" />
     </div>
     <div
       class="split__divider"
@@ -62,8 +62,8 @@ const secondStyle = computed(() => ({
       @pointerdown.prevent="startDrag"
     />
     <div class="split__pane" :style="secondStyle">
-      <SplitContainer v-if="node.second.kind === 'split'" :node="node.second" />
-      <PaneSlot v-else :leaf="node.second" />
+      <SplitContainer v-if="node.second.kind === 'split'" :key="node.second.id" :node="node.second" />
+      <PaneSlot v-else :key="node.second.id" :leaf="node.second" />
     </div>
   </div>
 </template>

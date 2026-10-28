@@ -2,7 +2,7 @@
 // Tek başına saf fonksiyon, Tauri API'sine bağımlı değil.
 
 import { describe, expect, it } from 'vitest';
-import { parseOsc7CwdPayload } from './useGitStat';
+import { isSafeLocalDrivePath, parseOsc7CwdPayload } from './useGitStat';
 
 describe('parseOsc7CwdPayload', () => {
   it('Windows file:///C:/path → C:\\path (forward → back slash)', () => {
@@ -28,8 +28,9 @@ describe('parseOsc7CwdPayload', () => {
   it('non-Windows path (Linux tarzı) backslash dönüştürülür ama drive yok', () => {
     // Bu dt Windows app olsa da fonksiyon defensive — /home/x/... gelirse
     // başında slash kalır ve backslash'e çevrilir.
+    // Unix yolu (WSL) — git_diff_shortstat Windows yolu bekler, reddedilir
     const r = parseOsc7CwdPayload('file:///home/engin/proj');
-    expect(r).toBe('\\home\\engin\\proj');
+    expect(r).toBeNull();
   });
 
   it('invalid URL (file:// prefix yok) → null', () => {
@@ -52,5 +53,36 @@ describe('parseOsc7CwdPayload', () => {
   it('drive letter küçük harfli (file:///c:/...) → korur', () => {
     const r = parseOsc7CwdPayload('file:///c:/Users/');
     expect(r).toBe('c:\\Users\\');
+  });
+
+  it('PowerShell COMPUTERNAME host kabul edilir', () => {
+    expect(parseOsc7CwdPayload('file://DESKTOP-AB12/C:/x/')).toBe('C:\\x\\');
+  });
+
+  it('UNC / NTLM sızıntı denemeleri reddedilir', () => {
+    expect(parseOsc7CwdPayload('file:////attacker/share')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///%5C%5Cattacker%5Cshare')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///%5C%5C%3F%5CUNC%5Ch%5Cs')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///%5C%3F%3F%5CUNC%5Ch%5Cs')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///%5C%5C.%5Cpipe%5Cx')).toBeNull();
+    expect(parseOsc7CwdPayload('file://evil.example.com/C:/x')).toBeNull();
+  });
+
+  it('.. segmenti, ADS ve kontrol karakteri reddedilir', () => {
+    expect(parseOsc7CwdPayload('file:///C:/a/../b')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///C:/a:stream')).toBeNull();
+    expect(parseOsc7CwdPayload('file:///C:/a%0Ab')).toBeNull();
+  });
+});
+
+describe('isSafeLocalDrivePath', () => {
+  it('yerel sürücü yollarını kabul eder', () => {
+    expect(isSafeLocalDrivePath('C:\\Users\\x')).toBe(true);
+    expect(isSafeLocalDrivePath('D:')).toBe(true);
+  });
+  it('UNC / device / göreli yolları reddeder', () => {
+    expect(isSafeLocalDrivePath('\\\\host\\share')).toBe(false);
+    expect(isSafeLocalDrivePath('\\\\?\\C:\\x')).toBe(false);
+    expect(isSafeLocalDrivePath('relative\\x')).toBe(false);
   });
 });

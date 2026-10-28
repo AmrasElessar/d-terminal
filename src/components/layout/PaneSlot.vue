@@ -204,12 +204,14 @@ function onContextMenu(e: MouseEvent) {
   >
     <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close($event)" />
     <div class="slot__body">
-      <ErrorPane v-if="leaf.status === 'error'" :leaf="leaf" />
-      <TerminalPane v-else-if="isTerminal" ref="terminalRef" :leaf="leaf" />
-      <AIChatPane v-else-if="leaf.type === 'aiChat'" :leaf="leaf" />
-      <LogStreamPane v-else-if="leaf.type === 'logStream'" :leaf="leaf" />
-      <WelcomePane v-else-if="leaf.type === 'welcome'" />
-      <AgentViewPane v-else-if="leaf.type === 'agentView'" :leaf="leaf" />
+      <!-- :key — Vue aynı komponent örneğini başka bir leaf için yeniden
+           kullanmasın (tab değişiminde girdi yanlış PTY'ye gidiyordu). -->
+      <ErrorPane v-if="leaf.status === 'error'" :key="'err-' + leaf.id" :leaf="leaf" />
+      <TerminalPane v-else-if="isTerminal" :key="'term-' + leaf.id" ref="terminalRef" :leaf="leaf" />
+      <AIChatPane v-else-if="leaf.type === 'aiChat'" :key="'ai-' + leaf.id" :leaf="leaf" />
+      <LogStreamPane v-else-if="leaf.type === 'logStream'" :key="'log-' + leaf.id" :leaf="leaf" />
+      <WelcomePane v-else-if="leaf.type === 'welcome'" :key="'welcome-' + leaf.id" />
+      <AgentViewPane v-else-if="leaf.type === 'agentView'" :key="'agent-' + leaf.id" :leaf="leaf" />
     </div>
     <div
       v-if="dropSide"
