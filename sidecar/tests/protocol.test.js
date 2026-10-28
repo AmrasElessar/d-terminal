@@ -13,8 +13,13 @@ const {
   MsgType,
   MAX_PAYLOAD,
   HEADER_LEN,
+  FLOW_HIGH_WATER,
   encodeFrame,
   FrameDecoder,
+  decodePayload,
+  sanitizeEnv,
+  dispatch,
+  PtyManager,
 } = require('../pty-bridge.js');
 
 test('encodeFrame: header layout for empty payload', () => {
@@ -107,15 +112,38 @@ test('FrameDecoder: rejects oversized frame in stream', () => {
   bad.writeUInt8(MsgType.STDOUT, 4);
   bad.writeBigUInt64BE(0n, 5);
   assert.throws(() => dec.feed(bad), /payload too large/);
+  // Decoder zehirlenmemeli: buffer sıfırlanır, sonraki geçerli frame işlenir.
+  assert.equal(dec.pending, 0);
+  const frames = dec.feed(encodeFrame(MsgType.PING, 0n));
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].msgType, MsgType.PING);
 });
 
-test('FrameDecoder: rejects unknown msg type in stream', () => {
-  const dec = new FrameDecoder();
-  const bad = Buffer.alloc(HEADER_LEN);
-  bad.writeUInt32BE(0, 0);
+test('FrameDecoder: skips unknown msg type and keeps stream in sync', () => {
+  const unknown = [];
+  const dec = new FrameDecoder({ onUnknown: (t, id) => unknown.push([t, id]) });
+  const bad = Buffer.alloc(HEADER_LEN + 3);
+  bad.writeUInt32BE(3, 0);
   bad.writeUInt8(0xFF, 4);
-  bad.writeBigUInt64BE(0n, 5);
-  assert.throws(() => dec.feed(bad), /unknown msg type/);
+  bad.writeBigUInt64BE(9n, 5);
+  const good = encodeFrame(MsgType.STDOUT, 1n, Buffer.from('ok'));
+  const frames = dec.feed(Buffer.concat([bad, good]));
+  assert.deepEqual(unknown, [[0xFF, 9n]]);
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].payload.toString('utf8'), 'ok');
+});
+
+test('FrameDecoder: large frame fed in many chunks is reassembled once', () => {
+  const dec = new FrameDecoder();
+  const payload = Buffer.alloc(256 * 1024, 0x61);
+  const full = encodeFrame(MsgType.STDOUT, 3n, payload);
+  let frames = [];
+  for (let i = 0; i < full.length; i += 1000) {
+    frames = frames.concat(dec.feed(full.subarray(i, i + 1000)));
+  }
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].payload.length, payload.length);
+  assert.equal(dec.pending, 0);
 });
 
 test('FrameDecoder: binary safe — null bytes and high bits', () => {
@@ -135,4 +163,134 @@ test('FrameDecoder: payload ownership — independent of internal buffer', () =>
   const firstPayload = frames[0].payload;
   dec.feed(encodeFrame(MsgType.STDOUT, 99n, Buffer.from('xxxxxxxx')));
   assert.equal(firstPayload.toString('utf8'), 'first');
+});
+
+// --- Dispatch / PtyManager ------------------------------------------------
+
+function fakePty({ failSpawn = false } = {}) {
+  const procs = [];
+  return {
+    procs,
+    spawn(shell, args, opts) {
+      if (failSpawn) throw new Error('File not found: ' + shell);
+      const p = {
+        shell, args, opts, paused: false, killed: false, written: [],
+        _onData: null, _onExit: null,
+        onData(cb) { this._onData = cb; },
+        onExit(cb) { this._onExit = cb; },
+        write(d) { this.written.push(d); },
+        resize() {},
+        kill() { this.killed = true; },
+        pause() { this.paused = true; },
+        resume() { this.paused = false; },
+      };
+      procs.push(p);
+      return p;
+    },
+  };
+}
+
+function harness(ptyImpl) {
+  const sent = [];
+  const writeFrame = (msgType, paneId, payload) => {
+    sent.push({ msgType, paneId, payload });
+    return true;
+  };
+  const manager = new PtyManager({ writeFrame, log: () => {}, ptyImpl });
+  return { sent, writeFrame, manager };
+}
+
+const spawnFrame = (id) => ({
+  msgType: MsgType.SPAWN,
+  paneId: id,
+  payload: Buffer.from(JSON.stringify({ shell: 'cmd.exe', args: [], cols: 80, rows: 24 })),
+});
+
+test('dispatch: spawn failure reports ERROR + EXIT for the real pane id', () => {
+  const { sent, writeFrame, manager } = harness(fakePty({ failSpawn: true }));
+  dispatch(spawnFrame(5n), manager, writeFrame, () => {});
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].msgType, MsgType.ERROR);
+  assert.equal(sent[0].paneId, 5n);
+  assert.equal(decodePayload(sent[0].payload).code, 'spawn_failed');
+  assert.equal(sent[1].msgType, MsgType.EXIT);
+  assert.equal(sent[1].paneId, 5n);
+});
+
+test('dispatch: an error does not stop later frames from being handled', () => {
+  const fp = fakePty();
+  const { sent, writeFrame, manager } = harness(fp);
+  const bad = { msgType: MsgType.RESIZE, paneId: 1n, payload: Buffer.from('not json') };
+  dispatch(bad, manager, writeFrame, () => {});
+  dispatch(spawnFrame(2n), manager, writeFrame, () => {});
+  assert.equal(sent[0].msgType, MsgType.ERROR);
+  assert.equal(manager.size(), 1);
+});
+
+test('dispatch: duplicate spawn reports ERROR but no EXIT (pane still alive)', () => {
+  const { sent, writeFrame, manager } = harness(fakePty());
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].msgType, MsgType.ERROR);
+  assert.equal(manager.size(), 1);
+});
+
+test('PtyManager: credit mode pauses a flooding pane and resumes after ack', () => {
+  const fp = fakePty();
+  const { writeFrame, manager } = harness(fp);
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  dispatch({ msgType: MsgType.FLOW_RESUME, paneId: 0n, payload: Buffer.alloc(0) }, manager, writeFrame, () => {});
+  const p = fp.procs[0];
+  p._onData('x'.repeat(FLOW_HIGH_WATER));
+  assert.equal(p.paused, true);
+  const ack = Buffer.from(JSON.stringify({ bytes: FLOW_HIGH_WATER }));
+  dispatch({ msgType: MsgType.FLOW_RESUME, paneId: 1n, payload: ack }, manager, writeFrame, () => {});
+  assert.equal(p.paused, false);
+});
+
+test('PtyManager: without credit mode output never pauses (old Tauri compat)', () => {
+  const fp = fakePty();
+  const { writeFrame, manager } = harness(fp);
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  fp.procs[0]._onData('x'.repeat(FLOW_HIGH_WATER * 2));
+  assert.equal(fp.procs[0].paused, false);
+});
+
+test('PtyManager: drain wait pauses all panes until drained', () => {
+  const fp = fakePty();
+  const { writeFrame, manager } = harness(fp);
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  dispatch(spawnFrame(2n), manager, writeFrame, () => {});
+  manager.setDrainWait(true);
+  assert.ok(fp.procs.every((p) => p.paused));
+  manager.setDrainWait(false);
+  assert.ok(fp.procs.every((p) => !p.paused));
+});
+
+test('PtyManager: exit with numeric signal is encoded as string', () => {
+  const fp = fakePty();
+  const { sent, writeFrame, manager } = harness(fp);
+  dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+  fp.procs[0]._onExit({ exitCode: 3, signal: 9 });
+  const exit = sent.find((f) => f.msgType === MsgType.EXIT);
+  assert.deepEqual(decodePayload(exit.payload), { exit_code: 3, signal: '9' });
+  assert.equal(manager.size(), 0);
+});
+
+test('sanitizeEnv strips internal sidecar variables', () => {
+  const env = sanitizeEnv({ PATH: 'x', PKG_EXECPATH: 'y', TAURI_FOO: 'z', Pkg_Other: 'w', HOME: 'h' });
+  assert.deepEqual(env, { PATH: 'x', HOME: 'h' });
+});
+
+test('spawn env does not leak internal variables to the shell', () => {
+  process.env.PKG_EXECPATH = 'secret';
+  try {
+    const fp = fakePty();
+    const { writeFrame, manager } = harness(fp);
+    dispatch(spawnFrame(1n), manager, writeFrame, () => {});
+    assert.equal(fp.procs[0].opts.env.PKG_EXECPATH, undefined);
+  } finally {
+    delete process.env.PKG_EXECPATH;
+  }
 });
