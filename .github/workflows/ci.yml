@@ -97,12 +97,29 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --target ${{ matrix.target }} -- -D warnings
 
+      # Windows uçtan uca testleri (gerçek sidecar + node-pty + ConPTY ile
+      # cmd/PowerShell, büyük çıktı, kapanışta süreç davranışı) için sidecar
+      # bağımlılıkları gerekir.
+      - name: Setup Node (e2e)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '20'
+
+      - name: Install sidecar deps (e2e)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        working-directory: sidecar
+        run: npm ci
+
       # Test yalnızca x64'te — ARM64 cross-compile testleri Windows runner'da
       # çalıştırılamaz (binary native ARM64'te koşar, x64 host'ta exec'lenmez).
       - name: Test
         if: matrix.target == 'x86_64-pc-windows-msvc'
         working-directory: src-tauri
-        run: cargo test
+        env:
+          # node-pty yüklenemezse e2e testleri atlanmasın, başarısız olsun.
+          DTERM_REQUIRE_E2E: '1'
+        run: cargo test -- --nocapture
 
   audit:
     name: Security audit (cargo-audit)

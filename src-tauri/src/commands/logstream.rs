@@ -206,80 +206,108 @@ pub fn log_stream_open(
     thread::Builder::new()
         .name(format!("log-stream-{id}"))
         .spawn(move || {
-            let send_all = |lines: Vec<String>| -> bool {
-                for line in lines {
-                    if cancel_clone.load(Ordering::Relaxed) {
-                        return false;
-                    }
-                    let _ = on_line.send(line);
-                }
-                true
-            };
-
-            let size = std::fs::metadata(&path_buf).map(|m| m.len()).unwrap_or(0);
-            let mut carry: Vec<u8> = Vec::new();
-            let mut last_pos = if tail {
-                size
-            } else {
-                // Son 16 MB — devasa log'ta bellek patlamasın, en yeni içerik görünsün.
-                size.saturating_sub(MAX_LOG_READ_BYTES)
-            };
-            if !tail {
-                // Ortadan başlıyorsak ilk (yarım) satırı atla.
-                let skip_partial = last_pos > 0;
-                if let Some(mut lines) = read_from(&path_buf, &mut last_pos, &mut carry) {
-                    if skip_partial && !lines.is_empty() {
-                        lines.remove(0);
-                    }
-                    if !send_all(lines) {
-                        return;
-                    }
-                }
-            }
-
-            // notify-rs ile dosya watcher — event gelmese de 500 ms'de bir boyut
-            // kontrolü yapılır (bkz. dosya başı).
-            let (tx, rx) = channel();
-            let watcher: Option<RecommendedWatcher> =
-                notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-                    let _ = tx.send(res);
-                })
-                .ok()
-                .and_then(|mut w| {
-                    // Parent dizinini watch — bazı OS'lar tek dosya için event üretmez
-                    let parent = path_buf.parent().unwrap_or(Path::new("."));
-                    w.watch(parent, RecursiveMode::NonRecursive).ok().map(|_| w)
-                });
-
-            loop {
-                if cancel_clone.load(Ordering::Relaxed) {
-                    return;
-                }
-                let should_read = match rx.recv_timeout(std::time::Duration::from_millis(500)) {
-                    Ok(Ok(event)) => {
-                        event.paths.iter().any(|p| p == &path_buf)
-                            && matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
-                    }
-                    Ok(Err(_)) => false,
-                    // timeout (veya watcher yok/kapandı) → polling fallback
-                    Err(_) => true,
-                };
-                if !should_read {
-                    continue;
-                }
-                if let Some(lines) = read_from(&path_buf, &mut last_pos, &mut carry) {
-                    if !send_all(lines) {
-                        return;
-                    }
-                }
-                if watcher.is_none() {
-                    // Watcher kurulamadıysa recv anında Err döner; CPU'yu yakma.
-                    thread::sleep(std::time::Duration::from_millis(500));
-                }
-            }
+            run_tail(&path_buf, tail, &cancel_clone, |line| {
+                let _ = on_line.send(line);
+            })
         })
         .map_err(|e| AppError::Internal(format!("watcher thread spawn: {e}")))?;
     Ok(())
+}
+
+/// Dosyayı izleyip yeni satırları `send`'e iletir; `cancel` set edilene kadar
+/// döner. Tauri `Channel`'dan bağımsız olduğu için doğrudan test edilebilir.
+fn run_tail<F: FnMut(String)>(path_buf: &Path, tail: bool, cancel: &AtomicBool, mut send: F) {
+    let mut send_all = |lines: Vec<String>| -> bool {
+        for line in lines {
+            if cancel.load(Ordering::Relaxed) {
+                return false;
+            }
+            send(line);
+        }
+        true
+    };
+
+    let size = std::fs::metadata(path_buf).map(|m| m.len()).unwrap_or(0);
+    let mut carry: Vec<u8> = Vec::new();
+    let mut last_pos = if tail {
+        size
+    } else {
+        // Son 16 MB — devasa log'ta bellek patlamasın, en yeni içerik görünsün.
+        size.saturating_sub(MAX_LOG_READ_BYTES)
+    };
+    if !tail {
+        // Ortadan başlıyorsak ilk (yarım) satırı atla.
+        let skip_partial = last_pos > 0;
+        if let Some(mut lines) = read_from(path_buf, &mut last_pos, &mut carry) {
+            if skip_partial && !lines.is_empty() {
+                lines.remove(0);
+            }
+            if !send_all(lines) {
+                return;
+            }
+        }
+    }
+
+    // notify-rs ile dosya watcher — event gelmese de 500 ms'de bir boyut
+    // kontrolü yapılır (bkz. dosya başı).
+    let (tx, rx) = channel();
+    let watcher: Option<RecommendedWatcher> =
+        notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            let _ = tx.send(res);
+        })
+        .ok()
+        .and_then(|mut w| {
+            // Parent dizinini watch — bazı OS'lar tek dosya için event üretmez
+            let parent = path_buf.parent().unwrap_or(Path::new("."));
+            w.watch(parent, RecursiveMode::NonRecursive).ok().map(|_| w)
+        });
+
+    let poll_every = std::time::Duration::from_millis(500);
+    let mut last_read = std::time::Instant::now();
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return;
+        }
+        let event_hit = match rx.recv_timeout(poll_every) {
+            Ok(Ok(event)) => {
+                event.paths.iter().any(|p| same_file(p, path_buf))
+                    && matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
+            }
+            Ok(Err(_)) => false,
+            // timeout (veya watcher yok/kapandı) → polling fallback
+            Err(_) => true,
+        };
+        // Klasörde başka dosyalar sürekli event üretse bile (recv hiç timeout
+        // olmasa da) en geç 500 ms'de bir boyut kontrolü yapılır.
+        if !event_hit && last_read.elapsed() < poll_every {
+            continue;
+        }
+        last_read = std::time::Instant::now();
+        if let Some(lines) = read_from(path_buf, &mut last_pos, &mut carry) {
+            if !send_all(lines) {
+                return;
+            }
+        }
+        if watcher.is_none() {
+            // Watcher kurulamadıysa recv anında Err döner; CPU'yu yakma.
+            thread::sleep(poll_every);
+        }
+    }
+}
+
+/// notify event yolu ile izlenen (kanonik, Windows'ta `\\?\` önekli olabilen)
+/// yolu karşılaştırır.
+fn same_file(event_path: &Path, watched: &Path) -> bool {
+    if event_path == watched {
+        return true;
+    }
+    match (event_path.file_name(), watched.file_name()) {
+        (Some(a), Some(b)) if a == b => event_path
+            .canonicalize()
+            .map(|c| c == watched)
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 #[tauri::command]
@@ -359,6 +387,41 @@ mod tests {
         // truncate → baştan
         std::fs::write(&file, b"x\n").unwrap();
         assert_eq!(read_from(&file, &mut pos, &mut carry).unwrap(), vec!["x"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// Gerçek watcher + polling döngüsü uçtan uca: dosyaya eklenen satırlar
+    /// `run_tail` üzerinden gelmeli (Windows'ta ReadDirectoryChangesW yolu).
+    #[test]
+    fn run_tail_streams_appended_lines() {
+        use std::io::Write;
+        use std::sync::mpsc;
+        let dir = std::env::temp_dir().join(format!("dterm-tailtest-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("app.log");
+        std::fs::write(&file, b"eski satir\n").unwrap();
+        let canon = file.canonicalize().unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel::<String>();
+        let c2 = cancel.clone();
+        let h = thread::spawn(move || run_tail(&canon, true, &c2, |l| tx.send(l).unwrap()));
+        thread::sleep(std::time::Duration::from_millis(300));
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap();
+        f.write_all("yeni satır 1\nyeni satır 2\n".as_bytes())
+            .unwrap();
+        f.flush().unwrap();
+        let a = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("line 1");
+        let b = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("line 2");
+        assert_eq!(a, "yeni satır 1");
+        assert_eq!(b, "yeni satır 2");
+        cancel.store(true, Ordering::Relaxed);
+        h.join().unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -981,6 +981,216 @@ mod tests {
         mgr.shutdown();
     }
 
+    // ---- Windows uçtan uca (gerçek sidecar + node-pty + ConPTY) ----
+    //
+    // CI'da `DTERM_REQUIRE_E2E=1` ile koşulur (sidecar `npm ci` sonrası);
+    // node-pty yüklenemiyorsa yerelde atlanır, CI'da başarısız olur.
+
+    #[cfg(all(windows, debug_assertions))]
+    fn real_sidecar_or_skip() -> Option<std::path::PathBuf> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("sidecar");
+        let ok = Command::new("node")
+            .args(["-e", "require('node-pty');require('cbor-x')"])
+            .current_dir(&dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            return Some(dir.join("pty-bridge.js"));
+        }
+        if std::env::var_os("DTERM_REQUIRE_E2E").is_some() {
+            panic!("DTERM_REQUIRE_E2E set but node-pty/cbor-x not loadable in sidecar/");
+        }
+        eprintln!("node-pty not available — skipping Windows e2e");
+        None
+    }
+
+    /// Pane çıktısını `needle` görünene kadar biriktirir.
+    #[cfg(all(windows, debug_assertions))]
+    fn wait_output(rx: &Receiver<PtyEvent>, pane: u64, needle: &str, secs: u64) -> String {
+        let mut out = String::new();
+        let deadline = Instant::now() + Duration::from_secs(secs);
+        while Instant::now() < deadline {
+            if let Ok(ev) = rx.recv_timeout(Duration::from_millis(100)) {
+                match ev {
+                    PtyEvent::Stdout { pane_id, data } if pane_id == pane.to_string() => {
+                        out.push_str(&String::from_utf8_lossy(&data));
+                        if out.contains(needle) {
+                            return out;
+                        }
+                    }
+                    PtyEvent::Exit { pane_id, .. } if pane_id == pane.to_string() => {
+                        panic!("pane exited early; output so far:\n{out}");
+                    }
+                    _ => {}
+                }
+            }
+        }
+        panic!("timed out waiting for {needle:?}; output:\n{out}");
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn win_shell(rel: &str) -> String {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        format!(r"{root}\{rel}")
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn spawn_shell(mgr: &Arc<SidecarManager>, shell: String, args: &[&str]) -> u64 {
+        mgr.spawn_pane(SpawnPayload {
+            shell,
+            args: args.iter().map(|a| a.to_string()).collect(),
+            cwd: None,
+            env: vec![],
+            cols: 120,
+            rows: 30,
+        })
+        .expect("spawn")
+    }
+
+    /// cmd.exe ConPTY üzerinden açılır, komut çalışır, çıktı base64/coalesce
+    /// zincirinden bozulmadan gelir; kill sonrası Exit gelir ve slot boşalır.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_cmd_roundtrip() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(&mgr, win_shell(r"System32\cmd.exe"), &[]);
+        // `set /a` sonucu yalnızca gerçekten çalışırsa çıkar (echo'dan ayırt edilir).
+        mgr.write_stdin(pane, b"set /a 6*7+1000\r").unwrap();
+        wait_output(&rx, pane, "1042", 20);
+        mgr.kill(pane).unwrap();
+        let exit = recv_until(
+            &rx,
+            |e| matches!(e, PtyEvent::Exit { pane_id, .. } if *pane_id == pane.to_string()),
+        );
+        assert!(exit.is_some(), "no Exit after kill");
+        assert_eq!(mgr.pane_count(), 0);
+        mgr.shutdown();
+    }
+
+    /// Windows PowerShell 5.1: komut çalışır ve Türkçe/Unicode çıktı UTF-8
+    /// olarak bozulmadan gelir.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_powershell_roundtrip_unicode() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        mgr.write_stdin(
+            pane,
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; 'DT' + 'OK-' + [string](40+2) + ' şğüİ'\r"
+                .as_bytes(),
+        )
+        .unwrap();
+        let out = wait_output(&rx, pane, "DTOK-42", 40);
+        assert!(out.contains("DTOK-42 şğüİ"), "unicode mangled:\n{out}");
+        mgr.shutdown();
+    }
+
+    /// Büyük çıktı (flow control + coalescing): ~3 MB üretip son satırın
+    /// geldiğini doğrular; sidecar takılmamalı.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_large_output_flow_control() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        mgr.write_stdin(
+            pane,
+            b"1..30000 | % { 'satir-' + $_ + ('x' * 80) }; 'SON' + 'BITTI'\r",
+        )
+        .unwrap();
+        wait_output(&rx, pane, "SONBITTI", 120);
+        // Ardından pane hâlâ etkileşimli olmalı.
+        mgr.write_stdin(pane, b"'HALA' + 'CANLI'\r").unwrap();
+        wait_output(&rx, pane, "HALACANLI", 20);
+        mgr.shutdown();
+    }
+
+    /// Kapanış: sidecar kapatılınca shell ölür, ama shell'den başlatılan
+    /// bağımsız bir program (Job Object silent breakaway) hayatta kalır.
+    #[cfg(all(windows, debug_assertions))]
+    #[test]
+    fn e2e_windows_shutdown_kills_shell_but_not_launched_apps() {
+        let Some(script) = real_sidecar_or_skip() else {
+            return;
+        };
+        let mgr = SidecarManager::new(script, ProcessJail::new(true));
+        let rx = mgr.take_event_receiver().unwrap();
+        let pane = spawn_shell(
+            &mgr,
+            win_shell(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+            &["-NoLogo", "-NoProfile"],
+        );
+        let cmd = "$c = Start-Process ping -ArgumentList '-n','120','127.0.0.1' -WindowStyle Hidden -PassThru; \
+                   'PIDS:' + $PID + ':' + $c.Id + ':END'\r";
+        mgr.write_stdin(pane, cmd.as_bytes()).unwrap();
+        let out = wait_output(&rx, pane, ":END", 40);
+        let line = out
+            .lines()
+            .rev()
+            .find(|l| l.contains("PIDS:") && l.contains(":END") && !l.contains('$'))
+            .unwrap_or_else(|| panic!("no PIDS line:\n{out}"));
+        let parts: Vec<u32> = line
+            .split("PIDS:")
+            .nth(1)
+            .unwrap()
+            .split(':')
+            .take(2)
+            .map(|p| p.trim().parse().unwrap())
+            .collect();
+        let (shell_pid, child_pid) = (parts[0], parts[1]);
+        assert!(pid_alive(shell_pid) && pid_alive(child_pid));
+
+        mgr.shutdown();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while pid_alive(shell_pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(200));
+        }
+        let shell_alive = pid_alive(shell_pid);
+        let child_alive = pid_alive(child_pid);
+        let _ = Command::new("taskkill")
+            .args(["/F", "/PID", &child_pid.to_string()])
+            .output();
+        assert!(!shell_alive, "shell {shell_pid} survived app shutdown");
+        assert!(
+            child_alive,
+            "user-launched process {child_pid} was killed on shutdown"
+        );
+    }
+
+    #[cfg(all(windows, debug_assertions))]
+    fn pid_alive(pid: u32) -> bool {
+        let out = Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
+            .output()
+            .expect("tasklist");
+        String::from_utf8_lossy(&out.stdout).contains(&format!("\"{pid}\""))
+    }
+
     #[test]
     fn oversized_frame_is_rejected_before_write() {
         let mgr = SidecarManager::new("nonexistent".into(), ProcessJail::new(true));

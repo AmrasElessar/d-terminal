@@ -394,4 +394,25 @@ mod tests {
         assert!(validate_env(&[("KEY=BAD".into(), "x".into())]).is_err());
         assert!(validate_env(&[("KEY".into(), "a\0b".into())]).is_err());
     }
+    /// Windows'ta gerçek dosya sistemi: çıplak isimler System32'deki gerçek
+    /// yollara çözülür, cwd'deki aynı isimli dosya hiç aranmaz.
+    #[cfg(windows)]
+    #[test]
+    fn resolve_shell_real_windows_paths() {
+        let root = std::env::var("SystemRoot")
+            .unwrap_or_else(|_| r"C:\Windows".into())
+            .to_ascii_lowercase();
+        let cmd = resolve_shell("cmd.exe").unwrap().to_ascii_lowercase();
+        assert_eq!(cmd, format!(r"{root}\system32\cmd.exe"));
+        let ps = resolve_shell("powershell.exe")
+            .unwrap()
+            .to_ascii_lowercase();
+        assert!(
+            ps.starts_with(&root) && ps.ends_with(r"\powershell.exe"),
+            "{ps}"
+        );
+        assert!(Path::new(&ps).is_file());
+        assert!(resolve_shell(r"\\attacker\share\cmd.exe").is_err());
+        assert!(resolve_shell(r"C:\Users\Public\nope\cmd.exe").is_err());
+    }
 }
