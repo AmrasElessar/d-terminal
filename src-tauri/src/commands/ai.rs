@@ -154,7 +154,11 @@ fn check_key_binding(
     let endpoint = options.endpoint.as_deref().unwrap_or("").trim();
     let origin = crate::ai::openai::origin_of(endpoint).ok_or("invalidUrl")?;
     let setting = format!("{BOUND_ORIGIN_PREFIX}{provider}");
-    let bound = state.storage.settings.get(&setting).map_err(|e| e.to_string())?;
+    let bound = state
+        .storage
+        .settings
+        .get(&setting)
+        .map_err(|e| e.to_string())?;
     if binding_allows(bound.as_deref(), &origin)? && bound.is_none() {
         state
             .storage

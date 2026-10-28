@@ -778,9 +778,11 @@ pub struct LiveStats {
 #[tauri::command]
 pub async fn dfetch_live(app: tauri::AppHandle) -> Result<LiveStats, String> {
     use tauri::Manager;
-    tauri::async_runtime::spawn_blocking(move || dfetch_live_blocking(&app.state::<DfetchLiveState>()))
-        .await
-        .map_err(|e| format!("dfetch_live: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        dfetch_live_blocking(&app.state::<DfetchLiveState>())
+    })
+    .await
+    .map_err(|e| format!("dfetch_live: {e}"))
 }
 
 fn dfetch_live_blocking(state: &DfetchLiveState) -> LiveStats {

@@ -70,7 +70,7 @@ impl DpapiStore {
                 CRYPTPROTECT_UI_FORBIDDEN,
                 &mut out_blob,
             )
-                .map_err(|e| AppError::Secret(format!("CryptProtectData: {e}")))?;
+            .map_err(|e| AppError::Secret(format!("CryptProtectData: {e}")))?;
         }
         let result = unsafe {
             std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec()
@@ -109,7 +109,7 @@ impl DpapiStore {
                 CRYPTPROTECT_UI_FORBIDDEN,
                 &mut out_blob,
             )
-                .map_err(|e| AppError::Secret(format!("CryptUnprotectData: {e}")))?;
+            .map_err(|e| AppError::Secret(format!("CryptUnprotectData: {e}")))?;
         }
         // SAFETY: out_blob.pbData DPAPI tarafından alloc edildi; LocalFree ile
         // temizlenecek. Önce plaintext'i Zeroizing<Vec<u8>>'a kopyala, sonra

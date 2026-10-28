@@ -61,7 +61,11 @@ pub async fn secrets_list(state: State<'_, AppState>, scope: String) -> AppResul
 
 /// Secret'in mevcut olup olmadığını döner — değeri DEĞİL.
 #[tauri::command]
-pub async fn secrets_has(state: State<'_, AppState>, scope: String, name: String) -> AppResult<bool> {
+pub async fn secrets_has(
+    state: State<'_, AppState>,
+    scope: String,
+    name: String,
+) -> AppResult<bool> {
     let storage = state.storage.clone();
     run_blocking(move || {
         let rows = crate::secrets::for_storage(&storage).list(&scope)?;

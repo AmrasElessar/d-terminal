@@ -104,13 +104,10 @@ where
         attempt += 1;
         // Yanıt başlıkları için üst sınır — sunucu bağlantıyı kabul edip hiç
         // yanıt vermezse komut sonsuza kadar asılı kalmasın.
-        let resp = tokio::time::timeout(
-            std::time::Duration::from_secs(60),
-            build_request().send(),
-        )
-        .await
-        .map_err(|_| "network: response timeout (60s)".to_string())?
-        .map_err(|e| format!("network: {e}"))?;
+        let resp = tokio::time::timeout(std::time::Duration::from_secs(60), build_request().send())
+            .await
+            .map_err(|_| "network: response timeout (60s)".to_string())?
+            .map_err(|e| format!("network: {e}"))?;
         let status = resp.status();
         // 429 (rate limit) veya 503 (service unavailable) → backoff
         if (status.as_u16() == 429 || status.as_u16() == 503) && attempt < max_attempts {

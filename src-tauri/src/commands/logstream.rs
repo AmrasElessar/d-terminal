@@ -124,10 +124,14 @@ fn check_extension(p: &Path) -> AppResult<()> {
 }
 
 fn check_denied_dirs(canon: &Path) -> AppResult<()> {
-    let denied = canon.parent().into_iter().flat_map(|d| d.components()).any(|c| {
-        let seg = c.as_os_str().to_string_lossy().to_ascii_lowercase();
-        DENIED_DIR_SEGMENTS.iter().any(|d| *d == seg)
-    });
+    let denied = canon
+        .parent()
+        .into_iter()
+        .flat_map(|d| d.components())
+        .any(|c| {
+            let seg = c.as_os_str().to_string_lossy().to_ascii_lowercase();
+            DENIED_DIR_SEGMENTS.iter().any(|d| *d == seg)
+        });
     if denied {
         return Err(AppError::InvalidArg(
             "log files in credential/app-data directories are not allowed".into(),

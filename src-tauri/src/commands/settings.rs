@@ -9,7 +9,9 @@ use tauri::State;
 /// guard'ını tetikleyip uygulamayı kalıcı olarak açılmaz hale getiriyordu.
 fn ensure_not_reserved(key: &str) -> AppResult<()> {
     if key.starts_with('_') {
-        return Err(AppError::InvalidArg(format!("reserved settings key: {key}")));
+        return Err(AppError::InvalidArg(format!(
+            "reserved settings key: {key}"
+        )));
     }
     Ok(())
 }

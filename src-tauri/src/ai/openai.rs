@@ -321,7 +321,10 @@ impl OpenAi {
             let trimmed = ep.trim();
             if !trimmed.is_empty() {
                 if self.is_official {
-                    tracing::warn!(provider = self.id, "endpoint override ignored for official provider");
+                    tracing::warn!(
+                        provider = self.id,
+                        "endpoint override ignored for official provider"
+                    );
                 } else {
                     validate_endpoint(trimmed)?;
                     if !self.default_base_url.is_empty() && !is_loopback_host(trimmed) {
@@ -653,9 +656,12 @@ mod tests {
     #[test]
     fn local_runtime_override_must_be_loopback() {
         let p = OpenAi::lmstudio();
-        assert!(p.resolve_base_url(&opts("https://evil.example/v1")).is_err());
+        assert!(p
+            .resolve_base_url(&opts("https://evil.example/v1"))
+            .is_err());
         assert_eq!(
-            p.resolve_base_url(&opts("http://localhost:4321/v1")).unwrap(),
+            p.resolve_base_url(&opts("http://localhost:4321/v1"))
+                .unwrap(),
             "http://localhost:4321/v1"
         );
     }
@@ -663,7 +669,9 @@ mod tests {
     #[test]
     fn custom_accepts_public_endpoint() {
         let p = OpenAi::custom();
-        assert!(p.resolve_base_url(&opts("https://openrouter.ai/api/v1")).is_ok());
+        assert!(p
+            .resolve_base_url(&opts("https://openrouter.ai/api/v1"))
+            .is_ok());
         assert!(p.resolve_base_url(&ChatOptions::default()).is_err());
     }
 }

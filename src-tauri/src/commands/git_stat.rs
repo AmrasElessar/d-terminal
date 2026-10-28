@@ -14,8 +14,8 @@
 // ki frontend tutarlı state tutsun.
 
 use crate::commands::path_policy;
-use crate::process_jail::ProcessJail;
 use crate::error::AppResult;
+use crate::process_jail::ProcessJail;
 use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
@@ -140,7 +140,14 @@ fn harden_git(cmd: &mut Command) {
 /// `git config` yalnızca okur, hiçbir şey çalıştırmaz. Hata → güvenli taraf (true).
 fn repo_defines_filters(jail: &Arc<ProcessJail>, path: &str) -> bool {
     let mut cmd = Command::new("git");
-    cmd.args(["-C", path, "config", "--name-only", "--get-regexp", r"^filter\."]);
+    cmd.args([
+        "-C",
+        path,
+        "config",
+        "--name-only",
+        "--get-regexp",
+        r"^filter\.",
+    ]);
     jail.configure_command(&mut cmd);
     harden_git(&mut cmd);
     match cmd.output() {

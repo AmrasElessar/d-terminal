@@ -36,7 +36,9 @@ pub fn reject_unc(path: &str) -> AppResult<()> {
 /// Kural 2.
 pub fn reject_parent_dir(path: &Path) -> AppResult<()> {
     if path.components().any(|c| matches!(c, Component::ParentDir)) {
-        return Err(AppError::InvalidArg("'..' path components not allowed".into()));
+        return Err(AppError::InvalidArg(
+            "'..' path components not allowed".into(),
+        ));
     }
     Ok(())
 }
@@ -79,11 +81,18 @@ pub fn strip_verbatim(p: &Path) -> PathBuf {
 /// Windows ayrılmış aygıt adı mı (`CON`, `NUL`, `COM1`, `LPT9`, `CON.txt` …)?
 /// Bu adlarla dosya oluşturmak aygıta yazar / hata verir.
 pub fn is_windows_reserved_name(name: &str) -> bool {
-    let stem = name.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
-    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$")
-        || ((stem.starts_with("COM") || stem.starts_with("LPT"))
-            && stem.len() == 4
-            && stem.as_bytes()[3].is_ascii_digit())
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_ascii_uppercase();
+    matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+        && stem.len() == 4
+        && stem.as_bytes()[3].is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -145,7 +154,10 @@ mod tests {
 
     #[test]
     fn strip_verbatim_prefix() {
-        assert_eq!(strip_verbatim(Path::new(r"\\?\C:\x")), PathBuf::from(r"C:\x"));
+        assert_eq!(
+            strip_verbatim(Path::new(r"\\?\C:\x")),
+            PathBuf::from(r"C:\x")
+        );
         assert_eq!(
             strip_verbatim(Path::new(r"\\?\UNC\s\x")),
             PathBuf::from(r"\\?\UNC\s\x")
