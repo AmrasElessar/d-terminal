@@ -93,6 +93,18 @@ export class KeybindingRegistry {
     return null;
   }
 
+  /** Olay global bir kısayola (veya prefix moduna) karşılık geliyor mu?
+   *  Terminal (xterm) bu tuşu tüketmemeli — `attachCustomKeyEventHandler`
+   *  false dönünce xterm tuşu işlemez ve olay window listener'ına kabarır. */
+  handles(e: KeyboardEvent): boolean {
+    const combo = comboOfEvent(e);
+    if (!combo) return false;
+    if (this.prefixActive.value && this.prefixCombo) return true;
+    if (this.prefixCombo && combo === this.prefixCombo) return true;
+    const id = this.comboToId.get(combo);
+    return !!id && this.handlers.has(id);
+  }
+
   attach() {
     if (this.listener) return;
     this.listener = (e: KeyboardEvent) => {

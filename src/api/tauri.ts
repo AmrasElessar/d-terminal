@@ -60,6 +60,11 @@ export interface MigrationStateDto {
   at: string;
 }
 
+function assertUserKey(key: string): string {
+  if (key.startsWith('_')) throw new Error(`reserved settings key: ${key}`);
+  return key;
+}
+
 export const api = {
   // PTY
   ptySpawn: (args: SpawnArgs) => invoke<string>('pty_spawn', { args }),
@@ -83,11 +88,12 @@ export const api = {
   sessionList: () => invoke<SessionRecord[]>('session_list'),
   sessionDelete: (name: string) => invoke<void>('session_delete', { name }),
 
-  // Settings
-  settingsGet: (key: string) => invoke<string | null>('settings_get', { key }),
+  // Settings — `_` önekli anahtarlar backend'e ayrılmıştır (ör. `_app_version`);
+  // frontend asla okumaz/yazmaz (backend de reddeder).
+  settingsGet: (key: string) => invoke<string | null>('settings_get', { key: assertUserKey(key) }),
   settingsSet: (key: string, value: string) =>
-    invoke<void>('settings_set', { key, value }),
-  settingsDelete: (key: string) => invoke<void>('settings_delete', { key }),
+    invoke<void>('settings_set', { key: assertUserKey(key), value }),
+  settingsDelete: (key: string) => invoke<void>('settings_delete', { key: assertUserKey(key) }),
   settingsAll: () => invoke<Record<string, string>>('settings_all'),
 
   // Config as Code (TOML dotfile)

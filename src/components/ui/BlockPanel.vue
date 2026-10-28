@@ -8,6 +8,11 @@ import { usePanesStore } from '@/stores/panes';
 import { useAIStore } from '@/stores/ai';
 import { api } from '@/api/tauri';
 import { confirmAsk } from '@/utils/dialog';
+import { stripAnsi } from '@/utils/ansi';
+import { frameTerminalOutput } from '@/composables/useAISuggestion';
+
+/** AI'a gönderilen çıktı kuyruğu — son N karakter (hata genelde sondadır). */
+const AI_OUTPUT_CHARS = 4000;
 
 const props = defineProps<{ paneId: string; open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -20,18 +25,6 @@ const ai = useAIStore();
 const tracker = computed(() => getBlockTracker(props.paneId));
 const blocks = computed<CommandBlock[]>(() => tracker.value?.blocks.value ?? []);
 
-// ANSI escape (CSI ESC[ ... letter + OSC ESC] ... BEL) strip.
-// Control byte'ları runtime'da inşa ediyoruz — `no-control-regex` literal regex'i
-// hedefler, runtime ctor'u değil. Davranış aynı, lint temiz.
-const ESC = String.fromCharCode(0x1b);
-const BEL = String.fromCharCode(0x07);
-const ANSI_STRIP_RE = new RegExp(
-  `${ESC}\\[[0-9;?]*[a-zA-Z]|${ESC}\\][^${BEL}]*${BEL}`,
-  'g',
-);
-function stripAnsi(text: string): string {
-  return text.replace(ANSI_STRIP_RE, '');
-}
 
 function statusIcon(b: CommandBlock): string {
   switch (b.status) {
@@ -53,16 +46,19 @@ function statusColor(b: CommandBlock): string {
   }
 }
 
+function copyText(text: string, okKey: string) {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => toasts.success(t(okKey), 1200))
+    .catch((e) => toasts.error(t('errors.clipboard', { error: String(e) })));
+}
+
 function copyCommand(b: CommandBlock) {
-  navigator.clipboard.writeText(b.command).then(() => {
-    toasts.success(t('block.commandCopied'), 1200);
-  });
+  copyText(b.command, 'block.commandCopied');
 }
 
 function copyOutput(b: CommandBlock) {
-  navigator.clipboard.writeText(stripAnsi(b.output)).then(() => {
-    toasts.success(t('block.outputCopied'), 1200);
-  });
+  copyText(stripAnsi(b.output), 'block.outputCopied');
 }
 
 function rerun(b: CommandBlock) {
@@ -80,16 +76,23 @@ async function sendToAI(b: CommandBlock) {
     return;
   }
   // AI Chat panele prompt enjekte et: ai.queuePrompt + pane aç. AIChatPane
-  // mount/focus olduğunda consumePrompt ile input'una alır. Pano fallback
-  // bırakılıyor — Quake/restart sonrası kaybolmasın.
-  const cleanOutput = stripAnsi(b.output);
-  const prompt = `Komut:\n\`\`\`\n${b.command}\n\`\`\`\nÇıktı:\n\`\`\`\n${cleanOutput.slice(0, 2000)}\n\`\`\`\nBu çıktıyı analiz et.`;
+  // mount olduğunda consumePrompt ile input'una alır (kullanıcı göndermeden
+  // önce görür). Terminal çıktısı güvenilmez + secret içerebilir: redact +
+  // <terminal_output> çerçevesi. Pano artık sessizce ezilmiyor.
+  const framed = frameTerminalOutput(
+    `$ ${b.command}\n${stripAnsi(b.output).slice(-AI_OUTPUT_CHARS)}`,
+  );
+  const prompt = t('block.aiPrompt', { output: framed.text });
   ai.queuePrompt(prompt);
   if (!panes.allLeaves.some((l) => l.type === 'aiChat')) {
     panes.openPane('aiChat', t('pane.type.aiChat'));
   }
-  navigator.clipboard.writeText(prompt).catch(() => { /* clipboard zorunlu değil */ });
-  toasts.success(t('block.sentToAiPane'), 2000);
+  toasts.success(
+    framed.redactedLines > 0
+      ? t('block.sentToAiPaneRedacted', { count: framed.redactedLines })
+      : t('block.sentToAiPane'),
+    2500,
+  );
 }
 
 function remove(b: CommandBlock) {
@@ -125,8 +128,8 @@ function previewLines(output: string, max: number = 6): string[] {
         <span class="block-panel__count">{{ blocks.length }}</span>
         {{ t('block.title') }}
       </h3>
-      <button type="button" class="block-panel__action" :title="t('block.clearAll')" @click="clear">⌫</button>
-      <button type="button" class="block-panel__close" :title="t('common.close')" @click="emit('close')">×</button>
+      <button type="button" class="block-panel__action" :title="t('block.clearAll')" :aria-label="t('block.clearAll')" @click="clear">⌫</button>
+      <button type="button" class="block-panel__close" :title="t('common.close')" :aria-label="t('common.close')" @click="emit('close')">×</button>
     </header>
 
     <div class="block-panel__body">
@@ -153,11 +156,11 @@ function previewLines(output: string, max: number = 6): string[] {
           <p v-if="b.cwd" class="block__cwd">📁 {{ b.cwd }}</p>
           <pre v-if="b.output" class="block__output">{{ previewLines(b.output, 12).join('\n') }}{{ b.output.split('\n').length > 12 ? '\n…' : '' }}</pre>
           <div class="block__actions">
-            <button type="button" :title="t('block.copyCommand')" @click.stop="copyCommand(b)">⎘ cmd</button>
-            <button type="button" :title="t('block.copyOutput')" @click.stop="copyOutput(b)">⎘ out</button>
-            <button type="button" :title="t('block.rerun')" @click.stop="rerun(b)">▶</button>
-            <button type="button" :title="t('block.sendToAi')" @click.stop="sendToAI(b)">✨ AI</button>
-            <button type="button" class="danger" :title="t('common.delete')" @click.stop="remove(b)">×</button>
+            <button type="button" :title="t('block.copyCommand')" :aria-label="t('block.copyCommand')" @click.stop="copyCommand(b)">⎘ cmd</button>
+            <button type="button" :title="t('block.copyOutput')" :aria-label="t('block.copyOutput')" @click.stop="copyOutput(b)">⎘ out</button>
+            <button type="button" :title="t('block.rerun')" :aria-label="t('block.rerun')" @click.stop="rerun(b)">▶</button>
+            <button type="button" :title="t('block.sendToAi')" :aria-label="t('block.sendToAi')" @click.stop="sendToAI(b)">✨ AI</button>
+            <button type="button" class="danger" :title="t('common.delete')" :aria-label="t('common.delete')" @click.stop="remove(b)">×</button>
           </div>
         </div>
       </article>

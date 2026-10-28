@@ -107,4 +107,35 @@ describe('createSmartLinkProvider', () => {
     expect(link!.range.start.x).toBe(5); // 'xxx ' sonrası 1-based
     expect(link!.range.end.x).toBe(8);
   });
+
+  it('URL içindeki yol parçası ayrı link olmaz', async () => {
+    const onPath = vi.fn();
+    const term = makeTerm('open https://example.com/a/b/c.html now');
+    const links = await provideLinks(term, { onPath });
+    expect(links.some((l) => l.text.startsWith('/a/b'))).toBe(false);
+  });
+
+  it('geniş karakterlerden sonra kolonlar hücre bazlı hesaplanır', async () => {
+    // "界 C:\\x.ts" — 界 iki hücre kaplar
+    const text = '界 C:\\x.ts';
+    const cells: Array<{ chars: string; width: number }> = [
+      { chars: '界', width: 2 },
+      { chars: '', width: 0 },
+      ...[...' C:\\x.ts'].map((c) => ({ chars: c, width: 1 })),
+    ];
+    const bufferLine = {
+      length: cells.length,
+      translateToString: () => text,
+      getCell: (x: number) => {
+        const c = cells[x];
+        return c ? { getChars: () => c.chars, getWidth: () => c.width } : undefined;
+      },
+    } as unknown as IBufferLine;
+    const term = { buffer: { active: { getLine: () => bufferLine } } } as unknown as Terminal;
+    const links = await provideLinks(term, {});
+    const l = links.find((x) => x.text.startsWith('C:'))!;
+    // 界(1-2) boşluk(3) C(4)
+    expect(l.range.start.x).toBe(4);
+    expect(l.range.end.x).toBe(cells.length);
+  });
 });

@@ -31,7 +31,8 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: '0.0.0.0',
+    // Yalnızca yerel arayüz — dev sunucusu (kaynak kod + HMR) LAN'a açılmasın.
+    host: 'localhost',
     hmr: {
       protocol: 'ws',
       host: 'localhost',

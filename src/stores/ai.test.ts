@@ -69,12 +69,12 @@ describe('useAIStore', () => {
 
   it('refresh() cloud provider masked key varsa hasKey=true', async () => {
     aiKeyMaskedMock.mockImplementation(async (id: string) =>
-      id === 'openai' ? 'sk-***1234' : null,
+      id === 'openai' ? '••••••••1234' : null,
     );
     const s = useAIStore();
     await s.refresh();
     expect(s.statuses.openai?.hasKey).toBe(true);
-    expect(s.statuses.openai?.maskedKey).toBe('sk-***1234');
+    expect(s.statuses.openai?.maskedKey).toBe('••••••••1234');
     expect(s.statuses.anthropic?.hasKey).toBe(false);
   });
 
@@ -93,7 +93,7 @@ describe('useAIStore', () => {
   });
 
   it('setKey() secretsStore çağırır + refresh tetikler', async () => {
-    aiKeyMaskedMock.mockResolvedValue('sk-***xxxx');
+    aiKeyMaskedMock.mockResolvedValue('••••••••xxxx');
     const s = useAIStore();
     await s.setKey('openai', 'sk-real-key');
     expect(secretsStoreMock).toHaveBeenCalledWith('ai_provider', 'openai', 'sk-real-key');

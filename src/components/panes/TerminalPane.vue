@@ -1,206 +1,30 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { ImageAddon } from '@xterm/addon-image';
-import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { SerializeAddon } from '@xterm/addon-serialize';
+// Terminal pane — ince görünüm katmanı. xterm örneği, PTY akışı, shell
+// integration ve girdi işleme `TerminalSession` içinde yaşar (src/terminal/);
+// pane görünmezken (arka plan tab, zoom modu) de çıktı işlenmeye devam eder.
+// Bu komponent yalnızca session'ı DOM'a bağlar ve overlay UI'larını çizer.
+
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import '@xterm/xterm/css/xterm.css';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import { listen } from '@tauri-apps/api/event';
-import { api } from '@/api/tauri';
-import { type LeafNode, type PaneType, PANE_FONT_MIN, PANE_FONT_MAX } from '@/types/pane';
-import type { PtyEvent } from '@/types/events';
-import { usePanesStore } from '@/stores/panes';
-import { useThemeStore } from '@/stores/theme';
-import { useSettingsStore, type RendererMode } from '@/stores/settings';
-import { useToastsStore } from '@/stores/toasts';
-import { useProfilesStore } from '@/stores/profiles';
-import { xtermThemeOf } from '@/themes/apply';
-import { createBlockTracker, registerBlockTracker, unregisterBlockTracker } from '@/composables/useBlocks';
-import { createSmartLinkProvider } from '@/composables/useSmartLinks';
-import { useTriggersStore } from '@/stores/triggers';
+import type { ISearchOptions } from '@xterm/addon-search';
+import type { LeafNode } from '@/types/pane';
 import { useAgentWatchStore } from '@/stores/agentWatch';
-import { parseAgentEvent } from '@/types/agent';
-import { feedAgentDetector, feedAgentDetectorChunk, clearAgentDetectorState } from '@/composables/useAgentDetector';
-import {
-  setPaneCwd,
-  startGitStatPolling,
-  clearGitStatState,
-  parseOsc7CwdPayload,
-} from '@/composables/useGitStat';
-import { useModals } from '@/composables/useModals';
-import { builtinShellInitArgs } from '@/shellInit';
-import { formatError } from '@/utils/error';
-import { open as shellOpen } from '@tauri-apps/plugin-shell';
+import { getOrCreateTerminalSession } from '@/terminal/session';
 import { useI18n } from 'vue-i18n';
 import AgentWatchPanel from '@/components/ui/AgentWatchPanel.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
-const panes = usePanesStore();
-const themeStore = useThemeStore();
-const settings = useSettingsStore();
-const toasts = useToastsStore();
-const triggers = useTriggersStore();
 const agentWatch = useAgentWatchStore();
 const agentView = agentWatch.paneView(props.leaf.id);
-const profiles = useProfilesStore();
-const modals = useModals();
 const { t } = useI18n();
 
-/** Effective fontSize = global ayar + pane-bazlı offset (Ctrl+= / Ctrl+- / Ctrl+0).
- *  PANE_FONT_MIN/MAX sınırlarına clamp uygulanır. */
-const effectiveFontSize = computed(() => {
-  const base = settings.state.fontSize;
-  const offset = props.leaf.fontSizeOffset ?? 0;
-  return Math.max(PANE_FONT_MIN, Math.min(PANE_FONT_MAX, base + offset));
-});
-
-/** Ctrl + Mouse wheel → pane içinde zoom. xterm scroll'unun üzerine geçer
- *  (capture phase + preventDefault). Modifier yoksa normal scroll. */
-function onWheelZoom(e: WheelEvent) {
-  if (!e.ctrlKey) return;
-  e.preventDefault();
-  e.stopPropagation();
-  panes.adjustFontSize(props.leaf.id, e.deltaY < 0 ? +1 : -1);
-}
-
-/** Komut girdi buffer'ı — `#` prefix interception + inline autocomplete için.
- *  PROMPT'tan sonra sıfırlanır, Enter'da temizlenir, backspace'i kabul eder.
- *  blockTracker.inputAccumulator'dan ayrı tutuluyor çünkü bu sadece intercept
- *  kararı için lazım (block tracker ayrı amaca hizmet). */
-let cmdBuffer = '';
-
-// --- Inline autocomplete (history-based) ---
-const suggestion = ref<string | null>(null);
-let suggestDebounceTimer: number | undefined;
-async function refreshSuggestion() {
-  if (!settings.state.inlineAutocomplete) {
-    suggestion.value = null;
-    return;
-  }
-  const prefix = cmdBuffer.trim();
-  if (prefix.length < 2) {
-    suggestion.value = null;
-    return;
-  }
-  try {
-    // Frecency tabanlı skorlama (Mozilla URL bar tarzı):
-    // score = frequency × exp(-ageHours/halfLife) × favoriteBonus
-    // Aynı komut tarihçede birden çok kez varsa frekans sayılır, en son
-    // çalıştırma zamanı recency olarak alınır. 1 hafta half-life ile eski
-    // komutlar zamanla geri sıralara düşer; favoriler 2× ağırlık alır.
-    const results = await api.historySearch({ text: prefix, limit: 200 });
-    const now = Date.now();
-    const HALF_LIFE_HOURS = 168;
-    type Group = { command: string; freq: number; lastSeen: number; favorite: boolean };
-    const groups = new Map<string, Group>();
-    for (const h of results) {
-      if (!h.command.startsWith(prefix) || h.command.length === prefix.length) continue;
-      const ts = Date.parse(h.executedAt);
-      if (Number.isNaN(ts)) continue;
-      const g = groups.get(h.command);
-      if (g) {
-        g.freq++;
-        if (ts > g.lastSeen) g.lastSeen = ts;
-        if (h.isFavorite) g.favorite = true;
-      } else {
-        groups.set(h.command, {
-          command: h.command,
-          freq: 1,
-          lastSeen: ts,
-          favorite: h.isFavorite,
-        });
-      }
-    }
-    let best: { command: string; score: number } | null = null;
-    for (const g of groups.values()) {
-      const ageHours = Math.max(0, (now - g.lastSeen) / 36e5);
-      const score = g.freq * Math.exp(-ageHours / HALF_LIFE_HOURS) * (g.favorite ? 2 : 1);
-      if (!best || score > best.score) best = { command: g.command, score };
-    }
-    suggestion.value = best ? best.command : null;
-  } catch {
-    suggestion.value = null;
-  }
-}
-function scheduleSuggestion() {
-  if (suggestDebounceTimer) window.clearTimeout(suggestDebounceTimer);
-  suggestDebounceTimer = window.setTimeout(() => {
-    suggestDebounceTimer = undefined;
-    refreshSuggestion();
-  }, 80);
-}
-function clearSuggestion() {
-  suggestion.value = null;
-  if (suggestDebounceTimer) {
-    window.clearTimeout(suggestDebounceTimer);
-    suggestDebounceTimer = undefined;
-  }
-}
-/** Suffix'i (öneriden cmdBuffer'ı çıkar) PTY'ye yaz, cmdBuffer güncelle. */
-function acceptSuggestion(): boolean {
-  const s = suggestion.value;
-  if (!s || !s.startsWith(cmdBuffer)) return false;
-  const suffix = s.slice(cmdBuffer.length);
-  if (!suffix) return false;
-  const ptyId = panes.getLeaf(props.leaf.id)?.ptyId;
-  if (!ptyId) return false;
-  api.ptyWrite(ptyId, new TextEncoder().encode(suffix)).catch(() => {});
-  cmdBuffer = s;
-  clearSuggestion();
-  return true;
-}
-
-// Trigger matching: line-buffered. PTY chunk'ları '\n' içerir, eksik son parça
-// `pendingLine` içinde tutulur ve bir sonraki chunk ile birleştirilir. ANSI
-// escape'ler matched text'i kirletmesin diye strip edilir.
-// Control byte'lar (ESC=0x1B, BEL=0x07) runtime'da inşa — no-control-regex literal regex'i hedefler.
-const _ESC = String.fromCharCode(0x1b);
-const _BEL = String.fromCharCode(0x07);
-const ANSI_RE = new RegExp(`${_ESC}\\[[0-9;?]*[a-zA-Z]|${_ESC}\\][^${_BEL}]*${_BEL}`, 'g');
-let pendingLine = '';
-function feedTriggers(text: string) {
-  if (!text) return;
-  const stripped = text.replace(ANSI_RE, '');
-  pendingLine += stripped;
-  // Chunk-bazlı paralel agent detector — TUI cursor positioning ile redraw
-  // edildiğinde \n boundary olmayabilir, line-bazlı parser kaçırır. Bu hook
-  // her chunk'ta çalışır, dedup state.activeByName ile garantide.
-  // Settings.agentHeuristicEnabled kapalıysa sadece OSC 9999 formal protokolü
-  // çalışır (yanlış pozitif beklemeyen kullanıcı için opt-out).
-  if (settings.state.agentHeuristicEnabled) {
-    feedAgentDetectorChunk(stripped, props.leaf.id);
-  }
-  if (!pendingLine.includes('\n')) return;
-  const parts = pendingLine.split('\n');
-  pendingLine = parts.pop() ?? '';
-  for (const line of parts) {
-    if (line.length === 0) continue;
-    triggers.matchLine(line, props.leaf.id, props.leaf.type);
-    // Generic patterns için (chunk detector'da yakalanmayan format'lar):
-    if (settings.state.agentHeuristicEnabled) {
-      feedAgentDetector(line, props.leaf.id);
-    }
-  }
-}
+// PaneSlot `:key="leaf.id"` ile mount ettiği için leaf id bu örnek boyunca sabit.
+const session = getOrCreateTerminalSession(props.leaf.id);
+const suggestion = session.suggestion;
+const scrollMode = session.scrollMode;
+const searchResultCount = session.searchResults;
 
 const container = ref<HTMLDivElement>();
-let term: Terminal | null = null;
-let fit: FitAddon | null = null;
-let search: SearchAddon | null = null;
-let serialize: SerializeAddon | null = null;
-let webgl: WebglAddon | null = null;
-let canvas: CanvasAddon | null = null;
-let unlistenStdout: UnlistenFn | null = null;
-// PTY stdout RAF coalescing cleanup handle — pane hızlı close/reopen veya PTY
-// restart sırasında orphan flush callback'i önlemek için listenStdout başında
-// ve onBeforeUnmount'ta cancelAnimationFrame ile temizlenir.
-let stdoutRafId: number | null = null;
 
 // --- Search overlay state ---
 const searchOpen = ref(false);
@@ -209,7 +33,6 @@ const searchInput = ref<HTMLInputElement>();
 const searchCaseSensitive = ref(false);
 const searchWholeWord = ref(false);
 const searchRegex = ref(false);
-const searchResultCount = ref<{ resultIndex: number; resultCount: number } | null>(null);
 
 const searchOptions = computed<ISearchOptions>(() => ({
   caseSensitive: searchCaseSensitive.value,
@@ -223,367 +46,21 @@ const searchOptions = computed<ISearchOptions>(() => ({
   },
 }));
 
-// Block tracker — OSC 133 marker'larından komut + çıktı + exit code yakalar.
-// Global registry'ye paneId ile kaydedilir; PaneSlot/BlockPanel oradan okur.
-const blockTracker = createBlockTracker();
-registerBlockTracker(props.leaf.id, blockTracker);
-
-/** PTY canlı kalsın diye global buffer cache.
- *  Tree restructure (split kapatma) Vue komponentini destroy/remount ediyor.
- *  Eski davranışta her remount'ta yeni pty_spawn çağrılır → çalışan komut
- *  kayboluyordu. Şimdi:
- *   - unmount öncesi xterm buffer'ını serialize et + cache'le
- *   - mount sonrası leaf.ptyId varsa yeniden spawn ETME, sadece listener kur
- *   - cached buffer'ı term.write ile geri yaz
- *  Map global modül scope — komponent destroy'unda kaybolmaz. closePane
- *  callback'i panes store içinde delete eder (memory leak önleme). */
-interface PaneBufferGlobal { __dtermPaneBuffer?: Map<string, string> }
-const _g = globalThis as unknown as PaneBufferGlobal;
-const paneBufferCache: Map<string, string> =
-  _g.__dtermPaneBuffer ?? (_g.__dtermPaneBuffer = new Map());
-
-// Shell init script'leri src/shellInit/ altında ayrı dosyalara taşındı:
-//   powershell.ps1 → renkli prompt + OSC 0 title + OSC 133 shell integration
-//   cmd-prompt.txt → ANSI prompt setter
-// Kullanıcı tanımlı profiller (SSH, Docker vb.) için init script'i çalışmaz —
-// sadece built-in profiller için inject edilir (shellInitArgsFor altta).
-function shellInitArgsFor(paneType: PaneType, isBuiltin: boolean): string[] {
-  return isBuiltin ? builtinShellInitArgs(paneType) : [];
-}
-
-async function spawn() {
-  if (!term || !fit || !container.value) return;
-  fit.fit();
-  const { cols, rows } = term;
-
-  // Reattach senaryosu: Vue komponenti destroy/remount oldu (split tree
-  // restructure) ama backend PTY canlı. Yeniden spawn ETME — eski PTY'ye
-  // yeniden bağlan. Cache'lenmiş buffer'ı replay et ki kullanıcı tarihçeyi
-  // kaybetmesin. Sonraki output'lar listenStdout üzerinden gelmeye devam.
-  if (props.leaf.ptyId && props.leaf.status === 'running') {
-    const cached = paneBufferCache.get(props.leaf.id);
-    if (cached) term.write(cached);
-    await listenStdout(props.leaf.ptyId);
-    // Backend'e yeni cols/rows bildir — pencere boyutu değişmiş olabilir
-    api.ptyResize(props.leaf.ptyId, cols, rows).catch(() => {});
-    return;
-  }
-
-  // Profil seçimi: leaf.profileId varsa onu kullan, yoksa paneType'ın varsayılan
-  // built-in profili. Hiçbir terminal profili paneType'a uymuyorsa (aiChat, welcome
-  // gibi non-shell tipler) spawn atlanır.
-  const profile = props.leaf.profileId
-    ? profiles.find(props.leaf.profileId)
-    : profiles.defaultFor(props.leaf.type);
-  if (!profile) {
-    panes.setLeafState(props.leaf.id, { status: 'idle' });
-    return;
-  }
-  const initArgs = shellInitArgsFor(profile.paneType, profile.builtin);
-
-  panes.setLeafState(props.leaf.id, { status: 'spawning' });
-  try {
-    const ptyId = await api.ptySpawn({
-      shell: profile.shell,
-      args: [...profile.args, ...initArgs],
-      cwd: profile.cwd && profile.cwd.length > 0 ? profile.cwd : undefined,
-      env:
-        profile.env && Object.keys(profile.env).length > 0
-          ? Object.entries(profile.env)
-          : undefined,
-      cols,
-      rows,
-    });
-    panes.setLeafState(props.leaf.id, { ptyId, status: 'running' });
-    await listenStdout(ptyId);
-  } catch (e: unknown) {
-    panes.setLeafState(props.leaf.id, { status: 'error', errorMessage: formatError(e) });
-  }
-}
-
-async function listenStdout(ptyId: string) {
-  if (unlistenStdout) {
-    unlistenStdout();
-    unlistenStdout = null;
-  }
-  // Eski RAF'ı iptal et — PTY restart/reattach'de eski closure'un scheduled
-  // flush'ı yeni listener'ın pending buffer'ına yazmasın (orphan-RAF temizliği).
-  if (stdoutRafId !== null) {
-    cancelAnimationFrame(stdoutRafId);
-    stdoutRafId = null;
-  }
-  // RAF coalescing (v0.9.8 perf fix): backend lib.rs zaten 16ms event
-  // coalescing yapıyor (Perf O3) ama frontend her event başına bir
-  // `term.write()` çağırınca WebGL renderer + DOM repaint her event'te
-  // tetikleniyordu. 1000+ event/sn senaryolarında (yarn install, cat
-  // huge.log) GPU bounce hissedilir oluyor. Şimdi pending bytes RAF
-  // callback'inde tek term.write ile birleştirilir → 1 frame ≈ 16ms
-  // gecikme (interaktif yazımda fark edilmez, byte loss yok).
-  // Closure-local pending state; rafId outer scope'ta — cleanup için.
-  let pendingChunks: Uint8Array[] = [];
-  let pendingLen = 0;
-  const flush = () => {
-    stdoutRafId = null;
-    if (pendingChunks.length === 0 || !term) return;
-    const merged = new Uint8Array(pendingLen);
-    let off = 0;
-    for (const c of pendingChunks) {
-      merged.set(c, off);
-      off += c.length;
-    }
-    pendingChunks = [];
-    pendingLen = 0;
-    // xterm yazımı: ANSI/OSC parse + render (OSC 133 handler tetiklenir)
-    term.write(merged);
-    // Block tracker + trigger matching merged buffer üzerinde tek seferde
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(merged);
-    blockTracker.onOutput(text);
-    feedTriggers(text);
-  };
-  unlistenStdout = await listen<PtyEvent>('pty://stdout', (e) => {
-    if (e.payload.kind !== 'stdout') return;
-    if (e.payload.pane_id !== ptyId) return;
-    if (!term) return;
-    const bytes = new Uint8Array(e.payload.data);
-    pendingChunks.push(bytes);
-    pendingLen += bytes.length;
-    if (stdoutRafId === null) {
-      stdoutRafId = requestAnimationFrame(flush);
-    }
-  });
-}
-
-function attachInput() {
-  if (!term) return;
-  term.onData((data) => {
-    const myPtyId = panes.getLeaf(props.leaf.id)?.ptyId;
-    if (!myPtyId) return;
-
-    // # prefix interception (Warp Agent Mode paritesi):
-    // boş prompt'tayken tek başına `#` yazılırsa PTY'ye yazma, AI suggest modal aç.
-    if (
-      settings.state.aiPrefixHash &&
-      data === '#' &&
-      cmdBuffer === ''
-    ) {
-      panes.focus(props.leaf.id);
-      modals.open('aiSuggest');
-      return;
-    }
-
-    // Inline autocomplete kabul: Tab (\t) veya → (\x1b[C) ve aktif öneri varsa
-    // PTY'ye gitmeden suggestion suffix'ini yaz.
-    if (suggestion.value && (data === '\t' || data === '\x1b[C')) {
-      if (acceptSuggestion()) return;
-    }
-
-    // Buffer güncelleme
-    let bufferChanged = false;
-    if (data.includes('\r') || data.includes('\n')) {
-      cmdBuffer = '';
-      clearSuggestion();
-    } else if (data === '\x7f' || data === '\b') {
-      cmdBuffer = cmdBuffer.slice(0, -1);
-      bufferChanged = true;
-    } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
-      cmdBuffer += data;
-      bufferChanged = true;
-    } else if (data.length > 1) {
-      // Çok karakterli (paste vb.) — # interception devre dışı, autocomplete de
-      cmdBuffer += data;
-      bufferChanged = true;
-    }
-    if (bufferChanged) scheduleSuggestion();
-
-    // Block tracker — kullanıcı input'unu yakala (komut metni için)
-    blockTracker.onUserInput(data);
-    const bytes = new TextEncoder().encode(data);
-    if (panes.broadcastInput) {
-      // Aktif tab'daki tüm çalışan terminal pane'lerine paralel yaz (tmux sync-panes)
-      const targets = panes.allLeaves
-        .filter((l) => l.ptyId && l.status === 'running')
-        .map((l) => l.ptyId!);
-      for (const ptyId of targets) {
-        api.ptyWrite(ptyId, bytes).catch(() => {});
-      }
-    } else {
-      api.ptyWrite(myPtyId, bytes).catch(() => {});
-    }
-  });
-  // Resize IPC debounce: divider sürükleme sırasında her frame'de PTY'ye
-  // boyut göndermek shell prompt'unun defalarca redraw edilmesine yol açar
-  // (PowerShell her SIGWINCH'te prompt'u yeniden basar — scrollback'te
-  // duplikasyon görünür). Kullanıcı sürüklemeyi bitirene kadar bekle.
-  term.onResize(({ cols, rows }) => {
-    const ptyId = panes.getLeaf(props.leaf.id)?.ptyId;
-    if (!ptyId) return;
-    if (resizeIpcTimer) clearTimeout(resizeIpcTimer);
-    resizeIpcTimer = window.setTimeout(() => {
-      resizeIpcTimer = 0;
-      api.ptyResize(ptyId, cols, rows).catch(() => {});
-    }, 120);
-  });
-  // OSC 0 (`ESC ]0;<title>BEL`) — terminal title değiştiğinde pane başlığı güncelle.
-  term.onTitleChange((title) => {
-    if (title && title.length > 0) {
-      panes.setLeafState(props.leaf.id, { title });
-    }
-  });
-
-  // OSC 133 — Shell Integration / Final Term protocol — block-based UI için.
-  // Format: ESC ] 133 ; <command> ; <args> BEL
-  //   A          → prompt start (yeni block)
-  //   B          → command input başlıyor
-  //   C          → command çalıştırıldı (output başlangıcı)
-  //   D[;<exit>] → command bitti
-  //   P;cwd=<x>  → cwd metadata
-  // xterm parser API: registerOscHandler(133, fn). Return true = handled, propagate yok.
-  term.parser.registerOscHandler(133, (data: string) => {
-    const semi = data.indexOf(';');
-    const cmd = semi >= 0 ? data.slice(0, semi) : data;
-    const rest = semi >= 0 ? data.slice(semi + 1) : '';
-    switch (cmd) {
-      case 'A': blockTracker.onPromptStart(); cmdBuffer = ''; clearSuggestion(); break;
-      case 'B': blockTracker.onCommandStart(); cmdBuffer = ''; clearSuggestion(); break;
-      case 'C': blockTracker.onCommandRun(''); break;
-      case 'D': {
-        const exitCode = rest ? parseInt(rest, 10) : 0;
-        const code = Number.isNaN(exitCode) ? 0 : exitCode;
-        blockTracker.onCommandEnd(code);
-        // Komutu geçmişe yaz — history-based autocomplete + Settings → History modal
-        const block = blockTracker.active();
-        if (block?.command) {
-          const dur = block.endedAt && block.startedAt
-            ? block.endedAt.getTime() - block.startedAt.getTime()
-            : undefined;
-          api.historyAdd({
-            command: block.command,
-            paneId: props.leaf.id,
-            paneType: props.leaf.type,
-            exitCode: code,
-            durationMs: dur,
-          }).catch(() => { /* offline / migration sırasında yutulur */ });
-        }
-        break;
-      }
-      case 'P': {
-        // P;cwd=<path>
-        const m = rest.match(/^cwd=(.+)$/);
-        if (m) blockTracker.onCwd(m[1]!);
-        break;
-      }
-    }
-    return true;
-  });
-
-  // Search → result count event
-  if (search) {
-    search.onDidChangeResults((evt) => {
-      searchResultCount.value = evt;
-    });
-  }
-}
-
-/** Resize coalescing — split/window resize burst'lerinde fit() defalarca
- *  tetiklenir, WebGL renderer'da siyah flicker'a sebep olur. rAF ile bir
- *  frame içindeki tüm resize istekleri tek fit çağrısında toplanır. */
-let resizeRafId = 0;
-let resizeIpcTimer = 0;
-let paneResizeObserver: ResizeObserver | null = null;
-function handleResize() {
-  if (!fit) return;
-  if (resizeRafId) return;
-  resizeRafId = requestAnimationFrame(() => {
-    resizeRafId = 0;
-    if (!fit) return;
-    try {
-      fit.fit();
-    } catch {
-      /* container görünür değilse atla */
-    }
-  });
-}
-
-// Xterm font yokluğunda yanlış cell-width metric'ine düşmesin diye
-// UI ile aynı sistem-mono fallback chain.
-function buildFontFamily(primary: string): string {
-  return `"${primary}", "Cascadia Code", "Cascadia Mono", "Consolas", "Courier New", monospace`;
-}
-
-/** Renderer addon yükle. WebGL desteklenmiyorsa canvas, o da yoksa DOM (default).
- *  Context loss event'inde otomatik canvas'a düşer.
- *  Dispose'lar try/catch ile sarılı — addon-webgl 0.19 context loss / double
- *  dispose senaryolarında undefined üzerinde patlar. */
-function safeDispose(addon: { dispose(): void } | null) {
-  if (!addon) return;
-  try { addon.dispose(); } catch { /* zaten dispose edilmiş olabilir */ }
-}
-
-function applyRenderer(mode: RendererMode) {
-  if (!term) return;
-  // Mevcut renderer'ı temizle
-  safeDispose(webgl); webgl = null;
-  safeDispose(canvas); canvas = null;
-
-  const tryWebgl = (): boolean => {
-    try {
-      const addon = new WebglAddon();
-      addon.onContextLoss(() => {
-        // GPU context kaybedildiğinde canvas'a fallback
-        safeDispose(webgl); webgl = null;
-        const c = new CanvasAddon();
-        try { term!.loadAddon(c); canvas = c; } catch { /* DOM fallback */ }
-      });
-      term!.loadAddon(addon);
-      webgl = addon;
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const tryCanvas = (): boolean => {
-    try {
-      const addon = new CanvasAddon();
-      term!.loadAddon(addon);
-      canvas = addon;
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  switch (mode) {
-    case 'webgl': tryWebgl() || tryCanvas(); break;
-    case 'canvas': tryCanvas(); break;
-    case 'dom': /* default; addon yok */ break;
-    case 'auto':
-    default: tryWebgl() || tryCanvas(); break;
-  }
-}
-
-// --- Search API ---
 function openSearch() {
   searchOpen.value = true;
   nextTick(() => searchInput.value?.focus());
 }
 function closeSearch() {
   searchOpen.value = false;
-  search?.clearDecorations();
-  searchResultCount.value = null;
-  // Terminal'e fokusu geri ver
-  term?.focus();
+  session.clearSearch();
 }
 function findNext() {
-  if (!search || !searchQuery.value) return;
-  search.findNext(searchQuery.value, searchOptions.value);
+  session.findNext(searchQuery.value, searchOptions.value);
 }
 function findPrev() {
-  if (!search || !searchQuery.value) return;
-  search.findPrevious(searchQuery.value, searchOptions.value);
+  session.findPrevious(searchQuery.value, searchOptions.value);
 }
-/** Tip-while-search debounce — 10K satır buffer'da her tuş vuruşunda arama
- *  CPU yer. 250ms bekle + son tuşta tek arama. Enter ile anında tetik
- *  (onSearchKey'de zaten kullanıcı debounce'u bypass eder). */
+/** Tip-while-search debounce — büyük buffer'da her tuşta arama CPU yer. */
 let searchDebounceTimer: number | undefined;
 function findNextDebounced() {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
@@ -593,374 +70,48 @@ function findNextDebounced() {
   }, 250);
 }
 function onSearchKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') { closeSearch(); return; }
+  if (e.key === 'Escape') {
+    closeSearch();
+    return;
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (e.shiftKey) findPrev(); else findNext();
+    if (e.shiftKey) findPrev();
+    else findNext();
   }
 }
 
-/** Agent Watch sidebar'ından "Stop" basıldığında parent terminal'e SIGINT
- *  (\x03 = Ctrl+C) gönder. Tek PTY var; bu, parent CLI'ın TÜM aktif
- *  subagent'larını durdurur. UI tooltip'inde dürüstçe yazılı. */
-function onStopAgent(_agentId: string) {
-  void _agentId;
-  const myPtyId = panes.getLeaf(props.leaf.id)?.ptyId;
-  if (!myPtyId) return;
-  const sigint = new Uint8Array([0x03]);
-  api.ptyWrite(myPtyId, sigint).catch(() => {});
+/** Agent Watch "Stop" — parent CLI'a SIGINT (\x03). Tek PTY var; bu, parent
+ *  CLI'ın TÜM aktif subagent'larını durdurur (UI tooltip'inde yazılı). */
+function onStopAgent() {
+  session.sendSigint();
 }
 
-/** Multi-line güvenli paste — bracketed paste mode varsa shell input'u
- *  atomik alır, hiçbir satır Enter olarak yorumlanmaz. PSReadLine 2.x ve
- *  modern shell'ler destekler; cmd.exe desteklemez (her \r Enter olur,
- *  kullanıcı satırları sırayla execute edilir — uyarı toast). */
-async function handlePaste(): Promise<void> {
-  if (!term) return;
-  const myPtyId = panes.getLeaf(props.leaf.id)?.ptyId;
-  if (!myPtyId) return;
-  let text: string;
-  try {
-    text = await navigator.clipboard.readText();
-  } catch (e) {
-    toasts.error(t('terminal.pasteFailed', { error: String(e) }));
-    return;
-  }
-  if (!text) return;
-
-  // \r\n / \n → \r (terminal CR = Enter). Bracketed paste markers shell'e
-  // "bu blok paste, otomatik execute etme" der.
-  const normalized = text.replace(/\r?\n/g, '\r');
-  const lineCount = (text.match(/\r?\n/g)?.length ?? 0) + 1;
-  const bracketed = term.modes.bracketedPasteMode;
-  const payload = bracketed
-    ? `\x1b[200~${normalized}\x1b[201~`
-    : normalized;
-  const bytes = new TextEncoder().encode(payload);
-  await api.ptyWrite(myPtyId, bytes).catch(() => {});
-
-  if (lineCount > 1) {
-    const key = bracketed ? 'terminal.pastedBracketed' : 'terminal.pastedRaw';
-    toasts.info(t(key, { count: lineCount }), bracketed ? 1800 : 3000);
-  }
-}
-
-/** Buffer'ı text olarak export et — clipboard'a kopyala. */
-function copyBuffer() {
-  if (!serialize) return;
-  const text = serialize.serialize({ excludeAltBuffer: true, excludeModes: true });
-  // ANSI escape'leri xterm'e zaten renderlandı; serialize SGR'ları içerir, plain için strip
-  const plain = text.replace(ANSI_RE, '');
-  navigator.clipboard.writeText(plain).then(() => toasts.success(t('terminal.bufferCopied'), 1500));
-}
-
-// --- Scrollback Navigation Mode (vim copy mode subset) ---
-// Ctrl+Shift+Space ile aç/kapat. Aktifken PTY input bloklanır, j/k/g/G/u/d
-// ile scroll, y mevcut selection'ı kopyala, / search overlay aç, Esc çık.
-const scrollMode = ref(false);
-
-function handleScrollModeKey(e: KeyboardEvent): boolean {
-  if (!term) return false;
-  if (e.key === 'Escape') { scrollMode.value = false; return true; }
-  // Modifier'lı kombolar (Ctrl+C vb) bu modda da iş yapar; normal akışa bırak
-  if (e.ctrlKey || e.altKey || e.metaKey) return false;
-  switch (e.key) {
-    case 'j': case 'ArrowDown': term.scrollLines(1); return true;
-    case 'k': case 'ArrowUp':   term.scrollLines(-1); return true;
-    case 'd': case 'PageDown':  term.scrollPages(0.5); return true;
-    case 'u': case 'PageUp':    term.scrollPages(-0.5); return true;
-    case 'g': case 'Home':      term.scrollToTop(); return true;
-    case 'G': case 'End':       term.scrollToBottom(); return true;
-    case 'y': case 'Y': {
-      const sel = term.getSelection();
-      if (sel) {
-        navigator.clipboard.writeText(sel);
-        toasts.success(t('common.copy') + ' ✓', 1200);
-        scrollMode.value = false;
-      }
-      return true;
-    }
-    case '/': openSearch(); return true;
-  }
-  // Bilinmeyen tuş — modu koru ama tuşu PTY'ye iletme (yanlışlıkla yazma yok)
-  return true;
-}
-
-// Pane-scoped key handler: Ctrl+F arama, Ctrl+Shift+Space scroll mode toggle
-function onContainerKeydown(e: KeyboardEvent) {
-  // Ctrl+F → arama overlay (browser find'ı override etme — terminal context'te beklenir)
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
-    e.preventDefault();
-    e.stopPropagation();
-    openSearch();
-    return;
-  }
-  // Ctrl+Shift+Space → scroll/copy mode toggle
-  if (e.ctrlKey && e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
-    e.preventDefault();
-    e.stopPropagation();
-    scrollMode.value = !scrollMode.value;
-  }
-}
-
-onMounted(async () => {
+onMounted(() => {
   if (!container.value) return;
-  const xtheme = themeStore.active ? xtermThemeOf(themeStore.active) : undefined;
-  term = new Terminal({
-    fontFamily: buildFontFamily(settings.state.fontFamily),
-    fontSize: effectiveFontSize.value,
-    cursorBlink: true,
-    cursorStyle: 'bar',
-    scrollback: settings.state.scrollback,
-    theme: xtheme,
-    allowProposedApi: true,
-    lineHeight: 1.2,
-    letterSpacing: 0,
-    // Ekran okuyucu modu: settings'ten kontrollü, aria-live bölge açar.
-    // Default kapalı — performans etkisi var (terminal her satırı DOM'a aktarır).
-    screenReaderMode: settings.state.screenReaderMode,
-  });
-  fit = new FitAddon();
-  search = new SearchAddon();
-  serialize = new SerializeAddon();
-  term.loadAddon(fit);
-  term.loadAddon(new WebLinksAddon());
-  // iTerm2 inline image + sixel protokolleri (kitty graphics ayrı)
-  term.loadAddon(new ImageAddon({ enableSizeReports: true, sixelSupport: true, iipSupport: true }));
-  term.loadAddon(search);
-  term.loadAddon(serialize);
-  // Unicode 11: emoji + CJK genişliği için (allowProposedApi gerek)
-  if (settings.state.unicode11) {
-    const u11 = new Unicode11Addon();
-    term.loadAddon(u11);
-    term.unicode.activeVersion = '11';
-  }
-
-  term.open(container.value);
-
-  // Agent Watch — D-Terminal özel OSC 9999 sequence'i: AI tool'lar opt-in
-  // olarak agent yaşam döngüsü event'lerini buradan yayar (start/progress/
-  // tokens/thinking/end). Parse + dispatch → store + sidebar güncellenir.
-  // Return true = OSC handle edildi, xterm output'a yansıtmasın.
-  term.parser.registerOscHandler(9999, (data) => {
-    const ev = parseAgentEvent(data);
-    if (!ev) return false; // bozuk payload — xterm normal akışa devam etsin
-    agentWatch.dispatch(props.leaf.id, ev);
-    return true;
-  });
-
-  // OSC 7 — current working directory bildirimi (modern shell'lerde standard).
-  // D-Terminal git diff tracking bunu kullanır; PowerShell init script'i her
-  // prompt'ta yayınlar. Format: file://hostname/path
-  // Return false → xterm de görsün (başka tüketici varsa, normalde no-op).
-  term.parser.registerOscHandler(7, (data) => {
-    const path = parseOsc7CwdPayload(data);
-    if (path) setPaneCwd(props.leaf.id, path);
-    return false;
-  });
-
-  // Scrollback navigation mode + Multi-line paste için custom key handler —
-  // return false PTY'ye tuşun gitmesini bloklar.
-  term.attachCustomKeyEventHandler((event) => {
-    if (event.type !== 'keydown') return true;
-    // Ctrl+V veya Ctrl+Shift+V → multi-line güvenli paste (bracketed paste
-    // mode varsa shell paste'i atomik alır, her \n Enter olmaz).
-    if (event.ctrlKey && event.code === 'KeyV') {
-      event.preventDefault();
-      void handlePaste();
-      return false;
-    }
-    if (!scrollMode.value) return true;
-    return !handleScrollModeKey(event);
-  });
-
-  // Renderer addon (WebGL / canvas / DOM) — open()'dan SONRA yüklenmeli
-  applyRenderer(settings.state.renderer);
-
-  // Smart link provider — file path / git SHA / IP tıklanabilir
-  // (WebLinksAddon http URL'leri yakalar; bu onu tamamlar)
-  term.registerLinkProvider(createSmartLinkProvider(term, {
-    onPath: (p) => {
-      // Güvenlik: PTY çıktısı saldırgan tarafından üretilebilir. Smart link
-      // tıklaması ile UNC share'lerden binary çalıştırma vektörünü kapat:
-      //   - UNC path (`\\host\share\...`) reddet (remote payload'a karşı)
-      //   - Executable uzantılar reddet (kullanıcı zaten paste edip çalıştırabilir
-      //     ama tek-tık RCE olmasın). Dizin / metin uzantılarına izin ver.
-      const isUnc = /^\\\\/.test(p) || /^\/\//.test(p);
-      const exec = /\.(exe|bat|cmd|com|scr|lnk|ps1|psm1|vbs|wsf|msi|jar|pif)$/i.test(p);
-      if (isUnc || exec) {
-        navigator.clipboard.writeText(p).then(() => toasts.info(t('terminal.pathCopied'), 1500));
-        return;
-      }
-      shellOpen(p).catch(() => {
-        navigator.clipboard.writeText(p).then(() => toasts.info(t('terminal.pathCopied'), 1500));
-      });
-    },
-    onGitRef: (sha) => {
-      navigator.clipboard.writeText(sha).then(() => toasts.success(t('terminal.shaCopied', { sha: sha.slice(0, 8) }), 1500));
-    },
-    onHost: (host) => {
-      navigator.clipboard.writeText(host).then(() => toasts.info(t('terminal.hostCopied'), 1500));
-    },
-  }));
-
-  attachInput();
-  // Ctrl + wheel zoom — capture phase ile xterm'in scroll handler'ından önce
-  // yakalanır; ctrlKey yoksa pasif geçer ve scroll normal akar.
-  container.value.addEventListener('wheel', onWheelZoom, { capture: true, passive: false });
-  window.addEventListener('resize', handleResize);
-  // Pane container'ı kendi başına da boyut değiştirebilir (split divider drag,
-  // pane ekleme/kaldırma, layout değişimi). window resize bu durumlarda
-  // tetiklenmez; ResizeObserver ile container'ı izle.
-  if (container.value) {
-    paneResizeObserver = new ResizeObserver(() => handleResize());
-    paneResizeObserver.observe(container.value);
-  }
-  await spawn();
-  // Git diff tracking — OSC 7 ile cwd geldikçe `setPaneCwd` çağrılır;
-  // poller arka planda 5sn'de bir refresh eder. TerminalPane zaten yalnızca
-  // PTY'li tipler için mount edilir (powershell/cmd/wsl), ek koşula gerek yok.
-  //
-  // Initial fallback: profile.cwd varsa onunla başla — ilk prompt'tan önce
-  // (OSC 7 emit edilmeden) chip görünür. PowerShell init script çalışınca
-  // OSC 7 ile güncellenir, aynı path ise no-op (setPaneCwd cwd === newCwd
-  // check'i var). Profile cwd boşsa OSC 7'yi bekle.
-  const profile = profiles.find(props.leaf.profileId ?? '');
-  if (profile?.cwd && profile.cwd.length > 0) {
-    setPaneCwd(props.leaf.id, profile.cwd);
-  }
-  startGitStatPolling(props.leaf.id);
+  session.ui.openSearch = openSearch;
+  session.attach(container.value);
 });
 
 onBeforeUnmount(() => {
-  container.value?.removeEventListener('wheel', onWheelZoom, { capture: true } as EventListenerOptions);
-  window.removeEventListener('resize', handleResize);
-  paneResizeObserver?.disconnect();
-  paneResizeObserver = null;
-  // Pane çok hızlı open+close edilirse RAF dispose'dan sonra ateşlenip
-  // dispose edilmiş term/fit üzerinde fit.fit() çağırırdı. Önce iptal et.
-  if (resizeRafId) {
-    cancelAnimationFrame(resizeRafId);
-    resizeRafId = 0;
-  }
-  if (resizeIpcTimer) {
-    clearTimeout(resizeIpcTimer);
-    resizeIpcTimer = 0;
-  }
-  if (unlistenStdout) unlistenStdout();
-  if (stdoutRafId !== null) {
-    cancelAnimationFrame(stdoutRafId);
-    stdoutRafId = null;
-  }
-  unregisterBlockTracker(props.leaf.id);
-  clearAgentDetectorState(props.leaf.id);
-  clearGitStatState(props.leaf.id);
-
-  // PTY hâlâ canlıysa (split kapatma sonrası tree restructure) buffer'ı
-  // cache'le ki remount'ta replay edilsin. PTY ölmüşse cache'lemenin anlamı yok.
-  if (props.leaf.ptyId && props.leaf.status === 'running' && term && serialize) {
-    try {
-      const snapshot = serialize.serialize({ excludeAltBuffer: true, excludeModes: true });
-      paneBufferCache.set(props.leaf.id, snapshot);
-    } catch { /* serialize hatası — cache atla */ }
-  }
-
-  // xterm-addon-webgl 0.19 çökme önleme:
-  // Pane çok hızlı open+close edilirse WebglAddon._renderer henüz initialize
-  // olmadan dispose tetiklenir. addon kodu `this._renderer._isDisposed` okumaya
-  // çalışır ve Promise içinde TypeError fırlatır (try/catch async olduğu için
-  // yakalayamaz). Mock obje yerleştirerek dispose chain'in sessizce tamamlanmasını
-  // sağlıyoruz — memory leak yok çünkü sadece undefined ise mock koyuyoruz.
-  if (webgl) {
-    const w = webgl as unknown as { _renderer?: { dispose: () => void; _isDisposed: boolean } };
-    if (!w._renderer) {
-      w._renderer = { dispose: () => { /* noop */ }, _isDisposed: true };
-    }
-  }
-  webgl = null;
-  canvas = null;
-  search = null;
-  serialize = null;
-  fit = null;
-  // Mock sayesinde term.dispose() artık güvenli; yine de defansif try/catch.
-  try { term?.dispose(); } catch (e) { console.warn('xterm dispose:', e); }
-  term = null;
+  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+  if (session.ui.openSearch === openSearch) session.ui.openSearch = undefined;
+  // Session'ı DOM'dan sök ama yaşat — PTY çıktısı işlenmeye devam eder.
+  // Kalıcı kapanışta panes store `disposeTerminalSession` çağırır.
+  session.detach();
 });
 
-/** xterm cell metric'i font/tema/renderer değişiminde anında stabilize olmaz —
- *  WebGL addon özellikle DOM layout'a bağlı. nextTick + microtask yield, yeni
- *  metric hesaplandıktan sonra fit() çağrısının doğru cols/rows hesaplamasını
- *  garantiler. setTimeout(0) bazı sürümlerde extra güvence. */
-async function refit() {
-  await nextTick();
-  setTimeout(() => handleResize(), 0);
-}
-
-// Tema değişiminde xterm tema güncelle (cell metric'i tema değiştirmez ama
-// font fallback chain bir yerde değişirse fit lazım — refit güvenli)
-watch(
-  () => themeStore.active,
-  (next) => {
-    if (term && next) {
-      term.options.theme = xtermThemeOf(next);
-      refit();
-    }
-  },
-);
-
-watch(
-  () => [settings.state.fontFamily, effectiveFontSize.value] as const,
-  ([family, size]) => {
-    if (term) {
-      term.options.fontFamily = buildFontFamily(family);
-      term.options.fontSize = size;
-      refit();
-    }
-  },
-);
-
-// Renderer değişiminde re-mount + refit
-watch(() => settings.state.renderer, async (next) => {
-  applyRenderer(next);
-  await refit();
+defineExpose({
+  openSearch,
+  copyBuffer: () => session.copyBuffer(),
+  clearTerminal: () => session.clearTerminal(),
+  getSelection: () => session.getSelection(),
+  paste: () => session.paste(),
 });
-
-// Unicode 11 dinamik (yalnızca aktifleştirme — devre dışı bırakmak için reload gerek)
-watch(() => settings.state.unicode11, (on) => {
-  if (!term) return;
-  if (on && term.unicode.activeVersion !== '11') {
-    const u11 = new Unicode11Addon();
-    try {
-      term.loadAddon(u11);
-      term.unicode.activeVersion = '11';
-    } catch { /* zaten yüklü olabilir */ }
-  } else if (!on) {
-    term.unicode.activeVersion = '6';
-  }
-});
-
-/** Tam temizlik: hem görünür ekran hem scrollback. PaneSlot context menu
- *  bu metodu çağırır — `\x0c` form feed yerine xterm native API. */
-function clearTerminal() {
-  // term.clear(): görünür satırları korur ama scrollback'i sıfırlar
-  // → kullanıcı clear isterken hepsini sıfırla → reset() benzeri
-  if (!term) return;
-  term.clear();
-  // term.clear() prompt satırını korur ama bazı bash/pwsh kombinasyonlarında
-  // ek bir CR yardımcı olur — yine de form feed göndermiyoruz, scrollback temiz.
-}
-
-/** xterm native getSelection — WebGL/canvas/DOM her renderer'da güvenli.
- *  PaneSlot.copySelection bu metodu çağırır. */
-function getSelection(): string {
-  return term?.getSelection() ?? '';
-}
-
-defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
 </script>
 
 <template>
-  <div class="terminal-host" :class="{ 'scroll-mode': scrollMode }" @keydown="onContainerKeydown">
+  <div class="terminal-host" :class="{ 'scroll-mode': scrollMode }">
     <!-- Ana akış: terminal + opsiyonel Agent Watch sidebar.
          Sidebar açıldığında flex-1 terminal'i daraltır, fit addon resize ile uyum sağlar. -->
     <div class="terminal-host__row">
@@ -979,27 +130,27 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
       <span class="scroll-mode-bar__hints">j/k · g/G · u/d · / · y · Esc</span>
     </div>
 
-    <!-- Inline autocomplete chip — history'den prefix-match öneri.
-         → veya Tab ile kabul, başka tuşa basınca güncellenir. -->
+    <!-- Inline autocomplete chip — history'den prefix-match öneri. → ile kabul. -->
     <div v-if="suggestion" class="suggest-chip" :title="t('terminal.suggest.hint')">
-      <span class="suggest-chip__arrow">→</span>
+      <span class="suggest-chip__arrow" aria-hidden="true">→</span>
       <code class="suggest-chip__text">{{ suggestion }}</code>
-      <span class="suggest-chip__key">⇥</span>
+      <span class="suggest-chip__key" aria-hidden="true">→</span>
     </div>
 
-    <!-- Search overlay (Ctrl+F) — every modern terminal has this -->
-    <div v-if="searchOpen" class="search-bar" @keydown.stop>
+    <!-- Search overlay (Ctrl+F) -->
+    <div v-if="searchOpen" class="search-bar" role="search" @keydown.stop>
       <input
         ref="searchInput"
         v-model="searchQuery"
         type="text"
         class="search-bar__input"
         :placeholder="t('terminal.search.placeholder')"
+        :aria-label="t('terminal.search.placeholder')"
         spellcheck="false"
         @keydown="onSearchKey"
         @input="findNextDebounced"
       />
-      <span class="search-bar__count">
+      <span class="search-bar__count" aria-live="polite">
         <template v-if="searchResultCount && searchResultCount.resultCount > 0">
           {{ searchResultCount.resultIndex + 1 }} / {{ searchResultCount.resultCount }}
         </template>
@@ -1011,6 +162,8 @@ defineExpose({ openSearch, copyBuffer, clearTerminal, getSelection });
         type="button"
         :class="{ active: searchCaseSensitive }"
         :title="t('terminal.search.caseSensitive')"
+        :aria-label="t('terminal.search.caseSensitive')"
+        :aria-pressed="searchCaseSensitive"
         @click="searchCaseSensitive = !searchCaseSensitive; findNext()"
       >
 Aa
@@ -1019,6 +172,8 @@ Aa
         type="button"
         :class="{ active: searchWholeWord }"
         :title="t('terminal.search.wholeWord')"
+        :aria-label="t('terminal.search.wholeWord')"
+        :aria-pressed="searchWholeWord"
         @click="searchWholeWord = !searchWholeWord; findNext()"
       >
 ab|
@@ -1027,17 +182,18 @@ ab|
         type="button"
         :class="{ active: searchRegex }"
         :title="t('terminal.search.regex')"
+        :aria-label="t('terminal.search.regex')"
+        :aria-pressed="searchRegex"
         @click="searchRegex = !searchRegex; findNext()"
       >
 .*
 </button>
-      <button type="button" :title="t('terminal.search.prev')" @click="findPrev">↑</button>
-      <button type="button" :title="t('terminal.search.next')" @click="findNext">↓</button>
-      <button type="button" class="close" :title="t('common.close')" @click="closeSearch">×</button>
+      <button type="button" :title="t('terminal.search.prev')" :aria-label="t('terminal.search.prev')" @click="findPrev">↑</button>
+      <button type="button" :title="t('terminal.search.next')" :aria-label="t('terminal.search.next')" @click="findNext">↓</button>
+      <button type="button" class="close" :title="t('common.close')" :aria-label="t('common.close')" @click="closeSearch">×</button>
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .terminal-host {

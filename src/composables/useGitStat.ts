@@ -70,6 +70,9 @@ async function refreshOne(paneId: string) {
   if (!s || !s.cwd) return;
   try {
     const result = await api.gitDiffShortstat(s.cwd);
+    // Await sırasında pane kapatıldıysa (clearGitStatState) ya da state
+    // yeniden yaratıldıysa eski nesne üzerinde timer kurma — orphan interval.
+    if (stateByPane.get(paneId) !== s) return;
     s.ref.value = result;
     // Adaptive interval — repo değilse SLOW, repo ise FAST. Aktif polling
     // varsa interval değiştiğinde timer'ı yeniden kur.
@@ -82,13 +85,18 @@ async function refreshOne(paneId: string) {
       }, desired);
     }
   } catch {
-    /* git çağrısı başarısız → mevcut değeri koru */
+    // Backend repo'yu atladı (UNC/ağ sürücüsü, güvensiz config) veya git
+    // başarısız — chip gösterme. Eski değer başka bir dizine ait olabilir.
+    if (stateByPane.get(paneId) === s) {
+      s.ref.value = { files: 0, added: 0, removed: 0, is_repo: false };
+    }
   }
 }
 
 /** OSC 7 ya da başka bir kaynaktan cwd geldiğinde TerminalPane çağırır.
  *  Aynı cwd ise no-op (gereksiz git çağrısından kaçın). */
 export function setPaneCwd(paneId: string, newCwd: string) {
+  if (!isSafeLocalDrivePath(newCwd)) return;
   const s = getOrCreateState(paneId);
   if (s.cwd === newCwd) return;
   s.cwd = newCwd;
@@ -116,6 +124,7 @@ export function clearGitStatState(paneId: string) {
   const s = stateByPane.get(paneId);
   if (s && s.timer !== undefined) {
     window.clearInterval(s.timer);
+    s.timer = undefined;
   }
   stateByPane.delete(paneId);
 }
@@ -124,23 +133,50 @@ export function clearGitStatState(paneId: string) {
  * OSC 7 payload parser — `file://host/path` formatını local path'e çevirir.
  * Windows path'leri `file:///C:/path` formatında gelir, başındaki üçlü slash
  * sonra drive letter. URL-decode da gerekebilir (boşluklar %20 olur).
+ *
+ * GÜVENLİK: OSC 7 terminal çıktısından gelir — `cat dosya.txt`, ssh oturumu
+ * veya herhangi bir program bu diziyi basabilir. Dönen yol backend'de
+ * `git` çalıştırmak için kullanıldığından yalnızca yerel, sürücü harfli mutlak
+ * yollar kabul edilir:
+ *   - host boş, `localhost` veya düz bir makine adı (PowerShell init
+ *     `$env:COMPUTERNAME` yayar) olmalı — host zaten yok sayılır;
+ *   - yol `X:\...` biçiminde olmalı; UNC (`\\host\share`, `//host`),
+ *     NT/Win32 device (`\\?\`, `\\.\`, `\??\`) ve `..` segmentleri
+ *     reddedilir (UNC'ye erişim Windows'ta NTLM hash sızdırır).
  */
 export function parseOsc7CwdPayload(payload: string): string | null {
-  // Format: `file://[host]/path` — host genelde boş veya hostname
-  const m = /^file:\/\/(?:[^/]*)(\/.*)/.exec(payload);
+  if (typeof payload !== 'string' || payload.length > 4096) return null;
+  // Format: `file://[host]/path`
+  const m = /^file:\/\/([^/]*)(\/.*)$/.exec(payload);
   if (!m) return null;
-  let path = m[1]!;
+  const host = m[1]!;
+  if (host !== '' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(host)) return null;
+  let path = m[2]!;
   // URL decode
   try {
     path = decodeURIComponent(path);
   } catch {
-    /* invalid URL encoding — yine de denemeye devam */
+    /* invalid URL encoding — ham haliyle doğrulamaya devam */
   }
+  // Kontrol karakteri içeren yol reddedilir
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f]/.test(path)) return null;
   // Windows: /C:/path → C:/path (leading slash drop)
-  if (/^\/[A-Za-z]:/.test(path)) {
-    path = path.slice(1);
-  }
+  if (!/^\/[A-Za-z]:[\\/]/.test(path) && !/^\/[A-Za-z]:$/.test(path)) return null;
+  path = path.slice(1);
   // Backslash normalize (Rust filesystem uyumlu)
   path = path.replace(/\//g, '\\');
+  if (!isSafeLocalDrivePath(path)) return null;
   return path;
+}
+
+/** `C:\...` biçiminde, UNC/device/`..` içermeyen yerel yol mu? */
+export function isSafeLocalDrivePath(path: string): boolean {
+  if (!/^[A-Za-z]:(\\|$)/.test(path)) return false;
+  if (path.startsWith('\\\\') || path.startsWith('//')) return false;
+  if (/^\\(\?\?|\?|\.)\\/.test(path)) return false;
+  // Sürücü harfinden sonra ikinci bir ':' (ADS / device) olmasın
+  if (path.indexOf(':', 2) !== -1) return false;
+  if (path.split('\\').some((seg) => seg === '..')) return false;
+  return true;
 }

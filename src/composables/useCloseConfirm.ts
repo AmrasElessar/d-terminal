@@ -31,7 +31,7 @@ export async function confirmPaneClose(
   if (mode === 'runningOnly' && !isRunning) return true;
   const [{ confirmAsk }, { i18n }] = await Promise.all([
     import('@/utils/dialog'),
-    import('@/main'),
+    import('@/i18n'),
   ]);
   const t = i18n.global.t.bind(i18n.global);
   const message = isRunning
@@ -55,7 +55,7 @@ export async function confirmTabClose(
   if (mode === 'runningOnly' && running === 0) return true;
   const [{ confirmAsk }, { i18n }] = await Promise.all([
     import('@/utils/dialog'),
-    import('@/main'),
+    import('@/i18n'),
   ]);
   const t = i18n.global.t.bind(i18n.global);
   const message =

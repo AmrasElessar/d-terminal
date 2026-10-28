@@ -30,6 +30,7 @@ interface TerminalPaneExpose {
   copyBuffer: () => void;
   clearTerminal: () => void;
   getSelection: () => string;
+  paste: () => Promise<void>;
 }
 const terminalRef = ref<TerminalPaneExpose | null>(null);
 
@@ -117,15 +118,20 @@ async function copySelection() {
     toasts.warning(t('common.copy') + ': —');
     return;
   }
-  await navigator.clipboard.writeText(text);
-  toasts.success(t('common.copy') + ' ✓', 1200);
+  try {
+    await navigator.clipboard.writeText(text);
+    toasts.success(t('common.copy') + ' ✓', 1200);
+  } catch (e) {
+    toasts.error(t('errors.clipboard', { error: String(e) }));
+  }
 }
 
+/** Context menü paste — terminal pane'in güvenli paste yolunu kullanır
+ *  (bracketed paste; desteklenmiyorsa çok satırlı metin için onay). Önceden
+ *  pano ham olarak PTY'ye yazılıyor, her satır anında çalışıyordu. */
 async function pasteIntoTerminal() {
   if (!props.leaf.ptyId) return;
-  const text = await navigator.clipboard.readText();
-  if (!text) return;
-  await api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode(text));
+  await terminalRef.value?.paste();
 }
 
 function clearTerminal() {
@@ -204,12 +210,14 @@ function onContextMenu(e: MouseEvent) {
   >
     <PaneTitleBar :leaf="leaf" :focused="isFocused" @close="close($event)" />
     <div class="slot__body">
-      <ErrorPane v-if="leaf.status === 'error'" :leaf="leaf" />
-      <TerminalPane v-else-if="isTerminal" ref="terminalRef" :leaf="leaf" />
-      <AIChatPane v-else-if="leaf.type === 'aiChat'" :leaf="leaf" />
-      <LogStreamPane v-else-if="leaf.type === 'logStream'" :leaf="leaf" />
-      <WelcomePane v-else-if="leaf.type === 'welcome'" />
-      <AgentViewPane v-else-if="leaf.type === 'agentView'" :leaf="leaf" />
+      <!-- :key — Vue aynı komponent örneğini başka bir leaf için yeniden
+           kullanmasın (tab değişiminde girdi yanlış PTY'ye gidiyordu). -->
+      <ErrorPane v-if="leaf.status === 'error'" :key="'err-' + leaf.id" :leaf="leaf" />
+      <TerminalPane v-else-if="isTerminal" :key="'term-' + leaf.id" ref="terminalRef" :leaf="leaf" />
+      <AIChatPane v-else-if="leaf.type === 'aiChat'" :key="'ai-' + leaf.id" :leaf="leaf" />
+      <LogStreamPane v-else-if="leaf.type === 'logStream'" :key="'log-' + leaf.id" :leaf="leaf" />
+      <WelcomePane v-else-if="leaf.type === 'welcome'" :key="'welcome-' + leaf.id" />
+      <AgentViewPane v-else-if="leaf.type === 'agentView'" :key="'agent-' + leaf.id" :leaf="leaf" />
     </div>
     <div
       v-if="dropSide"

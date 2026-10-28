@@ -6,6 +6,7 @@
 import { useAIStore } from '@/stores/ai';
 import type { ChatMessage, ChatOptions } from '@/types/ai';
 import type { PaneType } from '@/types/pane';
+import { redact } from '@/utils/redact';
 
 export interface SuggestRequest {
   prompt: string;
@@ -58,7 +59,7 @@ export async function suggestCommand(req: SuggestRequest): Promise<string> {
   if (req.context) {
     messages.push({
       role: 'user',
-      content: `<terminal_output>\n${req.context}\n</terminal_output>\n\nUser request: ${req.prompt}`,
+      content: `${frameTerminalOutput(req.context).text}\n\nUser request: ${req.prompt}`,
     });
   } else {
     messages.push({ role: 'user', content: req.prompt });
@@ -81,4 +82,13 @@ export async function suggestCommand(req: SuggestRequest): Promise<string> {
   // Tek satır comment kaldır (# foo başlangıçta)
   out = out.replace(/^#[^\n]*\n/, '');
   return out.trim();
+}
+
+/** Terminal çıktısını AI'a göndermeden önce: secret'ları redacte et, kapanış
+ *  tag'ini etkisizleştir (çıktı `</terminal_output>` basıp çerçeveden
+ *  kaçamasın) ve `<terminal_output>` ile sar. */
+export function frameTerminalOutput(raw: string): { text: string; redactedLines: number } {
+  const { text, redactedLines } = redact(raw);
+  const safe = text.replace(/<\/?terminal_output>/gi, (m) => m.replace('<', '&lt;'));
+  return { text: `<terminal_output>\n${safe}\n</terminal_output>`, redactedLines };
 }

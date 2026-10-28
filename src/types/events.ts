@@ -1,7 +1,9 @@
 // Backend'den emit edilen Tauri event payload'ları (sidecar manager).
 
 export type PtyEvent =
-  | { kind: 'stdout'; pane_id: string; data: number[] }
+  /** `data`: base64 string (güncel backend) veya number[] (eski backend).
+   *  Her zaman `decodePtyData` ile çözülmeli. */
+  | { kind: 'stdout'; pane_id: string; data: string | number[] }
   | { kind: 'exit'; pane_id: string; exit_code: number; signal: string | null }
   | { kind: 'error'; pane_id: string | null; code: string; message: string }
   | { kind: 'sidecar_up' }

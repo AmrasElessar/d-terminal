@@ -2,6 +2,7 @@
 // State machine: PromptStart(A) → CommandStart(B) → CommandRun(C) → CommandEnd(D).
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import { nextTick, watch } from 'vue';
 import {
   createBlockTracker,
   registerBlockTracker,
@@ -171,6 +172,89 @@ describe('createBlockTracker — OSC 133 state machine', () => {
     t.onUserInput('\x01'); // Ctrl+A — atlanır
     t.onUserInput('\r');
     expect(t.blocks.value[0]?.command).toBe('echo');
+  });
+});
+
+describe('createBlockTracker — girdi yakalama güvenliği', () => {
+  it('çalışan komutun stdin girdisi (parola) komut olarak kaydedilmez', () => {
+    const t = createBlockTracker();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onUserInput('ssh host');
+    t.onUserInput('\r');
+    expect(t.active()?.command).toBe('ssh host');
+    // ssh parola istemi — komut çalışıyor
+    t.onUserInput('hunter2');
+    t.onUserInput('\r');
+    expect(t.active()?.command).toBe('ssh host');
+    t.onCommandEnd(0);
+    expect(t.blocks.value[0]?.command).toBe('ssh host');
+  });
+
+  it('B gelmeden (prompt dışı) yazılanlar yok sayılır', () => {
+    const t = createBlockTracker();
+    t.onUserInput('secret');
+    t.onUserInput('\r');
+    expect(t.blocks.value).toEqual([]);
+  });
+
+  it('alternate screen girdisi yok sayılır', () => {
+    const t = createBlockTracker();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onUserInput(':wq', { altBuffer: true });
+    t.onUserInput('\r', { altBuffer: true });
+    expect(t.active()?.command).toBe('');
+  });
+
+  it('boşlukla başlayan komut private işaretlenir, geçmişe yazılmaz', () => {
+    const t = createBlockTracker();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onUserInput(' export TOKEN=abc');
+    t.onUserInput('\r');
+    t.onCommandEnd(0);
+    const b = t.blocks.value[0]!;
+    expect(b.private).toBe(true);
+    expect(t.historyCommand(b)).toBeNull();
+  });
+
+  it('secret içeren komut geçmişe yazılmaz, normal komut yazılır', () => {
+    const t = createBlockTracker();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onCommandRun('curl -H api_key=abcdef123 x');
+    t.onCommandEnd(0);
+    expect(t.historyCommand(t.blocks.value[0]!)).toBeNull();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onCommandRun('git status');
+    t.onCommandEnd(0);
+    expect(t.historyCommand(t.blocks.value[1]!)).toBe('git status');
+  });
+
+  it('↑ ile geçmişten çağrılan satır güvenilmez — komut boş kalır', () => {
+    const t = createBlockTracker();
+    t.onPromptStart();
+    t.onCommandStart();
+    t.onUserInput('\x1b[A');
+    t.onUserInput('\r');
+    expect(t.active()?.command).toBe('');
+    expect(t.active()?.status).toBe('running');
+  });
+
+  it('block mutasyonları reactive — watcher tetiklenir', async () => {
+    const t = createBlockTracker();
+    let fired = 0;
+    watch(t.blocks, () => fired++, { deep: true });
+    t.onPromptStart();
+    t.onCommandStart();
+    await nextTick();
+    const before = fired;
+    t.onCommandRun('ls');
+    t.onOutput('a\n');
+    await nextTick();
+    expect(fired).toBeGreaterThan(before);
   });
 });
 

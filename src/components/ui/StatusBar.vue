@@ -57,7 +57,7 @@ const agentCostText = computed(() => {
       type="button"
       class="status-bar__item status-bar__broadcast"
       :class="{ on: panes.broadcastInput }"
-      :title="t('statusBar.broadcastHint')"
+      :title="t('statusBar.broadcastHint')" :aria-label="t('statusBar.broadcastHint')"
       @click="panes.toggleBroadcast()"
     >
       ⌘ {{ panes.broadcastInput ? t('statusBar.broadcastOn') : t('statusBar.broadcastOff') }}

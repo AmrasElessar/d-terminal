@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LeafNode } from '@/types/pane';
 import type { ChatMessage, AIModel, ChatOptions } from '@/types/ai';
 import { useAIStore } from '@/stores/ai';
 import { useAIUsageStore } from '@/stores/aiUsage';
 import { useChatsStore } from '@/stores/chats';
-import { formatError } from '@/utils/error';
+import { localizeError } from '@/utils/error';
 import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vue';
 import type { ProviderId } from '@/types/ai';
 import { estimateCost, formatUsageBadge, sumUsage } from '@/types/aiPricing';
@@ -30,6 +30,25 @@ const models = ref<AIModel[]>([]);
 const scrollContainer = ref<HTMLDivElement>();
 
 let abort: AbortController | null = null;
+/** Ekran okuyucu duyurusu — her stream chunk'ında değil, cevap bitince bir kez
+ *  (önceden tüm mesaj listesi aria-live idi; her chunk yeniden okunuyordu). */
+const liveAnnouncement = ref('');
+
+/** Provider'a gönderilecek geçmiş: boş (iptal edilmiş) ve hata placeholder'ı
+ *  olan asistan mesajları atılır. `onlyProvider` verilirse yalnızca o
+ *  provider'ın asistan mesajları dahil edilir (beyin fırtınası). */
+function contextFor(upTo: number, onlyProvider?: ProviderId): ChatMessage[] {
+  return messages.value.slice(0, upTo).filter((m) => {
+    if (m.role !== 'assistant') return true;
+    if (!m.content || m.error) return false;
+    return onlyProvider === undefined || m.provider === onlyProvider;
+  });
+}
+
+/** İptal/hata sonrası içi boş kalan asistan placeholder'larını kaldır. */
+function pruneEmptyAssistants() {
+  messages.value = messages.value.filter((m) => m.role !== 'assistant' || m.content.length > 0);
+}
 
 const hasProvider = computed(() => ai.activeProvider !== null);
 
@@ -123,7 +142,7 @@ async function streamInto(
   signal: AbortSignal,
 ) {
   const provider = await getProvider(providerId);
-  if (!provider) throw new Error(`provider çözülemedi: ${providerId}`);
+  if (!provider) throw new Error(t('ai.errors.providerUnavailable', { id: providerId }));
   let acc = '';
   // Provider stream sonunda exact token raporlarsa burada yakala — heuristik
   // (4 char/token) yerine kullanılır. Türkçe gibi morfolojik dillerde estimate
@@ -158,9 +177,21 @@ async function streamInto(
 async function send() {
   const text = input.value.trim();
   if (!text || streaming.value) return;
+  // Await'lerden (provider/model çözümü) ÖNCE kilitle — aksi halde hızlı
+  // çift Enter iki paralel istek başlatıyordu.
+  streaming.value = true;
   error.value = null;
   abort = new AbortController();
+  const signal = abort.signal;
+  try {
+    await sendInner(text, signal);
+  } finally {
+    streaming.value = false;
+    if (abort?.signal === signal) abort = null;
+  }
+}
 
+async function sendInner(text: string, signal: AbortSignal) {
   // --- Beyin fırtınası modu: paralel multi-AI ---
   if (brainstormMode.value) {
     const picks = [...brainstormPicks];
@@ -177,6 +208,7 @@ async function send() {
       const m = list[0]?.id;
       if (m) resolved.push({ id, model: m });
     }
+    if (signal.aborted) return;
     if (resolved.length === 0) {
       error.value = t('ai.errors.modelMissing', { model: '?' });
       return;
@@ -198,28 +230,27 @@ async function send() {
     input.value = '';
     scrollToBottom(true);
 
-    // Brainstorm context: her AI önceki kullanıcı + kendi geçmiş asistan mesajlarını görsün,
-    // diğer AI'ların paralel cevaplarını GÖRMESİN (round limit 1).
-    const priorBase = messages.value.slice(0, userMsgIdx + 1).filter(
-      (m) => m.role === 'user' || m.role === 'system',
-    );
-
-    streaming.value = true;
+    // Brainstorm context: her AI önceki kullanıcı mesajları + KENDİ geçmiş
+    // asistan cevaplarını görsün, diğer AI'ların cevaplarını GÖRMESİN
+    // (round limit 1). Önceden asistan geçmişi tamamen atılıyordu.
     try {
       await Promise.all(
         resolved.map((r, i) =>
-          streamInto(startIdxes[i]!, r.id, r.model, priorBase, abort!.signal).catch((e) => {
+          streamInto(startIdxes[i]!, r.id, r.model, contextFor(userMsgIdx + 1, r.id), signal).catch((e) => {
             if ((e as Error).name !== 'AbortError') {
-              const msg = formatError(e);
+              const msg = localizeError(e, t);
               const m = messages.value[startIdxes[i]!];
-              if (m) m.content = `[${t('common.error')}] ${msg}`;
+              if (m) {
+                m.content = `[${t('common.error')}] ${msg}`;
+                m.error = true;
+              }
             }
           }),
         ),
       );
     } finally {
-      streaming.value = false;
-      abort = null;
+      pruneEmptyAssistants();
+      liveAnnouncement.value = t('ai.responseReady');
     }
     return;
   }
@@ -230,6 +261,7 @@ async function send() {
     error.value = t('ai.noProvider');
     return;
   }
+  if (signal.aborted) return;
   messages.value.push({ role: 'user', content: text });
   messages.value.push({
     role: 'assistant',
@@ -237,29 +269,19 @@ async function send() {
     model: ai.activeModel ?? undefined,
     provider: provider.id,
   });
+  const assistantIdx = messages.value.length - 1;
   input.value = '';
   scrollToBottom(true);
-  streaming.value = true;
   try {
-    const priorMessages = messages.value.slice(0, -1);
-    await streamInto(
-      messages.value.length - 1,
-      provider.id,
-      ai.activeModel,
-      priorMessages,
-      abort.signal,
-    );
+    await streamInto(assistantIdx, provider.id, ai.activeModel, contextFor(assistantIdx), signal);
+    liveAnnouncement.value = t('ai.responseReady');
   } catch (e: unknown) {
-    if ((e as Error).name === 'AbortError') {
-      messages.value.pop();
-    } else {
-      const msg = formatError(e);
-      error.value = t('ai.errors.apiFailed', { message: msg });
-      messages.value.pop();
+    if ((e as Error).name !== 'AbortError') {
+      error.value = t('ai.errors.apiFailed', { message: localizeError(e, t) });
     }
   } finally {
-    streaming.value = false;
-    abort = null;
+    // İptal/hata: kısmi cevap varsa korunur, boş placeholder atılır
+    pruneEmptyAssistants();
   }
 }
 
@@ -346,13 +368,13 @@ watch(() => ai.pendingPrompt, (next) => {
   }
 });
 
-// keep leaf state in sync (light persistence — full session save uses different path)
-watch(messages, () => {
-  // konuşma uzun olabilir; sadece son 100'ü tut
-  // (ileride leaf.state'e yazılacak)
-}, { deep: true });
-
-void props.leaf; // ileride leaf.state restore burada
+// Pane kapanınca / remount olunca uçuştaki istek iptal — aksi halde arka
+// planda token harcamaya devam ediyor, remount sonrası ikinci istek paralel
+// başlayabiliyordu.
+onBeforeUnmount(() => {
+  abort?.abort();
+  abort = null;
+});
 </script>
 
 <template>
@@ -395,17 +417,18 @@ void props.leaf; // ileride leaf.state restore burada
           class="ai-pane__bsToggle"
           :class="{ 'ai-pane__bsToggle--on': brainstormMode }"
           :disabled="!canBrainstorm"
-          :title="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')"
+          :title="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')" :aria-label="canBrainstorm ? t('ai.brainstorm.toggle', { max: BRAINSTORM_MAX }) : t('ai.brainstorm.needTwo')"
           @click="toggleBrainstormMode"
         >
           🌪️ {{ t('ai.brainstorm.short') }}
         </button>
-        <button type="button" class="link" :title="t('ai.clearHistory')" @click="clearAll">
+        <button type="button" class="link" :title="t('ai.clearHistory')" :aria-label="t('ai.clearHistory')" @click="clearAll">
           {{ t('ai.clearHistory') }}
         </button>
       </header>
 
-      <div ref="scrollContainer" class="ai-pane__messages" aria-live="polite" aria-atomic="false">
+      <p class="sr-only" aria-live="polite">{{ liveAnnouncement }}</p>
+      <div ref="scrollContainer" class="ai-pane__messages" role="log" aria-live="off">
         <article v-for="(m, idx) in messages" :key="idx" class="msg" :class="`msg--${m.role}`">
           <div class="msg__role">
             <template v-if="m.role === 'assistant' && m.model">
@@ -449,6 +472,17 @@ void props.leaf; // ileride leaf.state restore burada
 </template>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .ai-pane {
   flex: 1;
   display: flex;

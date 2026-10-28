@@ -7,6 +7,10 @@ import { useAIStore } from '@/stores/ai';
 import { useToastsStore } from '@/stores/toasts';
 import { api } from '@/api/tauri';
 import type { PaneType } from '@/types/pane';
+import { useDialogA11y } from '@/composables/useDialogA11y';
+import { getTerminalSession } from '@/terminal/registry';
+import type { TerminalSession } from '@/terminal/session';
+import { preparePaste, prepareInsert } from '@/terminal/paste';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -21,6 +25,11 @@ const generated = ref('');
 const isGenerating = ref(false);
 const errorMsg = ref<string | null>(null);
 const promptInput = ref<HTMLInputElement>();
+const panelEl = ref<HTMLElement | null>(null);
+useDialogA11y(panelEl, () => props.open, {
+  onEscape: () => emit('close'),
+  initialFocus: '.prompt-input',
+});
 
 let aborter: AbortController | null = null;
 
@@ -66,8 +75,8 @@ async function generate() {
     });
     generated.value = result;
   } catch (e: unknown) {
-    const { formatError } = await import('@/utils/error');
-    const msg = formatError(e);
+    const { formatError, localizeError } = await import('@/utils/error');
+    const msg = formatError(e) === 'no-provider' ? 'no-provider' : localizeError(e, t);
     errorMsg.value = msg === 'no-provider'
       ? t('ai.noProvider')
       : t('ai.suggest.failed', { message: msg });
@@ -76,16 +85,28 @@ async function generate() {
   }
 }
 
-/** Önerilen komutu aktif terminal pane'e yapıştır (Enter göndermeden — kullanıcı denetler). */
+/** Önerilen komutu aktif terminal pane'e yaz.
+ *  - Insert: hiçbir satır çalışmamalı. Bracketed paste varsa sarılır; yoksa
+ *    satır sonları boşluğa çevrilir (önceden çok satırlı çıktıda son satır
+ *    hariç hepsi anında çalışıyordu).
+ *  - Execute: kullanıcının açık onayı — bracketed paste ile tek blok + Enter. */
 async function insertIntoTerminal(execute: boolean) {
   const leaf = focusedPane.value;
   if (!leaf?.ptyId) {
     toasts.warning(t('ai.suggest.noTerminal'));
     return;
   }
-  let text = generated.value;
-  if (execute) text += '\r';
-  await api.ptyWrite(leaf.ptyId, new TextEncoder().encode(text));
+  const session = getTerminalSession<TerminalSession>(leaf.id);
+  const bracketed = session?.bracketedPaste() ?? false;
+  const raw = generated.value.replace(/[\r\n]+$/, '');
+  const text = execute ? preparePaste(raw, bracketed) + '\r' : prepareInsert(raw, bracketed);
+  try {
+    await api.ptyWrite(leaf.ptyId, new TextEncoder().encode(text));
+  } catch (e) {
+    toasts.error(t('ai.suggest.failed', { message: String(e) }));
+    return;
+  }
+  session?.focus();
   emit('close');
 }
 
@@ -113,12 +134,27 @@ function onResultKey(e: KeyboardEvent) {
 
 <template>
   <dialog v-if="open" class="dialog" open @click.self="emit('close')">
-    <article class="panel" @keydown.stop>
+    <article
+      ref="panelEl"
+      class="panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ai-suggest-title"
+      @keydown.stop
+    >
       <header class="panel__head">
-        <span class="panel__icon">✨</span>
-        <h2>{{ t('ai.suggest.title') }}</h2>
+        <span class="panel__icon" aria-hidden="true">✨</span>
+        <h2 id="ai-suggest-title">{{ t('ai.suggest.title') }}</h2>
         <span class="panel__shell">{{ t(`pane.type.${targetType}`) }}</span>
-        <button type="button" class="close" @click="emit('close')">×</button>
+        <button
+          type="button"
+          class="close"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="emit('close')"
+        >
+          ×
+        </button>
       </header>
 
       <div class="panel__body">
@@ -165,7 +201,7 @@ function onResultKey(e: KeyboardEvent) {
             type="button"
             class="ghost"
             :disabled="!canExecute"
-            :title="t('ai.suggest.insertHint')"
+            :title="t('ai.suggest.insertHint')" :aria-label="t('ai.suggest.insertHint')"
             @click="insertIntoTerminal(false)"
           >
             ⇥ {{ t('ai.suggest.insert') }}
@@ -174,7 +210,7 @@ function onResultKey(e: KeyboardEvent) {
             type="button"
             class="primary go"
             :disabled="!canExecute"
-            :title="t('ai.suggest.executeHint')"
+            :title="t('ai.suggest.executeHint')" :aria-label="t('ai.suggest.executeHint')"
             @click="insertIntoTerminal(true)"
           >
             ⏎ {{ t('ai.suggest.execute') }}

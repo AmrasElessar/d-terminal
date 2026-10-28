@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, triggerRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Channel } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import type { LeafNode } from '@/types/pane';
 import { api } from '@/api/tauri';
 import { useToastsStore } from '@/stores/toasts';
-import { formatError } from '@/utils/error';
+import { localizeError } from '@/utils/error';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const { t } = useI18n();
@@ -15,13 +15,24 @@ const toasts = useToastsStore();
 const filePath = ref<string>('');
 const tailMode = ref(true);
 const filterRegex = ref('');
-const lines = ref<string[]>([]);
+interface LogLine {
+  id: number;
+  text: string;
+}
+/** shallowRef + toplu güncelleme: önceden her gelen satır için splice + 5000
+ *  satırlık regex filtresi yeniden çalışıyordu (yoğun logda UI donuyordu). */
+const lines = shallowRef<LogLine[]>([]);
+let nextLineId = 0;
+let pendingLines: string[] = [];
+let flushRaf: number | null = null;
 const watching = ref(false);
 const autoScroll = ref(true);
 const scrollContainer = ref<HTMLDivElement>();
 let channel: Channel<string> | null = null;
 
 const MAX_LINES = 5000;
+/** Tek satır üst sınırı — newline'sız dev satır DOM'u şişirmesin. */
+const MAX_LINE_CHARS = 8 * 1024;
 const filterRe = computed<RegExp | null>(() => {
   if (!filterRegex.value) return null;
   try { return new RegExp(filterRegex.value, 'i'); }
@@ -30,14 +41,35 @@ const filterRe = computed<RegExp | null>(() => {
 const filteredLines = computed(() => {
   const re = filterRe.value;
   if (!re) return lines.value;
-  return lines.value.filter((l) => re.test(l));
+  return lines.value.filter((l) => re.test(l.text));
 });
+
+function flushPending() {
+  flushRaf = null;
+  if (pendingLines.length === 0) return;
+  const incoming = pendingLines.length > MAX_LINES ? pendingLines.slice(-MAX_LINES) : pendingLines;
+  pendingLines = [];
+  const arr = lines.value;
+  for (const text of incoming) {
+    arr.push({ id: nextLineId++, text: text.length > MAX_LINE_CHARS ? text.slice(0, MAX_LINE_CHARS) + '…' : text });
+  }
+  if (arr.length > MAX_LINES) arr.splice(0, arr.length - MAX_LINES);
+  triggerRef(lines);
+  if (autoScroll.value) {
+    requestAnimationFrame(() => {
+      const el = scrollContainer.value;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+}
 
 async function pickFile() {
   const selected = await openDialog({
     multiple: false,
     directory: false,
-    filters: [{ name: 'Log files', extensions: ['log', 'txt', '*'] }],
+    // Backend yalnızca bu uzantıları kabul eder (credential dosyaları —
+    // .json/.csv token cache'leri — okunamasın diye).
+    filters: [{ name: t('logStream.fileFilter'), extensions: ['log', 'txt', 'out', 'err', 'ndjson'] }],
   });
   if (typeof selected === 'string') {
     filePath.value = selected;
@@ -48,34 +80,30 @@ async function startWatch() {
   if (!filePath.value || watching.value) return;
   channel = new Channel<string>();
   channel.onmessage = (line) => {
-    lines.value.push(line);
-    if (lines.value.length > MAX_LINES) {
-      lines.value.splice(0, lines.value.length - MAX_LINES);
-    }
-    if (autoScroll.value) {
-      requestAnimationFrame(() => {
-        const el = scrollContainer.value;
-        if (el) el.scrollTop = el.scrollHeight;
-      });
-    }
+    if (typeof line !== 'string') return;
+    pendingLines.push(line);
+    if (pendingLines.length > MAX_LINES * 2) pendingLines = pendingLines.slice(-MAX_LINES);
+    if (flushRaf === null) flushRaf = requestAnimationFrame(flushPending);
   };
   try {
     await api.logStreamOpen(props.leaf.id, filePath.value, tailMode.value, channel);
     watching.value = true;
     toasts.success(t('logStream.started'));
   } catch (e: unknown) {
-    toasts.error(t('logStream.failed', { message: formatError(e) }));
+    toasts.error(t('logStream.failed', { message: localizeError(e, t) }));
   }
 }
 
 async function stopWatch() {
   if (!watching.value) return;
+  if (channel) channel.onmessage = () => {};
   await api.logStreamClose(props.leaf.id).catch(() => {});
   watching.value = false;
   channel = null;
 }
 
 function clearLines() {
+  pendingLines = [];
   lines.value = [];
 }
 
@@ -87,6 +115,10 @@ function onScroll() {
 }
 
 onBeforeUnmount(() => {
+  if (flushRaf !== null) cancelAnimationFrame(flushRaf);
+  flushRaf = null;
+  pendingLines = [];
+  if (channel) channel.onmessage = () => {};
   if (watching.value) {
     api.logStreamClose(props.leaf.id).catch(() => {});
   }
@@ -104,7 +136,16 @@ onBeforeUnmount(() => {
         spellcheck="false"
         :disabled="watching"
       />
-      <button type="button" class="ghost" :disabled="watching" @click="pickFile">📁</button>
+      <button
+        type="button"
+        class="ghost"
+        :disabled="watching"
+        :title="t('logStream.pickFile')"
+        :aria-label="t('logStream.pickFile')"
+        @click="pickFile"
+      >
+        📁
+      </button>
       <label class="check">
         <input v-model="tailMode" type="checkbox" :disabled="watching" />
         <span>{{ t('logStream.tailMode') }}</span>
@@ -115,7 +156,16 @@ onBeforeUnmount(() => {
       <button v-else type="button" class="danger" @click="stopWatch">
         ■ {{ t('logStream.stop') }}
       </button>
-      <button type="button" class="ghost" :disabled="lines.length === 0" @click="clearLines">⌫</button>
+      <button
+        type="button"
+        class="ghost"
+        :disabled="lines.length === 0"
+        :title="t('logStream.clear')"
+        :aria-label="t('logStream.clear')"
+        @click="clearLines"
+      >
+        ⌫
+      </button>
     </header>
 
     <header class="log-pane__filter">
@@ -135,7 +185,7 @@ onBeforeUnmount(() => {
 
     <div ref="scrollContainer" class="log-pane__lines" @scroll="onScroll">
       <p v-if="lines.length === 0 && !watching" class="empty">{{ t('logStream.empty') }}</p>
-      <div v-for="(line, idx) in filteredLines" :key="idx" class="line">{{ line }}</div>
+      <div v-for="line in filteredLines" :key="line.id" class="line">{{ line.text }}</div>
     </div>
   </div>
 </template>

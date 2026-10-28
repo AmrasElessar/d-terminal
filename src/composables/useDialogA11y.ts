@@ -9,7 +9,7 @@
 // Tek odak yönetimi — Tab/Shift+Tab modal içinde döngü yapar; modal kapanınca
 // daha önce odaklı element geri odaklanır.
 
-import { nextTick, watch, type Ref } from 'vue';
+import { getCurrentScope, nextTick, onScopeDispose, watch, type Ref } from 'vue';
 
 interface DialogA11yOptions {
   /** Escape tuşu basılınca çağrılır (kapanma sorumluluğu çağırana ait). */
@@ -33,6 +33,19 @@ export function useDialogA11y(
   options: DialogA11yOptions = {},
 ) {
   let lastFocused: HTMLElement | null = null;
+  let listening = false;
+  let disposed = false;
+
+  function addListener() {
+    if (listening || disposed) return;
+    document.addEventListener('keydown', onKey, true);
+    listening = true;
+  }
+  function removeListener() {
+    if (!listening) return;
+    document.removeEventListener('keydown', onKey, true);
+    listening = false;
+  }
 
   function focusables(): HTMLElement[] {
     if (!el.value) return [];
@@ -42,7 +55,7 @@ export function useDialogA11y(
   }
 
   function onKey(e: KeyboardEvent) {
-    if (!isOpen()) return;
+    if (disposed || !isOpen()) return;
     if (e.key === 'Escape') {
       if (options.onEscape) {
         e.preventDefault();
@@ -88,10 +101,11 @@ export function useDialogA11y(
           target = el.value.querySelector<HTMLElement>(options.initialFocus);
         }
         if (!target) target = focusables()[0] ?? null;
+        if (disposed) return;
         target?.focus();
-        document.addEventListener('keydown', onKey, true);
+        addListener();
       } else {
-        document.removeEventListener('keydown', onKey, true);
+        removeListener();
         if (lastFocused && document.body.contains(lastFocused)) {
           lastFocused.focus();
         }
@@ -100,4 +114,19 @@ export function useDialogA11y(
     },
     { immediate: true },
   );
+
+  // Modal'lar çoğunlukla `v-if` + sabit `open=true` ile mount edilir; kapanınca
+  // isOpen hiç false olmadan komponent unmount olur. Listener'ı scope dispose'da
+  // da kaldır — aksi halde capture-phase Escape handler'ı sonsuza kadar yaşar ve
+  // terminaldeki her Esc'i yutar (vim/fzf bozuluyordu).
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      disposed = true;
+      removeListener();
+      if (lastFocused && document.body.contains(lastFocused)) {
+        lastFocused.focus();
+      }
+      lastFocused = null;
+    });
+  }
 }

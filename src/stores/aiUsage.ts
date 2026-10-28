@@ -29,15 +29,30 @@ export interface UsageRecord {
 }
 
 const STORAGE_KEY = 'dterm.aiUsage.v1';
-const MAX_RECORDS = 50_000; // ~birkaç yıllık yoğun kullanım — sonra rotate
+/** Kayıt başına ~180 bayt JSON. localStorage kotası ~5 MB; 50K kayıt (~9 MB)
+ *  kotayı aşıp persist'i sessizce durduruyordu. 10K ≈ 1.8 MB. */
+export const MAX_RECORDS = 10_000;
+
+function isRecord(r: unknown): r is UsageRecord {
+  if (typeof r !== 'object' || r === null) return false;
+  const o = r as Record<string, unknown>;
+  return (
+    typeof o.at === 'string' &&
+    typeof o.provider === 'string' &&
+    typeof o.model === 'string' &&
+    typeof o.inputTokens === 'number' &&
+    typeof o.outputTokens === 'number' &&
+    (o.costUsd === null || typeof o.costUsd === 'number')
+  );
+}
 
 function loadInitial(): UsageRecord[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed as UsageRecord[];
+    return parsed.filter(isRecord).slice(-MAX_RECORDS);
   } catch {
     return [];
   }
@@ -61,9 +76,18 @@ export const useAIUsageStore = defineStore('aiUsage', () => {
       persistTimer = undefined;
       try {
         const cur = records.value;
-        const trimmed = cur.length > MAX_RECORDS ? cur.slice(-MAX_RECORDS) : cur;
+        let trimmed = cur.length > MAX_RECORDS ? cur.slice(-MAX_RECORDS) : cur;
+        // Kota aşımında en eski yarıyı at ve tekrar dene (en fazla birkaç tur)
+        for (let attempt = 0; ; attempt++) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+            break;
+          } catch (e) {
+            if (attempt >= 3 || trimmed.length < 2) throw e;
+            trimmed = trimmed.slice(Math.floor(trimmed.length / 2));
+          }
+        }
         if (trimmed.length !== cur.length) records.value = trimmed;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
         quotaWarned = false;
       } catch (e) {
         // QuotaExceeded → kullanıcı son kayıtların kaybolabileceğini bilsin.

@@ -8,7 +8,7 @@
 
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { AgentEvent, AgentInfo, AgentStatus } from '@/types/agent';
+import { agentEffectiveCost, type AgentEvent, type AgentInfo, type AgentStatus } from '@/types/agent';
 import { MODEL_PRICING } from '@/types/aiPricing';
 
 const MAX_OUTPUT_BYTES = 32 * 1024;
@@ -22,6 +22,12 @@ const MAX_PROMPT_LEN = 500;
 const MAX_THINKING_TEXT_LEN = 4 * 1024;
 const MAX_ERROR_LEN = 1000;
 const MAX_PROGRESS_MSG_LEN = 16 * 1024;
+/** Pane başına tutulan agent sayısı üst sınırı — her biri benzersiz id'li
+ *  sonsuz `start` akışı belleği şişirmesin. Aşılınca en eski bitmiş (yoksa en
+ *  eski) agent atılır. */
+export const MAX_AGENTS_PER_PANE = 64;
+/** Kaynak pane başına otomatik açılan agentView split sayısı sınırı. */
+const MAX_AUTO_SPLITS_PER_PANE = 4;
 
 /** Cost tahmini için varsayılan model — sidebar dropdown bunu seçer.
  *  Pricing tablosundaki anahtarlardan biri. */
@@ -37,6 +43,25 @@ interface PaneAgents {
   /** Cost tahmini için kullanıcının seçtiği model. Provider event'lerinde
    *  explicit cost gelmiyorsa bu modelin pricing'i ile hesaplanır. */
   modelId: string;
+  /** Bu pane için açılmış otomatik split sayısı (sınırlı). */
+  autoSplits: number;
+}
+
+function evictIfNeeded(pane: PaneAgents) {
+  while (pane.order.length > MAX_AGENTS_PER_PANE) {
+    // order: en yeni başta → sondan (en eski) bitmiş olanı ara
+    let victimIdx = -1;
+    for (let i = pane.order.length - 1; i >= 0; i--) {
+      const a = pane.byId.get(pane.order[i]!);
+      if (!a || (a.status !== 'running' && a.status !== 'waiting')) {
+        victimIdx = i;
+        break;
+      }
+    }
+    if (victimIdx < 0) victimIdx = pane.order.length - 1;
+    const [victim] = pane.order.splice(victimIdx, 1);
+    if (victim) pane.byId.delete(victim);
+  }
 }
 
 export const useAgentWatchStore = defineStore('agentWatch', () => {
@@ -45,7 +70,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
   function getPane(paneId: string): PaneAgents {
     let p = panes.value.get(paneId);
     if (!p) {
-      p = { byId: new Map(), order: [], visible: false, modelId: DEFAULT_MODEL };
+      p = { byId: new Map(), order: [], visible: false, modelId: DEFAULT_MODEL, autoSplits: 0 };
       panes.value.set(paneId, p);
     }
     return p;
@@ -76,10 +101,12 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         pane.byId.set(ev.id, info);
         const idx = pane.order.indexOf(ev.id);
         if (idx < 0) pane.order.unshift(ev.id);
+        evictIfNeeded(pane);
         // Otomatik split — settings.autoSplitOnAgent ON ve bu yeni bir agent'sa
         // (re-run değil) kaynak pane'in yanında bir agentView pane'i aç.
         // Lazy import ile circular dep riskini engelle (panes ↔ agentWatch).
-        if (isNew) {
+        if (isNew && pane.autoSplits < MAX_AUTO_SPLITS_PER_PANE) {
+          pane.autoSplits += 1;
           void autoSplitIfEnabled(paneId, ev.id, info.name);
         }
         // Pane'de hiç agent görünmemişse sidebar'ı otomatik aç — kullanıcı
@@ -178,16 +205,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
       const agents = p.order
         .map((id) => p.byId.get(id))
         .filter((a): a is AgentInfo => !!a)
-        .map((a) => {
-          let effectiveCost: number | null = a.costUsd;
-          if (a.costUsd === 0 && (a.inputTokens > 0 || a.outputTokens > 0)) {
-            effectiveCost = price
-              ? (a.inputTokens / 1_000_000) * price.inputPer1M
-                + (a.outputTokens / 1_000_000) * price.outputPer1M
-              : null;
-          }
-          return { ...a, effectiveCost };
-        });
+        .map((a) => ({ ...a, effectiveCost: agentEffectiveCost(a, price) }));
       return {
         agents,
         visible: p.visible,
@@ -221,13 +239,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
         else if (a.status === 'waiting') waiting += 1;
         totalTokens += a.inputTokens + a.outputTokens;
         if (totalCost !== null) {
-          let c: number | null = a.costUsd;
-          if (a.costUsd === 0 && (a.inputTokens > 0 || a.outputTokens > 0)) {
-            c = price
-              ? (a.inputTokens / 1_000_000) * price.inputPer1M
-                + (a.outputTokens / 1_000_000) * price.outputPer1M
-              : null;
-          }
+          const c = agentEffectiveCost(a, price);
           if (c === null) totalCost = null;
           else totalCost += c;
         }
@@ -251,13 +263,7 @@ export const useAgentWatchStore = defineStore('agentWatch', () => {
       for (const a of p.byId.values()) {
         totalTokens += a.inputTokens + a.outputTokens;
         if (totalCost !== null) {
-          let c: number | null = a.costUsd;
-          if (a.costUsd === 0 && (a.inputTokens > 0 || a.outputTokens > 0)) {
-            c = price
-              ? (a.inputTokens / 1_000_000) * price.inputPer1M
-                + (a.outputTokens / 1_000_000) * price.outputPer1M
-              : null;
-          }
+          const c = agentEffectiveCost(a, price);
           if (c === null) totalCost = null;
           else totalCost += c;
         }

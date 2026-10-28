@@ -23,6 +23,8 @@ import {
 import { useSettingsStore } from '@/stores/settings';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { useChatsStore } from '@/stores/chats';
+import { disposeTerminalSession } from '@/terminal/registry';
+import { tGlobal } from '@/i18n';
 
 function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
@@ -111,6 +113,14 @@ export const usePanesStore = defineStore('panes', () => {
     return null;
   }
 
+  function findLeafByPty(ptyId: string): LeafNode | null {
+    for (const t of tabs.value) {
+      const l = listLeaves(t.tree.root).find((x) => x.ptyId === ptyId);
+      if (l) return l;
+    }
+    return null;
+  }
+
   function findTabOfLeaf(leafId: string): Tab | null {
     return tabs.value.find((t) => findLeaf(t.tree.root, leafId) !== null) ?? null;
   }
@@ -141,7 +151,7 @@ export const usePanesStore = defineStore('panes', () => {
   }
 
   /** Bir pane id'si için per-pane lifecycle state'i temizler:
-   *  - paneBufferCache (xterm serialize snapshot) — ~1.5 MB/pane leak önler
+   *  - terminal session (xterm + stdout listener + block tracker)
    *  - agentWatch state — agent geçmişi RAM'de yaşamasın
    *  Bu yardımcı closeTab + loadWorkspace + closePane'in ortak cleanup'ını
    *  tek yerden uygular.
@@ -151,10 +161,9 @@ export const usePanesStore = defineStore('panes', () => {
    *  hâlâ varsa agentWatch state'i koru (kullanıcı agent geçmişine erişebilsin
    *  source terminal kapansa bile). */
   function cleanupPaneState(leafId: string, opts: { force?: boolean } = {}) {
-    // xterm serialize snapshot cache (~1.5 MB/pane) — leak önle (her durumda)
-    const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
-      .__dtermPaneBuffer;
-    cache?.delete(leafId);
+    // Terminal session'ı (xterm örneği + PTY dinleyicisi) kapat — pane
+    // görünmezken de yaşıyordu, yalnızca kalıcı kapanışta dispose edilir.
+    disposeTerminalSession(leafId);
     // agentWatch state — kapanan pane bir agent source'u ise ve onu izleyen
     // bir agentView leaf hâlâ açıksa state'i korumak istiyoruz. Aksi halde
     // kullanıcı PowerShell pane'ini kapatınca agent geçmişi de gider.
@@ -184,9 +193,8 @@ export const usePanesStore = defineStore('panes', () => {
     } catch {
       /* a.g. */
     }
-    // Git stat polling state — TerminalPane onBeforeUnmount kendisi temizler
-    // ama hızlı pane open/close sıralarında interval multiply yaşamamak için
-    // store cleanup'a defansif çağrı (idempotent).
+    // Git stat polling state — session dispose da temizler; spawn'ı hiç
+    // başlamamış pane'ler için defansif çağrı (idempotent).
     try {
       void clearGitStatStateLazy(leafId);
     } catch {
@@ -213,32 +221,40 @@ export const usePanesStore = defineStore('panes', () => {
     return promise;
   }
 
+  /** Kapanmakta olan tab id'leri — Ctrl+W'ye hızlı iki kez basılınca aynı
+   *  tab'ın ikinci kez işlenmesini engeller. */
+  const closingTabs = new Set<string>();
+
   async function closeTab(id: string) {
-    const idx = tabs.value.findIndex((t) => t.id === id);
-    if (idx < 0) return;
-    const tab = tabs.value[idx]!;
-    // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle.
-    // force=true → tab kapanırken agentView referansları da gidiyor, state'i
-    // tutmanın anlamı yok (referenced kontrol cycle yapmasın).
-    for (const leaf of listLeaves(tab.tree.root)) {
-      if (leaf.ptyId) {
-        try {
-          await api.ptyKill(leaf.ptyId);
-        } catch {
-          /* zaten ölmüş olabilir */
-        }
+    if (closingTabs.has(id)) return;
+    const tab = tabs.value.find((t) => t.id === id);
+    if (!tab) return;
+    closingTabs.add(id);
+    try {
+      // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle.
+      // force=true → tab kapanırken agentView referansları da gidiyor.
+      const leaves = listLeaves(tab.tree.root);
+      await Promise.all(
+        leaves.map((leaf) =>
+          leaf.ptyId ? api.ptyKill(leaf.ptyId).catch(() => { /* zaten ölmüş */ }) : undefined,
+        ),
+      );
+      for (const leaf of leaves) cleanupPaneState(leaf.id, { force: true });
+      // Await sırasında tab dizisi değişmiş olabilir — index'i yeniden bul.
+      const idx = tabs.value.findIndex((t) => t.id === id);
+      if (idx < 0) return;
+      tabs.value.splice(idx, 1);
+      if (tabs.value.length === 0) {
+        // Son tab kapanırsa yeni boş tab aç (uygulama tab'sız kalmasın)
+        const fresh = newTab('Tab 1');
+        tabs.value.push(fresh);
+        activeTabId.value = fresh.id;
+      } else if (activeTabId.value === id) {
+        const next = tabs.value[idx] ?? tabs.value[idx - 1] ?? tabs.value[0]!;
+        activeTabId.value = next.id;
       }
-      cleanupPaneState(leaf.id, { force: true });
-    }
-    tabs.value.splice(idx, 1);
-    if (tabs.value.length === 0) {
-      // Son tab kapanırsa yeni boş tab aç (uygulama tab'sız kalmasın)
-      const fresh = newTab('Tab 1');
-      tabs.value.push(fresh);
-      activeTabId.value = fresh.id;
-    } else if (activeTabId.value === id) {
-      const next = tabs.value[idx] ?? tabs.value[idx - 1] ?? tabs.value[0]!;
-      activeTabId.value = next.id;
+    } finally {
+      closingTabs.delete(id);
     }
   }
 
@@ -363,17 +379,37 @@ export const usePanesStore = defineStore('panes', () => {
     return leaf.id;
   }
 
+  /** Kaynak pane'in tab'ında bir AI Chat pane olduğundan emin ol; yoksa
+   *  kaynak pane'in yanına aç. Odak ve aktif tab DEĞİŞMEZ (trigger gibi
+   *  arka plan olaylarından çağrılır). */
+  function ensureAiChatNear(sourcePaneId: string, title: string): string | null {
+    const tab = findTabOfLeaf(sourcePaneId) ?? activeTab.value;
+    if (!tab) return null;
+    const existing = listLeaves(tab.tree.root).find((l) => l.type === 'aiChat');
+    if (existing) return existing.id;
+    const leaf = newLeaf('aiChat', title);
+    if (!tab.tree.root) {
+      tab.tree.root = leaf;
+    } else {
+      const anchor = findLeaf(tab.tree.root, sourcePaneId) ? sourcePaneId : tab.tree.root.id;
+      tab.tree.root = replaceNode(tab.tree.root, anchor, (n) => ({
+        kind: 'split',
+        id: uuid(),
+        direction: 'horizontal',
+        ratio: 0.6,
+        first: n,
+        second: leaf,
+      }));
+    }
+    return leaf.id;
+  }
+
   async function closePane(id: string) {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
     const leaf = findLeaf(tab.tree.root, id);
-    if (leaf?.ptyId) {
-      try {
-        await api.ptyKill(leaf.ptyId);
-      } catch {
-        /* zaten ölmüş olabilir */
-      }
-    }
+    // Önce ağaçtan çıkar (UI anında güncellensin, çift kapatma no-op olsun),
+    // sonra PTY'yi öldür.
     tab.tree.root = removeLeaf(tab.tree.root, id);
     if (tab.tree.focusedId === id) {
       const remaining = listLeaves(tab.tree.root);
@@ -383,13 +419,43 @@ export const usePanesStore = defineStore('panes', () => {
     if (maximizedByTab.value[tab.id] === id) {
       maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
     }
-    // Per-pane lifecycle state'lerini temizle (xterm cache + agent + chat)
+    // Per-pane lifecycle state'lerini temizle (terminal session + agent + chat)
     cleanupPaneState(id);
+    if (leaf?.ptyId) {
+      try {
+        await api.ptyKill(leaf.ptyId);
+      } catch {
+        /* zaten ölmüş olabilir */
+      }
+    }
+  }
+
+  /** Henüz bir leaf'e bağlanmamış PTY id'leri için gelen error/exit olayları.
+   *  `pty_spawn` cevabı ile sidecar'ın `spawn_failed` + `exit` olayları
+   *  yarışabilir: olay leaf `ptyId`'yi almadan önce gelirse kaybolup pane
+   *  "spawning"de asılı kalıyordu. ptyId atandığında uygulanır. */
+  const orphanPtyEvents = new Map<string, Partial<LeafNode>>();
+  const MAX_ORPHAN_EVENTS = 64;
+  function rememberOrphan(ptyId: string, patch: Partial<LeafNode>) {
+    const prev = orphanPtyEvents.get(ptyId);
+    // error durumu sonraki exit tarafından ezilmesin
+    if (prev?.status === 'error' && patch.status === 'exited') return;
+    orphanPtyEvents.set(ptyId, { ...prev, ...patch });
+    while (orphanPtyEvents.size > MAX_ORPHAN_EVENTS) {
+      const first = orphanPtyEvents.keys().next().value;
+      if (first === undefined) break;
+      orphanPtyEvents.delete(first);
+    }
   }
 
   function setLeafState(id: string, patch: Partial<LeafNode>) {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
+    if (patch.ptyId && orphanPtyEvents.has(patch.ptyId)) {
+      const pending = orphanPtyEvents.get(patch.ptyId)!;
+      orphanPtyEvents.delete(patch.ptyId);
+      patch = { ...patch, ...pending };
+    }
     tab.tree.root = replaceNode(tab.tree.root, id, (n) => {
       if (n.kind !== 'leaf') return n;
       return { ...n, ...patch };
@@ -487,24 +553,32 @@ export const usePanesStore = defineStore('panes', () => {
           }
           break;
         case 'exit': {
-          for (const tab of tabs.value) {
-            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
-            if (target) {
-              setLeafState(target.id, { status: 'exited', exitCode: evt.exit_code });
-              break;
-            }
+          // Sidecar çöktüyse her pane `signal: sidecar_lost` ile exit alır —
+          // bu bir hata durumu (pane'in kendi çıkışı değil).
+          const patch: Partial<LeafNode> =
+            evt.signal === 'sidecar_lost'
+              ? { status: 'error', errorMessage: tGlobal('pane.sidecarLost') }
+              : { status: 'exited', exitCode: evt.exit_code };
+          const target = findLeafByPty(evt.pane_id);
+          if (!target) {
+            rememberOrphan(evt.pane_id, patch);
+            break;
           }
+          // spawn_failed error'u ardından gelen exit(-1) ile ezilmesin
+          if (target.status === 'error' && patch.status === 'exited') break;
+          setLeafState(target.id, patch);
           break;
         }
         case 'error': {
           if (!evt.pane_id) return;
-          for (const tab of tabs.value) {
-            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
-            if (target) {
-              setLeafState(target.id, { status: 'error', errorMessage: evt.message });
-              break;
-            }
-          }
+          const message =
+            evt.code === 'spawn_failed'
+              ? tGlobal('pane.spawnFailed', { message: evt.message })
+              : evt.message;
+          const patch: Partial<LeafNode> = { status: 'error', errorMessage: message };
+          const target = findLeafByPty(evt.pane_id);
+          if (target) setLeafState(target.id, patch);
+          else rememberOrphan(evt.pane_id, patch);
           break;
         }
         // 'stdout' event'i terminal komponenti tarafından doğrudan listen edilir
@@ -529,7 +603,7 @@ export const usePanesStore = defineStore('panes', () => {
     try {
       const [{ useToastsStore }, { i18n }] = await Promise.all([
         import('@/stores/toasts'),
-        import('@/main'),
+        import('@/i18n'),
       ]);
       const toasts = useToastsStore();
       const t = i18n.global.t.bind(i18n.global);
@@ -634,6 +708,7 @@ export const usePanesStore = defineStore('panes', () => {
     openPane,
     splitFocused,
     splitForAgent,
+    ensureAiChatNear,
     closePane,
     setLeafState,
     setSplitRatio,
