@@ -17,6 +17,7 @@ const {
   encodeFrame,
   FrameDecoder,
   decodePayload,
+  encodePayload,
   sanitizeEnv,
   dispatch,
   PtyManager,
@@ -203,7 +204,7 @@ function harness(ptyImpl) {
 const spawnFrame = (id) => ({
   msgType: MsgType.SPAWN,
   paneId: id,
-  payload: Buffer.from(JSON.stringify({ shell: 'cmd.exe', args: [], cols: 80, rows: 24 })),
+  payload: encodePayload({ shell: 'cmd.exe', args: [], cols: 80, rows: 24 }),
 });
 
 test('dispatch: spawn failure reports ERROR + EXIT for the real pane id', () => {
@@ -220,7 +221,7 @@ test('dispatch: spawn failure reports ERROR + EXIT for the real pane id', () => 
 test('dispatch: an error does not stop later frames from being handled', () => {
   const fp = fakePty();
   const { sent, writeFrame, manager } = harness(fp);
-  const bad = { msgType: MsgType.RESIZE, paneId: 1n, payload: Buffer.from('not json') };
+  const bad = { msgType: MsgType.RESIZE, paneId: 1n, payload: Buffer.from([0xff, 0xff, 0x00]) };
   dispatch(bad, manager, writeFrame, () => {});
   dispatch(spawnFrame(2n), manager, writeFrame, () => {});
   assert.equal(sent[0].msgType, MsgType.ERROR);
@@ -244,7 +245,7 @@ test('PtyManager: credit mode pauses a flooding pane and resumes after ack', () 
   const p = fp.procs[0];
   p._onData('x'.repeat(FLOW_HIGH_WATER));
   assert.equal(p.paused, true);
-  const ack = Buffer.from(JSON.stringify({ bytes: FLOW_HIGH_WATER }));
+  const ack = encodePayload({ bytes: FLOW_HIGH_WATER });
   dispatch({ msgType: MsgType.FLOW_RESUME, paneId: 1n, payload: ack }, manager, writeFrame, () => {});
   assert.equal(p.paused, false);
 });
