@@ -6,8 +6,8 @@ Yalnızca en son stable sürüm güvenlik güncellemeleri alır.
 
 | Sürüm  | Destek      |
 | ------ | ----------- |
-| 0.11.x | ✓ Aktif     |
-| < 0.11 | ✗ Destek dışı |
+| 0.12.x | ✓ Aktif     |
+| < 0.12 | ✗ Destek dışı |
 
 ## Güvenlik Açığı Bildirimi
 

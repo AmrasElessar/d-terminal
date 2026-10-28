@@ -1,6 +1,6 @@
 {
   "name": "dterminal-pty-bridge",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "D-Terminal PTY sidecar — node-pty multiplexer (ADR-0001)",
   "main": "pty-bridge.js",
   "bin": "pty-bridge.js",

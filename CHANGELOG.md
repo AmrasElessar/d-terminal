@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-28
+
 **Kapsamlı güvenlik + kararlılık geçişi** (çok-ajanlı tam repo denetimi sonrası). Ayrıntılar commit geçmişinde.
 
 ### Güvenlik
@@ -29,6 +31,18 @@
 
 - PTY çıktısı webview'a JSON sayı dizisi yerine base64 olarak taşınır.
 - Uzun süren senkron komutlar ana thread'i bloklamaz.
+- Quake kısayolu **Ctrl+Shift+F1** oldu (F1 tüm sistemde yakalanıyordu).
+- Satır içi öneri yalnızca **→** ile kabul edilir; Tab shell tamamlamasına gider.
+- Terminalde satır içi resim (sixel/iTerm2) kaldırıldı — WebAssembly gerektiriyor, yeni CSP engelliyor.
+- Dosya yoluna tıklamak yolu açmaz, panoya kopyalar; Log Stream `.json`/`.csv` açmaz.
+- Başka kullanıcıya ait veya filtre tanımlı (ör. Git LFS) repolarda git rozeti gösterilmez.
+- Custom AI endpoint değişince anahtarın yeniden girilmesi gerekir.
+- Otomatik snippet çalıştıran tetikleyiciler açık izin ister (min. 5 sn bekleme, dakikada en fazla 6).
+- Yeni açılan veya bölünen pane klavye odağını alır.
+
+### Test
+
+- Windows CI'da gerçek ConPTY uçtan uca testleri: cmd/PowerShell (Türkçe UTF-8), büyük çıktı + akış kontrolü, kapanış davranışı, shell yolu çözümleme, Log Stream, DPAPI.
 
 ---
 
