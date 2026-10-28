@@ -160,3 +160,14 @@ jobs:
       - name: Test
         working-directory: sidecar
         run: npm test
+
+      # Release'te kullanılan pkg paketlemesini PR'da da dene: pkg/pkg-fetch
+      # güncellemesi hazır Node binary'si bulamazsa release anında değil
+      # burada kırılsın.
+      - name: Bundle smoke test (pkg, x64)
+        working-directory: sidecar
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ../src-tauri/binaries | Out-Null
+          npm run bundle:x64
+          if (-not (Test-Path ../src-tauri/binaries/dterminal-pty-bridge-x86_64-pc-windows-msvc.exe)) { throw "pkg output missing" }

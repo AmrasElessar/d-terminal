@@ -23,7 +23,7 @@
   "license": "GPL-3.0-or-later",
   "author": "Orhan Engin OKAY",
   "devDependencies": {
-    "@yao-pkg/pkg": "^6.19.0"
+    "@yao-pkg/pkg": "6.19.0"
   },
   "pkg": {
     "assets": [
@@ -38,5 +38,8 @@
       "node_modules/node-pty/lib/**/*.js",
       "node_modules/cbor-x/**/*.js"
     ]
+  },
+  "overrides": {
+    "tar": "^7.5.22"
   }
 }
