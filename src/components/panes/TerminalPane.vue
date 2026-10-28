@@ -4,17 +4,19 @@
 // pane görünmezken (arka plan tab, zoom modu) de çıktı işlenmeye devam eder.
 // Bu komponent yalnızca session'ı DOM'a bağlar ve overlay UI'larını çizer.
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import '@xterm/xterm/css/xterm.css';
 import type { ISearchOptions } from '@xterm/addon-search';
 import type { LeafNode } from '@/types/pane';
 import { useAgentWatchStore } from '@/stores/agentWatch';
+import { usePanesStore } from '@/stores/panes';
 import { getOrCreateTerminalSession } from '@/terminal/session';
 import { useI18n } from 'vue-i18n';
 import AgentWatchPanel from '@/components/ui/AgentWatchPanel.vue';
 
 const props = defineProps<{ leaf: LeafNode }>();
 const agentWatch = useAgentWatchStore();
+const panes = usePanesStore();
 const agentView = agentWatch.paneView(props.leaf.id);
 const { t } = useI18n();
 
@@ -87,11 +89,30 @@ function onStopAgent() {
   session.sendSigint();
 }
 
+/** Kullanıcı başka bir metin alanında / diyalogda değilse klavye odağını
+ *  xterm'e taşı. Aksi halde yeni pane açıldıktan veya bölündükten sonra odak
+ *  toolbar düğmesinde kalıyor; Space/Enter düğmeye basıp yeni pane açıyordu. */
+function focusIfActive() {
+  if (panes.focused?.id !== props.leaf.id || searchOpen.value) return;
+  const active = document.activeElement as HTMLElement | null;
+  if (active && container.value?.contains(active)) return;
+  if (active?.closest('[role="dialog"], dialog, input, textarea, select, [contenteditable="true"]')) {
+    return;
+  }
+  session.focus();
+}
+
 onMounted(() => {
   if (!container.value) return;
   session.ui.openSearch = openSearch;
   session.attach(container.value);
+  nextTick(focusIfActive);
 });
+
+watch(
+  () => panes.focused?.id,
+  () => nextTick(focusIfActive),
+);
 
 onBeforeUnmount(() => {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
