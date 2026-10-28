@@ -236,7 +236,9 @@ jobs:
             exit 1
           fi
           for f in "${files[@]}"; do
-            tauri signer sign "$f"
+            # Şifre açıkça verilir: anahtar şifresizse secret tanımlı değildir ve
+            # clap boş env değerini "yok" sayar → CLI TTY'siz ortamda şifre sorar.
+            tauri signer sign --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$f"
             test -s "$f.sig" || { echo "::error::$f.sig üretilmedi"; exit 1; }
           done
           ls -l
