@@ -1,7 +1,7 @@
 // formatError — Rust + JS error shape'lerinin tutarlı formatlanması.
 
 import { describe, expect, it } from 'vitest';
-import { formatError } from './error';
+import { backendErrorKey, formatError, localizeError } from './error';
 
 describe('formatError', () => {
   it('null → "unknown error"', () => {
@@ -54,5 +54,20 @@ describe('formatError', () => {
     // sadece son catch'i tetiklemez. Bu test sirküler içermeyen şekilde
     // değişik bir senaryoyu gerçekleyene kadar `kind` yolu test edilir.
     expect(formatError(e)).toBe('x');
+  });
+});
+
+describe('localizeError / backendErrorKey', () => {
+  const t = (k: string) => `T(${k})`;
+  it('bilinen backend kodlarını çevirir', () => {
+    expect(localizeError('endpointNotBoundToKey', t)).toBe('T(errors.backend.endpointNotBoundToKey)');
+    expect(localizeError({ kind: 'InvalidArg', message: 'log extension not allowed: .json (allowed: log)' }, t)).toBe(
+      'T(errors.backend.logStreamFileType)',
+    );
+    expect(backendErrorKey('credentialsInUrl')).toBe('errors.backend.credentialsInUrl');
+  });
+  it('bilinmeyen hatayı formatError ile döndürür', () => {
+    expect(localizeError(new Error('boom'), t)).toBe('boom');
+    expect(backendErrorKey('boom')).toBeNull();
   });
 });

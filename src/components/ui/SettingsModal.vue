@@ -419,6 +419,7 @@ function editTrigger(id: string) {
     action: { ...t.action },
     enabled: t.enabled,
     cooldownMs: t.cooldownMs,
+    allowAutoRun: t.allowAutoRun === true,
   };
   editingTriggerId.value = id;
 }
@@ -1100,6 +1101,13 @@ void props.open;
             />
             <small>{{ t('triggers.field.payloadHint') }}</small>
           </label>
+          <template v-if="draftTrigger.action.kind === 'runSnippet'">
+            <label class="field row">
+              <input v-model="draftTrigger.allowAutoRun" type="checkbox" />
+              <span>{{ t('triggers.field.allowAutoRun') }}</span>
+            </label>
+            <small class="note">{{ t('triggers.field.allowAutoRunHint') }}</small>
+          </template>
           <div class="row-2">
             <button type="button" class="primary" @click="saveTrigger">
               {{ editingTriggerId ? t('common.save') : t('triggers.add') }}

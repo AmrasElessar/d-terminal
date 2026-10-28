@@ -370,6 +370,31 @@ export const usePanesStore = defineStore('panes', () => {
     return leaf.id;
   }
 
+  /** Kaynak pane'in tab'ında bir AI Chat pane olduğundan emin ol; yoksa
+   *  kaynak pane'in yanına aç. Odak ve aktif tab DEĞİŞMEZ (trigger gibi
+   *  arka plan olaylarından çağrılır). */
+  function ensureAiChatNear(sourcePaneId: string, title: string): string | null {
+    const tab = findTabOfLeaf(sourcePaneId) ?? activeTab.value;
+    if (!tab) return null;
+    const existing = listLeaves(tab.tree.root).find((l) => l.type === 'aiChat');
+    if (existing) return existing.id;
+    const leaf = newLeaf('aiChat', title);
+    if (!tab.tree.root) {
+      tab.tree.root = leaf;
+    } else {
+      const anchor = findLeaf(tab.tree.root, sourcePaneId) ? sourcePaneId : tab.tree.root.id;
+      tab.tree.root = replaceNode(tab.tree.root, anchor, (n) => ({
+        kind: 'split',
+        id: uuid(),
+        direction: 'horizontal',
+        ratio: 0.6,
+        first: n,
+        second: leaf,
+      }));
+    }
+    return leaf.id;
+  }
+
   async function closePane(id: string) {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
@@ -643,6 +668,7 @@ export const usePanesStore = defineStore('panes', () => {
     openPane,
     splitFocused,
     splitForAgent,
+    ensureAiChatNear,
     closePane,
     setLeafState,
     setSplitRatio,

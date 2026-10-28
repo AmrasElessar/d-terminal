@@ -6,7 +6,14 @@ import { computed, ref, watch } from 'vue';
 import { v4 as uuid } from 'uuid';
 import { api } from '@/api/tauri';
 import type { Trigger, TriggerMatch, TriggerScope, TriggerActionKind } from '@/types/trigger';
-import { expandTemplate } from '@/types/trigger';
+import {
+  expandTemplate,
+  sanitizeTrigger,
+  RUN_SNIPPET_MAX_PER_MINUTE,
+  RUN_SNIPPET_MIN_COOLDOWN_MS,
+} from '@/types/trigger';
+import { useAIStore } from '@/stores/ai';
+import { frameTerminalOutput } from '@/composables/useAISuggestion';
 import { useToastsStore } from '@/stores/toasts';
 import { useSnippetsStore } from '@/stores/snippets';
 import { usePanesStore } from '@/stores/panes';
@@ -19,6 +26,8 @@ const log = createLogger('triggers');
 export const useTriggersStore = defineStore('triggers', () => {
   const triggers = ref<Trigger[]>([]);
   const lastFiredAt = new Map<string, number>(); // triggerId → ms
+  /** runSnippet çalıştırma zamanları (son 1 dk) — döngü koruması. */
+  const runHistory = new Map<string, number[]>();
   const loaded = ref(false);
 
   // Compiled regex cache — pattern/flags değişene kadar yeniden derleme yok
@@ -40,8 +49,12 @@ export const useTriggersStore = defineStore('triggers', () => {
     try {
       const raw = await api.settingsGet(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) triggers.value = parsed;
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          triggers.value = parsed
+            .map(sanitizeTrigger)
+            .filter((t): t is Trigger => t !== null);
+        }
       }
     } catch (e) {
       log.warn('triggers load failed', { error: String(e) });
@@ -74,6 +87,7 @@ export const useTriggersStore = defineStore('triggers', () => {
   function remove(id: string) {
     triggers.value = triggers.value.filter((t) => t.id !== id);
     lastFiredAt.delete(id);
+    runHistory.delete(id);
     // compiled regex cache computed → triggers.value değişince yeniden
     // hesaplanır, silinen id otomatik düşer. lastFiredAt manuel cleanup.
   }
@@ -82,6 +96,11 @@ export const useTriggersStore = defineStore('triggers', () => {
     const idx = triggers.value.findIndex((t) => t.id === id);
     if (idx < 0) return;
     triggers.value[idx] = { ...triggers.value[idx]!, ...patch };
+  }
+
+  function toggleOff(id: string) {
+    const t = triggers.value.find((x) => x.id === id);
+    if (t) t.enabled = false;
   }
 
   function toggle(id: string) {
@@ -105,9 +124,12 @@ export const useTriggersStore = defineStore('triggers', () => {
     for (const t of applicable(paneScope)) {
       const re = compiled.value.get(t.id);
       if (!re) continue;
-      // cooldown
+      // cooldown — runSnippet için zorunlu alt sınır (kendini tetikleme döngüsü)
       const last = lastFiredAt.get(t.id) ?? 0;
-      if (t.cooldownMs > 0 && now - last < t.cooldownMs) continue;
+      const cooldown = t.action.kind === 'runSnippet'
+        ? Math.max(t.cooldownMs, RUN_SNIPPET_MIN_COOLDOWN_MS)
+        : t.cooldownMs;
+      if (cooldown > 0 && now - last < cooldown) continue;
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
       let fired = false;
@@ -140,23 +162,39 @@ export const useTriggersStore = defineStore('triggers', () => {
       }
       case 'sendToAi': {
         const panes = usePanesStore();
-        const prompt = expanded || `Trigger fired: ${t.name}\nMatch: ${m[0]}`;
-        navigator.clipboard.writeText(prompt).catch(() => { /* ignore */ });
-        // AI Chat pane aç (yoksa)
-        if (!panes.allLeaves.some((l) => l.type === 'aiChat')) {
-          panes.openPane('aiChat', 'AI Chat');
-        }
-        const toasts = useToastsStore();
         const tFn = i18n.global.t;
-        toasts.info(tFn('triggers.action.aiCopied', { name: t.name }), 2500);
+        // Eşleşen metin terminal çıktısıdır — güvenilmez + secret içerebilir.
+        const framed = frameTerminalOutput(expanded || m[0]);
+        const prompt = tFn('triggers.action.aiPrompt', { name: t.name, output: framed.text });
+        useAIStore().queuePrompt(prompt);
+        // AI Chat pane'i KAYNAK pane'in tab'ında aç (aktif tab'da değil) ve
+        // odağı çalma — kullanıcı başka yerde yazıyor olabilir.
+        panes.ensureAiChatNear(paneId, tFn('pane.type.aiChat'));
+        useToastsStore().info(tFn('triggers.action.aiQueued', { name: t.name }), 2500);
         break;
       }
       case 'runSnippet': {
+        const tFn = i18n.global.t;
         const snippetId = Number(t.action.payload);
         if (!Number.isFinite(snippetId)) return;
         const snippets = useSnippetsStore();
         const snippet = snippets.items.find((s) => s.id === snippetId);
         if (!snippet) return;
+        // Terminal çıktısıyla komut çalıştırma açık izin ister.
+        if (!t.allowAutoRun) {
+          useToastsStore().warning(tFn('triggers.action.autoRunBlocked', { name: t.name }), 4000);
+          return;
+        }
+        // Döngü koruması: dakikada en fazla N çalıştırma, aşılırsa devre dışı
+        const now = Date.now();
+        const hist = (runHistory.get(t.id) ?? []).filter((ts) => now - ts < 60_000);
+        if (hist.length >= RUN_SNIPPET_MAX_PER_MINUTE) {
+          toggleOff(t.id);
+          useToastsStore().error(tFn('triggers.action.autoRunDisabled', { name: t.name }), 6000);
+          return;
+        }
+        hist.push(now);
+        runHistory.set(t.id, hist);
         const panes = usePanesStore();
         const leaf = panes.getLeaf(paneId);
         if (!leaf?.ptyId) return;
@@ -165,10 +203,6 @@ export const useTriggersStore = defineStore('triggers', () => {
       }
       case 'capture': {
         log.info('trigger capture', { id: t.id, name: t.name, match: m[0], paneId });
-        break;
-      }
-      case 'highlight': {
-        // v2 — xterm decoration API ile satır highlight; şimdilik no-op
         break;
       }
     }

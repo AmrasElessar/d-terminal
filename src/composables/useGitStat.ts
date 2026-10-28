@@ -85,7 +85,11 @@ async function refreshOne(paneId: string) {
       }, desired);
     }
   } catch {
-    /* git çağrısı başarısız → mevcut değeri koru */
+    // Backend repo'yu atladı (UNC/ağ sürücüsü, güvensiz config) veya git
+    // başarısız — chip gösterme. Eski değer başka bir dizine ait olabilir.
+    if (stateByPane.get(paneId) === s) {
+      s.ref.value = { files: 0, added: 0, removed: 0, is_repo: false };
+    }
   }
 }
 
