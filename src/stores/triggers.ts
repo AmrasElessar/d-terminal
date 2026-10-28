@@ -11,7 +11,7 @@ import { useToastsStore } from '@/stores/toasts';
 import { useSnippetsStore } from '@/stores/snippets';
 import { usePanesStore } from '@/stores/panes';
 import { createLogger } from '@/utils/logger';
-import { i18n } from '@/main';
+import { i18n } from '@/i18n';
 
 const STORAGE_KEY = 'triggers.list';
 const log = createLogger('triggers');

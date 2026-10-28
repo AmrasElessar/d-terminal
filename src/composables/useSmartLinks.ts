@@ -55,10 +55,39 @@ const PATTERNS: PatternDef[] = [
 
 interface Match {
   text: string;
-  /** Satır içi 1-based start kolonu (xterm range konvansiyonu). */
-  startCol: number;
-  endCol: number;
+  /** Satır içi string index'i (0-based) ve uzunluk — kolon dönüşümü ayrıca. */
+  index: number;
+  length: number;
   def: PatternDef;
+}
+
+/** URL aralıkları — WebLinksAddon bunları zaten yakalar; Unix-path deseni
+ *  `https://host/a/b` içindeki `/a/b`'yi ayrı link yapmasın. */
+const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+
+/** String index → hücre kolonu eşlemesi. Geniş karakterler (CJK, emoji) iki
+ *  hücre kaplar; translateToString tek karakter döndürdüğü için index'ler
+ *  kayıyordu ve link yanlış yeri işaretliyordu. */
+interface ColumnMap {
+  col: number[];
+  width: number[];
+}
+function buildColumnMap(line: IBufferLine | undefined): ColumnMap | null {
+  if (!line || typeof line.getCell !== 'function') return null;
+  const col: number[] = [];
+  const width: number[] = [];
+  for (let x = 0; x < line.length; x++) {
+    const cell = line.getCell(x);
+    if (!cell) break;
+    const w = cell.getWidth();
+    if (w === 0) continue; // geniş karakterin devam hücresi
+    const chars = cell.getChars() || ' ';
+    for (let k = 0; k < chars.length; k++) {
+      col.push(x);
+      width.push(w);
+    }
+  }
+  return { col, width };
 }
 
 function readLine(line: IBufferLine | undefined): string {
@@ -75,23 +104,36 @@ function findMatches(line: string): Match[] {
       const matchText = m[1] ?? m[0];
       if (!matchText) continue;
       const start = (m.index ?? 0) + (m[0].indexOf(matchText));
-      out.push({
-        text: matchText,
-        startCol: start + 1, // xterm 1-based
-        endCol: start + matchText.length,
-        def,
-      });
+      out.push({ text: matchText, index: start, length: matchText.length, def });
     }
   }
-  // Aynı pozisyonda birden çok match varsa (path + git ref örtüşmesi) — daha uzun olan kazansın
-  out.sort((a, b) => (b.endCol - b.startCol) - (a.endCol - a.startCol));
+  // URL içindeki parçalar link olmasın
   const claimed: Array<[number, number]> = [];
+  for (const u of line.matchAll(URL_RE)) {
+    claimed.push([u.index ?? 0, (u.index ?? 0) + u[0].length - 1]);
+  }
+  // Aynı pozisyonda birden çok match varsa (path + git ref örtüşmesi) — daha uzun olan kazansın
+  out.sort((a, b) => b.length - a.length);
   return out.filter((m) => {
-    const overlaps = claimed.some(([s, e]) => !(m.endCol < s || m.startCol > e));
+    const s = m.index;
+    const e = m.index + m.length - 1;
+    const overlaps = claimed.some(([cs, ce]) => !(e < cs || s > ce));
     if (overlaps) return false;
-    claimed.push([m.startCol, m.endCol]);
+    claimed.push([s, e]);
     return true;
   });
+}
+
+/** String aralığını xterm 1-based kolon aralığına çevir. */
+function toRange(m: Match, map: ColumnMap | null): { startCol: number; endCol: number } {
+  const last = m.index + m.length - 1;
+  if (!map || last >= map.col.length) {
+    return { startCol: m.index + 1, endCol: m.index + m.length };
+  }
+  return {
+    startCol: map.col[m.index]! + 1,
+    endCol: map.col[last]! + map.width[last]!,
+  };
 }
 
 export function createSmartLinkProvider(
@@ -112,10 +154,12 @@ export function createSmartLinkProvider(
         callback(undefined);
         return;
       }
+      const map = buildColumnMap(line);
       const links: ILink[] = matches.map((m) => {
+        const { startCol, endCol } = toRange(m, map);
         const range: IBufferRange = {
-          start: { x: m.startCol, y: bufferLineNumber },
-          end: { x: m.endCol, y: bufferLineNumber },
+          start: { x: startCol, y: bufferLineNumber },
+          end: { x: endCol, y: bufferLineNumber },
         };
         return {
           range,

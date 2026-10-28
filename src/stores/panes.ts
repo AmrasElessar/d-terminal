@@ -23,6 +23,7 @@ import {
 import { useSettingsStore } from '@/stores/settings';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { useChatsStore } from '@/stores/chats';
+import { disposeTerminalSession } from '@/terminal/registry';
 
 function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
@@ -141,7 +142,7 @@ export const usePanesStore = defineStore('panes', () => {
   }
 
   /** Bir pane id'si için per-pane lifecycle state'i temizler:
-   *  - paneBufferCache (xterm serialize snapshot) — ~1.5 MB/pane leak önler
+   *  - terminal session (xterm + stdout listener + block tracker)
    *  - agentWatch state — agent geçmişi RAM'de yaşamasın
    *  Bu yardımcı closeTab + loadWorkspace + closePane'in ortak cleanup'ını
    *  tek yerden uygular.
@@ -151,10 +152,9 @@ export const usePanesStore = defineStore('panes', () => {
    *  hâlâ varsa agentWatch state'i koru (kullanıcı agent geçmişine erişebilsin
    *  source terminal kapansa bile). */
   function cleanupPaneState(leafId: string, opts: { force?: boolean } = {}) {
-    // xterm serialize snapshot cache (~1.5 MB/pane) — leak önle (her durumda)
-    const cache = (globalThis as unknown as { __dtermPaneBuffer?: Map<string, string> })
-      .__dtermPaneBuffer;
-    cache?.delete(leafId);
+    // Terminal session'ı (xterm örneği + PTY dinleyicisi) kapat — pane
+    // görünmezken de yaşıyordu, yalnızca kalıcı kapanışta dispose edilir.
+    disposeTerminalSession(leafId);
     // agentWatch state — kapanan pane bir agent source'u ise ve onu izleyen
     // bir agentView leaf hâlâ açıksa state'i korumak istiyoruz. Aksi halde
     // kullanıcı PowerShell pane'ini kapatınca agent geçmişi de gider.
@@ -184,9 +184,8 @@ export const usePanesStore = defineStore('panes', () => {
     } catch {
       /* a.g. */
     }
-    // Git stat polling state — TerminalPane onBeforeUnmount kendisi temizler
-    // ama hızlı pane open/close sıralarında interval multiply yaşamamak için
-    // store cleanup'a defansif çağrı (idempotent).
+    // Git stat polling state — session dispose da temizler; spawn'ı hiç
+    // başlamamış pane'ler için defansif çağrı (idempotent).
     try {
       void clearGitStatStateLazy(leafId);
     } catch {
@@ -213,32 +212,40 @@ export const usePanesStore = defineStore('panes', () => {
     return promise;
   }
 
+  /** Kapanmakta olan tab id'leri — Ctrl+W'ye hızlı iki kez basılınca aynı
+   *  tab'ın ikinci kez işlenmesini engeller. */
+  const closingTabs = new Set<string>();
+
   async function closeTab(id: string) {
-    const idx = tabs.value.findIndex((t) => t.id === id);
-    if (idx < 0) return;
-    const tab = tabs.value[idx]!;
-    // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle.
-    // force=true → tab kapanırken agentView referansları da gidiyor, state'i
-    // tutmanın anlamı yok (referenced kontrol cycle yapmasın).
-    for (const leaf of listLeaves(tab.tree.root)) {
-      if (leaf.ptyId) {
-        try {
-          await api.ptyKill(leaf.ptyId);
-        } catch {
-          /* zaten ölmüş olabilir */
-        }
+    if (closingTabs.has(id)) return;
+    const tab = tabs.value.find((t) => t.id === id);
+    if (!tab) return;
+    closingTabs.add(id);
+    try {
+      // Tab'daki tüm pane'lerin PTY'sini kill et + state'lerini temizle.
+      // force=true → tab kapanırken agentView referansları da gidiyor.
+      const leaves = listLeaves(tab.tree.root);
+      await Promise.all(
+        leaves.map((leaf) =>
+          leaf.ptyId ? api.ptyKill(leaf.ptyId).catch(() => { /* zaten ölmüş */ }) : undefined,
+        ),
+      );
+      for (const leaf of leaves) cleanupPaneState(leaf.id, { force: true });
+      // Await sırasında tab dizisi değişmiş olabilir — index'i yeniden bul.
+      const idx = tabs.value.findIndex((t) => t.id === id);
+      if (idx < 0) return;
+      tabs.value.splice(idx, 1);
+      if (tabs.value.length === 0) {
+        // Son tab kapanırsa yeni boş tab aç (uygulama tab'sız kalmasın)
+        const fresh = newTab('Tab 1');
+        tabs.value.push(fresh);
+        activeTabId.value = fresh.id;
+      } else if (activeTabId.value === id) {
+        const next = tabs.value[idx] ?? tabs.value[idx - 1] ?? tabs.value[0]!;
+        activeTabId.value = next.id;
       }
-      cleanupPaneState(leaf.id, { force: true });
-    }
-    tabs.value.splice(idx, 1);
-    if (tabs.value.length === 0) {
-      // Son tab kapanırsa yeni boş tab aç (uygulama tab'sız kalmasın)
-      const fresh = newTab('Tab 1');
-      tabs.value.push(fresh);
-      activeTabId.value = fresh.id;
-    } else if (activeTabId.value === id) {
-      const next = tabs.value[idx] ?? tabs.value[idx - 1] ?? tabs.value[0]!;
-      activeTabId.value = next.id;
+    } finally {
+      closingTabs.delete(id);
     }
   }
 
@@ -367,13 +374,8 @@ export const usePanesStore = defineStore('panes', () => {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
     const leaf = findLeaf(tab.tree.root, id);
-    if (leaf?.ptyId) {
-      try {
-        await api.ptyKill(leaf.ptyId);
-      } catch {
-        /* zaten ölmüş olabilir */
-      }
-    }
+    // Önce ağaçtan çıkar (UI anında güncellensin, çift kapatma no-op olsun),
+    // sonra PTY'yi öldür.
     tab.tree.root = removeLeaf(tab.tree.root, id);
     if (tab.tree.focusedId === id) {
       const remaining = listLeaves(tab.tree.root);
@@ -383,8 +385,15 @@ export const usePanesStore = defineStore('panes', () => {
     if (maximizedByTab.value[tab.id] === id) {
       maximizedByTab.value = { ...maximizedByTab.value, [tab.id]: null };
     }
-    // Per-pane lifecycle state'lerini temizle (xterm cache + agent + chat)
+    // Per-pane lifecycle state'lerini temizle (terminal session + agent + chat)
     cleanupPaneState(id);
+    if (leaf?.ptyId) {
+      try {
+        await api.ptyKill(leaf.ptyId);
+      } catch {
+        /* zaten ölmüş olabilir */
+      }
+    }
   }
 
   function setLeafState(id: string, patch: Partial<LeafNode>) {
@@ -529,7 +538,7 @@ export const usePanesStore = defineStore('panes', () => {
     try {
       const [{ useToastsStore }, { i18n }] = await Promise.all([
         import('@/stores/toasts'),
-        import('@/main'),
+        import('@/i18n'),
       ]);
       const toasts = useToastsStore();
       const t = i18n.global.t.bind(i18n.global);

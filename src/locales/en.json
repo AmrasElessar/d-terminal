@@ -316,11 +316,11 @@
       "localHint": "User installs on their own machine. D-Terminal auto-connects when the service is running. Data stays local, zero cost.",
       "download": "Download",
       "localDesc": {
-        "ollama":   "Most popular local AI runtime. Pull models (Llama, Qwen, Mistral, DeepSeek, ...) with 'ollama pull'.",
+        "ollama": "Most popular local AI runtime. Pull models (Llama, Qwen, Mistral, DeepSeek, ...) with 'ollama pull'.",
         "lmstudio": "GUI-first local AI app. Browse + download + run models in one place.",
-        "jan":      "Open-source local AI app. Ollama-like but with a full friendly GUI.",
+        "jan": "Open-source local AI app. Ollama-like but with a full friendly GUI.",
         "llamacpp": "Low-level runtime — the foundation of Ollama / LM Studio / Jan. CLI-launched, for advanced users.",
-        "foundry":  "Microsoft's Windows-native AI runtime. NPU / DirectML acceleration support."
+        "foundry": "Microsoft's Windows-native AI runtime. NPU / DirectML acceleration support."
       },
       "customGroup": "Custom Endpoint",
       "customHint": "For your own OpenAI-compatible endpoint (OpenRouter, Together AI, DeepInfra, Groq, enterprise Azure OpenAI, your own proxy).",
@@ -556,7 +556,7 @@
     "pastedRaw": "Pasted {count} lines — shell will execute each line",
     "pasteFailed": "Paste failed: {error}",
     "suggest": {
-      "hint": "Suggestion from history — accept with Tab or →"
+      "hint": "Suggestion from history — accept with →"
     },
     "scrollMode": {
       "label": "SCROLL"
@@ -566,7 +566,9 @@
       "webgl": "WebGL (GPU accelerated)",
       "canvas": "Canvas (compatible)",
       "dom": "DOM (fallback, slowest)"
-    }
+    },
+    "pasteConfirm": "This shell does not support bracketed paste: each of the {count} lines will run immediately as a separate command. Paste anyway?",
+    "pasteConfirmAction": "Paste and run"
   },
   "agentWatch": {
     "title": "Agent Watch",
@@ -742,6 +744,7 @@
     "paneNotFound": "Pane not found: {id}",
     "invalidArg": "Invalid argument: {message}",
     "notImplemented": "Not implemented yet: {message}",
-    "internal": "Internal error: {message}"
+    "internal": "Internal error: {message}",
+    "clipboard": "Clipboard error: {error}"
   }
 }

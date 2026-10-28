@@ -36,6 +36,8 @@ export interface BlockTracker {
   /** Komut geçmişe yazılmalı mı? Boşlukla başlayan komutlar (bash/zsh
    *  HISTCONTROL=ignorespace geleneği) ve secret içeren komutlar hariç. */
   historyCommand: (block: CommandBlock) => string | null;
+  /** Shell OSC 133 marker'ı yayınladı mı (cmd.exe yayınlamaz). */
+  hasShellIntegration: () => boolean;
   /** Block silme. */
   remove: (id: string) => void;
   /** Hepsini temizle. */
@@ -56,6 +58,7 @@ export function createBlockTracker(): BlockTracker {
   let phase: 'idle' | 'input' | 'running' = 'idle';
   /** Satır geçmiş gezinmesiyle değişti — yakalanan metin güvenilmez. */
   let unreliable = false;
+  let sawMarker = false;
 
   function pushNew(): CommandBlock {
     const b = newBlock();
@@ -83,7 +86,10 @@ export function createBlockTracker(): BlockTracker {
     blocks,
     active: () => activeBlock,
 
+    hasShellIntegration: () => sawMarker,
+
     onPromptStart() {
+      sawMarker = true;
       // Önceki block hala "pending" ise (D gelmediyse), kapatma — kullanıcı henüz
       // bir komut çalıştırmadan yeni prompt aldı (Ctrl+C gibi). Aborted işaretle.
       if (activeBlock && activeBlock.status === 'pending' && !activeBlock.command) {
@@ -99,6 +105,7 @@ export function createBlockTracker(): BlockTracker {
     },
 
     onCommandStart() {
+      sawMarker = true;
       // Prompt sonrası, kullanıcı yazma evresi
       if (!activeBlock) pushNew();
       inputAccumulator = '';

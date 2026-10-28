@@ -28,7 +28,7 @@ vi.mock('@/stores/panes', () => ({
   }),
 }));
 
-vi.mock('@/main', () => ({
+vi.mock('@/i18n', () => ({
   i18n: { global: { t: (k: string) => k } },
 }));
 
