@@ -44,6 +44,7 @@ import DarkSelect, { type DarkSelectOption } from '@/components/ui/DarkSelect.vu
 import AICostPanel from '@/components/ui/AICostPanel.vue';
 import { useDialogA11y } from '@/composables/useDialogA11y';
 import { createLogger } from '@/utils/logger';
+import { localizeError } from '@/utils/error';
 
 const log = createLogger('settings');
 
@@ -124,9 +125,10 @@ async function openSudoSettings() {
 
 function copyGsudoCommand() {
   const cmd = 'winget install gerardog.gsudo';
-  navigator.clipboard.writeText(cmd).then(() => {
-    toasts.success(t('settings.general.gsudoCopied'), 3000);
-  });
+  navigator.clipboard
+    .writeText(cmd)
+    .then(() => toasts.success(t('settings.general.gsudoCopied'), 3000))
+    .catch((e) => toasts.error(t('errors.clipboard', { error: String(e) })));
 }
 
 const UPDATE_MODE_KEYS: Record<'off' | 'notify' | 'download-wait' | 'auto', string> = {
@@ -510,12 +512,21 @@ async function applyTheme(name: string) {
 async function saveKey(id: ProviderId) {
   const key = newKey.value[id]?.trim();
   if (!key) return;
-  await ai.setKey(id, key);
-  newKey.value[id] = '';
+  try {
+    await ai.setKey(id, key);
+    newKey.value[id] = '';
+    toasts.success(t('settings.saved'), 1500);
+  } catch (e) {
+    toasts.error(localizeError(e, t));
+  }
 }
 
 async function deleteKey(id: ProviderId) {
-  await ai.removeKey(id);
+  try {
+    await ai.removeKey(id);
+  } catch (e) {
+    toasts.error(localizeError(e, t));
+  }
 }
 
 void props.open;

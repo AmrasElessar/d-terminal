@@ -97,9 +97,10 @@ async function rerun(entry: HistoryEntry) {
 }
 
 function copy(entry: HistoryEntry) {
-  navigator.clipboard.writeText(entry.command).then(() => {
-    toasts.success(t('common.copy') + ' ✓', 1500);
-  });
+  navigator.clipboard
+    .writeText(entry.command)
+    .then(() => toasts.success(t('common.copy') + ' ✓', 1500))
+    .catch((e) => toasts.error(t('errors.clipboard', { error: String(e) })));
 }
 
 function onKey(e: KeyboardEvent) {

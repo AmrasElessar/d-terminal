@@ -82,6 +82,8 @@ export interface TerminalSession {
   clearTerminal(): void;
   getSelection(): string;
   sendSigint(): void;
+  /** Panodan güvenli paste (bracketed paste / çok satır onayı). */
+  paste(): Promise<void>;
   /** Alternate screen (vim, less, htop) aktif mi. */
   isAltBuffer(): boolean;
   bracketedPaste(): boolean;
@@ -682,6 +684,7 @@ function createTerminalSession(leafId: string): TerminalSession {
       const ptyId = leaf()?.ptyId;
       if (ptyId) api.ptyWrite(ptyId, new Uint8Array([0x03])).catch(() => {});
     },
+    paste: handlePaste,
     isAltBuffer,
     bracketedPaste: () => term.modes.bracketedPasteMode,
     dispose() {

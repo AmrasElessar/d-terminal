@@ -32,7 +32,7 @@ const credits = [
   { label: 'Tauri', url: 'https://tauri.app',           note: 'Desktop shell (Rust + WebView2)' },
   { label: 'Vue 3', url: 'https://vuejs.org',           note: 'UI framework' },
   { label: 'xterm.js', url: 'https://xtermjs.org',      note: 'Terminal renderer' },
-  { label: 'node-pty', url: 'https://github.com/microsoft/node-pty', note: 'PTY köprüsü (Microsoft)' },
+  { label: 'node-pty', url: 'https://github.com/microsoft/node-pty', note: 'PTY bridge (Microsoft)' },
   { label: 'rusqlite', url: 'https://github.com/rusqlite/rusqlite',  note: 'SQLite (WAL mode)' },
   { label: 'window-vibrancy', url: 'https://github.com/tauri-apps/window-vibrancy', note: 'Win11 Mica/Acrylic' },
 ];

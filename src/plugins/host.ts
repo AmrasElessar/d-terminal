@@ -85,14 +85,20 @@ function send(p: LoadedPlugin, msg: HostToPluginMessage) {
   p.worker.postMessage(msg);
 }
 
+const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error'] as const);
+
 function handlePluginMessage(p: LoadedPlugin, msg: PluginToHostMessage) {
   switch (msg.kind) {
     case 'ready':
       log.info('plugin ready', { id: p.manifest.id });
       break;
-    case 'log':
-      log[msg.level](`[${p.manifest.id}] ${msg.message}`);
+    case 'log': {
+      // Worker mesajı güvenilmez — `level` alanı log nesnesinin rastgele bir
+      // property'sini çağırmasın; mesaj boyutu da sınırlı.
+      const level = LOG_LEVELS.has(msg.level) ? msg.level : 'info';
+      log[level](`[${p.manifest.id}] ${String(msg.message).slice(0, 2000)}`);
       break;
+    }
     case 'request':
       handleCapabilityRequest(p, msg.requestId, msg.capability, msg.method, msg.args);
       break;

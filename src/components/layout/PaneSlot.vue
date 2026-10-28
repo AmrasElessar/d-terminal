@@ -30,6 +30,7 @@ interface TerminalPaneExpose {
   copyBuffer: () => void;
   clearTerminal: () => void;
   getSelection: () => string;
+  paste: () => Promise<void>;
 }
 const terminalRef = ref<TerminalPaneExpose | null>(null);
 
@@ -117,15 +118,20 @@ async function copySelection() {
     toasts.warning(t('common.copy') + ': —');
     return;
   }
-  await navigator.clipboard.writeText(text);
-  toasts.success(t('common.copy') + ' ✓', 1200);
+  try {
+    await navigator.clipboard.writeText(text);
+    toasts.success(t('common.copy') + ' ✓', 1200);
+  } catch (e) {
+    toasts.error(t('errors.clipboard', { error: String(e) }));
+  }
 }
 
+/** Context menü paste — terminal pane'in güvenli paste yolunu kullanır
+ *  (bracketed paste; desteklenmiyorsa çok satırlı metin için onay). Önceden
+ *  pano ham olarak PTY'ye yazılıyor, her satır anında çalışıyordu. */
 async function pasteIntoTerminal() {
   if (!props.leaf.ptyId) return;
-  const text = await navigator.clipboard.readText();
-  if (!text) return;
-  await api.ptyWrite(props.leaf.ptyId, new TextEncoder().encode(text));
+  await terminalRef.value?.paste();
 }
 
 function clearTerminal() {

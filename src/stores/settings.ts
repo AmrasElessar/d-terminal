@@ -1,7 +1,7 @@
 // Kullanıcı ayarları — SQLite settings tablosuyla senkron.
 
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { api } from '@/api/tauri';
 
 export type StartupMode = 'welcome' | 'lastSession' | 'empty';
@@ -127,6 +127,56 @@ const DEFAULTS: SettingsState = {
 
 const KEY_PREFIX = 'ui.';
 
+/** Enum alanları için izinli değerler — DB'den gelen bozuk/eski değer
+ *  (ör. elle düzenlenmiş config) default'a düşer. */
+const ENUMS: Partial<Record<keyof SettingsState, readonly string[]>> = {
+  startup: ['welcome', 'lastSession', 'empty'],
+  renderer: ['auto', 'webgl', 'canvas', 'dom'],
+  windowVibrancy: ['auto', 'mica', 'acrylic', 'none'],
+  updateMode: ['off', 'notify', 'download-wait', 'auto'],
+  updateCheckFrequency: ['startup', '1h', '6h', '12h', '24h'],
+  confirmOnClose: ['never', 'runningOnly', 'always'],
+};
+/** Sayısal alanların geçerli aralığı. */
+const RANGES: Partial<Record<keyof SettingsState, [number, number]>> = {
+  fontSize: [6, 72],
+  opacity: [0, 1],
+  blur: [0, 100],
+  dfetchPollIntervalMs: [0, 60_000],
+  scrollback: [0, 100_000],
+};
+
+/** Persist edilmiş (güvenilmez) değeri doğrula; geçersizse undefined. */
+export function sanitizeSetting<K extends keyof SettingsState>(
+  key: K,
+  value: unknown,
+): SettingsState[K] | undefined {
+  const def = DEFAULTS[key];
+  if (value === null || value === undefined) return undefined;
+  if (typeof def === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+    const r = RANGES[key];
+    return (r ? Math.min(r[1], Math.max(r[0], value)) : value) as SettingsState[K];
+  }
+  if (typeof def === 'boolean') return typeof value === 'boolean' ? (value as SettingsState[K]) : undefined;
+  if (typeof def === 'string') {
+    if (typeof value !== 'string') return undefined;
+    const allowed = ENUMS[key];
+    if (allowed && !allowed.includes(value)) return undefined;
+    return value as SettingsState[K];
+  }
+  if (typeof def === 'object') {
+    if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+    // shortcutOverrides: Record<string, string>
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v;
+    }
+    return out as SettingsState[K];
+  }
+  return undefined;
+}
+
 export const useSettingsStore = defineStore('settings', () => {
   const state = ref<SettingsState>({ ...DEFAULTS });
   const loaded = ref(false);
@@ -138,11 +188,9 @@ export const useSettingsStore = defineStore('settings', () => {
         const raw = all[`${KEY_PREFIX}${k}`];
         if (raw !== undefined) {
           try {
-            const parsed = JSON.parse(raw);
-            // null guard — JSON.parse('null') geçerli ama runtime'da Object.entries
-            // gibi yerlerde patlar. Default'u koru.
-            if (parsed !== null) {
-              (state.value as Record<string, unknown>)[k] = parsed;
+            const valid = sanitizeSetting(k, JSON.parse(raw));
+            if (valid !== undefined) {
+              (state.value as Record<string, unknown>)[k] = valid;
             }
           } catch {
             // bozuk değer — defaults kalır
@@ -150,6 +198,9 @@ export const useSettingsStore = defineStore('settings', () => {
         }
       }
     } finally {
+      // Yükleme sırasında tetiklenen auto-persist watcher'ları `loaded=false`
+      // iken çalışsın (az önce okunan değerleri geri yazmasın) — sonra aç.
+      await nextTick();
       loaded.value = true;
     }
   }

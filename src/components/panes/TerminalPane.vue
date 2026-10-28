@@ -106,6 +106,7 @@ defineExpose({
   copyBuffer: () => session.copyBuffer(),
   clearTerminal: () => session.clearTerminal(),
   getSelection: () => session.getSelection(),
+  paste: () => session.paste(),
 });
 </script>
 
