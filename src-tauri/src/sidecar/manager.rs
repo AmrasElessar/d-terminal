@@ -1010,27 +1010,47 @@ mod tests {
     }
 
     /// Pane çıktısını `needle` görünene kadar biriktirir.
+    /// Pane çıktısını `needle` görünene kadar biriktirir. Uygulamadaki emit
+    /// thread'i gibi okunan byte'ları sidecar'a ack'ler (flow control credit);
+    /// aksi halde sidecar 1 MB'ta pane'i duraklatır.
     #[cfg(all(windows, debug_assertions))]
-    fn wait_output(rx: &Receiver<PtyEvent>, pane: u64, needle: &str, secs: u64) -> String {
+    fn wait_output(
+        mgr: &Arc<SidecarManager>,
+        rx: &Receiver<PtyEvent>,
+        pane: u64,
+        needle: &str,
+        secs: u64,
+    ) -> String {
+        fn tail(s: &str) -> &str {
+            let mut i = s.len().saturating_sub(2000);
+            while !s.is_char_boundary(i) {
+                i += 1;
+            }
+            &s[i..]
+        }
         let mut out = String::new();
         let deadline = Instant::now() + Duration::from_secs(secs);
         while Instant::now() < deadline {
             if let Ok(ev) = rx.recv_timeout(Duration::from_millis(100)) {
                 match ev {
                     PtyEvent::Stdout { pane_id, data } if pane_id == pane.to_string() => {
+                        mgr.ack_output(&pane_id, data.len());
                         out.push_str(&String::from_utf8_lossy(&data));
                         if out.contains(needle) {
                             return out;
                         }
                     }
                     PtyEvent::Exit { pane_id, .. } if pane_id == pane.to_string() => {
-                        panic!("pane exited early; output so far:\n{out}");
+                        panic!("pane exited early; output tail:\n{}", tail(&out));
                     }
                     _ => {}
                 }
             }
         }
-        panic!("timed out waiting for {needle:?}; output:\n{out}");
+        panic!(
+            "timed out waiting for {needle:?}; output tail:\n{}",
+            tail(&out)
+        );
     }
 
     #[cfg(all(windows, debug_assertions))]
@@ -1065,7 +1085,7 @@ mod tests {
         let pane = spawn_shell(&mgr, win_shell(r"System32\cmd.exe"), &[]);
         // `set /a` sonucu yalnızca gerçekten çalışırsa çıkar (echo'dan ayırt edilir).
         mgr.write_stdin(pane, b"set /a 6*7+1000\r").unwrap();
-        wait_output(&rx, pane, "1042", 20);
+        wait_output(&mgr, &rx, pane, "1042", 20);
         mgr.kill(pane).unwrap();
         let exit = recv_until(
             &rx,
@@ -1097,7 +1117,7 @@ mod tests {
                 .as_bytes(),
         )
         .unwrap();
-        let out = wait_output(&rx, pane, "DTOK-42", 40);
+        let out = wait_output(&mgr, &rx, pane, "DTOK-42", 40);
         assert!(out.contains("DTOK-42 şğüİ"), "unicode mangled:\n{out}");
         mgr.shutdown();
     }
@@ -1122,10 +1142,10 @@ mod tests {
             b"1..30000 | % { 'satir-' + $_ + ('x' * 80) }; 'SON' + 'BITTI'\r",
         )
         .unwrap();
-        wait_output(&rx, pane, "SONBITTI", 120);
+        wait_output(&mgr, &rx, pane, "SONBITTI", 120);
         // Ardından pane hâlâ etkileşimli olmalı.
         mgr.write_stdin(pane, b"'HALA' + 'CANLI'\r").unwrap();
-        wait_output(&rx, pane, "HALACANLI", 20);
+        wait_output(&mgr, &rx, pane, "HALACANLI", 20);
         mgr.shutdown();
     }
 
@@ -1145,13 +1165,13 @@ mod tests {
             &["-NoLogo", "-NoProfile"],
         );
         let cmd = "$c = Start-Process ping -ArgumentList '-n','120','127.0.0.1' -WindowStyle Hidden -PassThru; \
-                   'PIDS:' + $PID + ':' + $c.Id + ':END'\r";
+                   'PIDS:' + $PID + ':' + $c.Id + ':ZZ' + 'END'\r";
         mgr.write_stdin(pane, cmd.as_bytes()).unwrap();
-        let out = wait_output(&rx, pane, ":END", 40);
+        let out = wait_output(&mgr, &rx, pane, ":ZZEND", 40);
         let line = out
             .lines()
             .rev()
-            .find(|l| l.contains("PIDS:") && l.contains(":END") && !l.contains('$'))
+            .find(|l| l.contains("PIDS:") && l.contains(":ZZEND") && !l.contains('$'))
             .unwrap_or_else(|| panic!("no PIDS line:\n{out}"));
         let parts: Vec<u32> = line
             .split("PIDS:")
