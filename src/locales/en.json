@@ -97,7 +97,9 @@
       "add": "Add group tag",
       "edit": "Edit group tag",
       "placeholder": "group name"
-    }
+    },
+    "sidecarLost": "The terminal backend (sidecar) stopped; this shell was lost. Close the pane and open a new one.",
+    "spawnFailed": "Shell could not be started: {message}"
   },
   "ai": {
     "usage": {
@@ -504,7 +506,7 @@
     }
   },
   "quake": {
-    "hint": "F1 to toggle window visibility"
+    "hint": "Ctrl+Shift+F1 to toggle window visibility"
   },
   "commandPalette": {
     "placeholder": "Search commands or panes…",

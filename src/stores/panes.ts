@@ -24,6 +24,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { useAgentWatchStore } from '@/stores/agentWatch';
 import { useChatsStore } from '@/stores/chats';
 import { disposeTerminalSession } from '@/terminal/registry';
+import { tGlobal } from '@/i18n';
 
 function newLeaf(type: PaneType, title: string, profileId?: string): LeafNode {
   return {
@@ -108,6 +109,14 @@ export const usePanesStore = defineStore('panes', () => {
     for (const t of tabs.value) {
       const found = findLeaf(t.tree.root, id);
       if (found) return found;
+    }
+    return null;
+  }
+
+  function findLeafByPty(ptyId: string): LeafNode | null {
+    for (const t of tabs.value) {
+      const l = listLeaves(t.tree.root).find((x) => x.ptyId === ptyId);
+      if (l) return l;
     }
     return null;
   }
@@ -421,9 +430,32 @@ export const usePanesStore = defineStore('panes', () => {
     }
   }
 
+  /** Henüz bir leaf'e bağlanmamış PTY id'leri için gelen error/exit olayları.
+   *  `pty_spawn` cevabı ile sidecar'ın `spawn_failed` + `exit` olayları
+   *  yarışabilir: olay leaf `ptyId`'yi almadan önce gelirse kaybolup pane
+   *  "spawning"de asılı kalıyordu. ptyId atandığında uygulanır. */
+  const orphanPtyEvents = new Map<string, Partial<LeafNode>>();
+  const MAX_ORPHAN_EVENTS = 64;
+  function rememberOrphan(ptyId: string, patch: Partial<LeafNode>) {
+    const prev = orphanPtyEvents.get(ptyId);
+    // error durumu sonraki exit tarafından ezilmesin
+    if (prev?.status === 'error' && patch.status === 'exited') return;
+    orphanPtyEvents.set(ptyId, { ...prev, ...patch });
+    while (orphanPtyEvents.size > MAX_ORPHAN_EVENTS) {
+      const first = orphanPtyEvents.keys().next().value;
+      if (first === undefined) break;
+      orphanPtyEvents.delete(first);
+    }
+  }
+
   function setLeafState(id: string, patch: Partial<LeafNode>) {
     const tab = findTabOfLeaf(id);
     if (!tab) return;
+    if (patch.ptyId && orphanPtyEvents.has(patch.ptyId)) {
+      const pending = orphanPtyEvents.get(patch.ptyId)!;
+      orphanPtyEvents.delete(patch.ptyId);
+      patch = { ...patch, ...pending };
+    }
     tab.tree.root = replaceNode(tab.tree.root, id, (n) => {
       if (n.kind !== 'leaf') return n;
       return { ...n, ...patch };
@@ -521,24 +553,32 @@ export const usePanesStore = defineStore('panes', () => {
           }
           break;
         case 'exit': {
-          for (const tab of tabs.value) {
-            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
-            if (target) {
-              setLeafState(target.id, { status: 'exited', exitCode: evt.exit_code });
-              break;
-            }
+          // Sidecar çöktüyse her pane `signal: sidecar_lost` ile exit alır —
+          // bu bir hata durumu (pane'in kendi çıkışı değil).
+          const patch: Partial<LeafNode> =
+            evt.signal === 'sidecar_lost'
+              ? { status: 'error', errorMessage: tGlobal('pane.sidecarLost') }
+              : { status: 'exited', exitCode: evt.exit_code };
+          const target = findLeafByPty(evt.pane_id);
+          if (!target) {
+            rememberOrphan(evt.pane_id, patch);
+            break;
           }
+          // spawn_failed error'u ardından gelen exit(-1) ile ezilmesin
+          if (target.status === 'error' && patch.status === 'exited') break;
+          setLeafState(target.id, patch);
           break;
         }
         case 'error': {
           if (!evt.pane_id) return;
-          for (const tab of tabs.value) {
-            const target = listLeaves(tab.tree.root).find((l) => l.ptyId === evt.pane_id);
-            if (target) {
-              setLeafState(target.id, { status: 'error', errorMessage: evt.message });
-              break;
-            }
-          }
+          const message =
+            evt.code === 'spawn_failed'
+              ? tGlobal('pane.spawnFailed', { message: evt.message })
+              : evt.message;
+          const patch: Partial<LeafNode> = { status: 'error', errorMessage: message };
+          const target = findLeafByPty(evt.pane_id);
+          if (target) setLeafState(target.id, patch);
+          else rememberOrphan(evt.pane_id, patch);
           break;
         }
         // 'stdout' event'i terminal komponenti tarafından doğrudan listen edilir

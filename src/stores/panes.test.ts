@@ -8,8 +8,15 @@ vi.mock('@/api/tauri', () => ({
   api: { ptyKill: vi.fn(async () => undefined) },
 }));
 
+const { ptyHandler } = vi.hoisted(() => ({ ptyHandler: { fn: null as null | ((e: unknown) => void) } }));
 vi.mock('@/api/events', () => ({
-  onAllPty: vi.fn(async () => () => undefined),
+  onAllPty: vi.fn(async (h: (e: unknown) => void) => {
+    ptyHandler.fn = h;
+    return [];
+  }),
+}));
+vi.mock('@/i18n', () => ({
+  tGlobal: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${JSON.stringify(p)}` : k),
 }));
 
 vi.mock('@/stores/settings', () => ({
@@ -239,5 +246,43 @@ describe('usePanesStore — broadcast + maximize', () => {
     s.toggleMaximize();
     // Tekrar toggle null yapar
     expect(s.tree.focusedId).toBe(a.id);
+  });
+});
+
+describe('usePanesStore — pty olayları', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    ptyHandler.fn = null;
+  });
+
+  it('spawn_failed error + exit(-1): pane error durumunda kalır', async () => {
+    const s = usePanesStore();
+    await s.startListening();
+    const leaf = s.openPane('powershell', 'PS');
+    s.setLeafState(leaf.id, { ptyId: 'p1', status: 'running' });
+    ptyHandler.fn!({ kind: 'error', pane_id: 'p1', code: 'spawn_failed', message: 'no wsl' });
+    ptyHandler.fn!({ kind: 'exit', pane_id: 'p1', exit_code: -1, signal: null });
+    expect(s.getLeaf(leaf.id)?.status).toBe('error');
+    expect(s.getLeaf(leaf.id)?.errorMessage).toContain('pane.spawnFailed');
+  });
+
+  it('ptyId atanmadan gelen olaylar atanınca uygulanır', async () => {
+    const s = usePanesStore();
+    await s.startListening();
+    const leaf = s.openPane('powershell', 'PS');
+    ptyHandler.fn!({ kind: 'error', pane_id: 'p2', code: 'spawn_failed', message: 'x' });
+    ptyHandler.fn!({ kind: 'exit', pane_id: 'p2', exit_code: -1, signal: null });
+    s.setLeafState(leaf.id, { ptyId: 'p2', status: 'running' });
+    expect(s.getLeaf(leaf.id)?.status).toBe('error');
+  });
+
+  it('sidecar_lost exit pane hatası olarak gösterilir', async () => {
+    const s = usePanesStore();
+    await s.startListening();
+    const leaf = s.openPane('powershell', 'PS');
+    s.setLeafState(leaf.id, { ptyId: 'p3', status: 'running' });
+    ptyHandler.fn!({ kind: 'exit', pane_id: 'p3', exit_code: -1, signal: 'sidecar_lost' });
+    expect(s.getLeaf(leaf.id)?.status).toBe('error');
+    expect(s.getLeaf(leaf.id)?.errorMessage).toBe('pane.sidecarLost');
   });
 });

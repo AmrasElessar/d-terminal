@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn(() => Promise.resolve()) }));
 
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
-import { isOpenablePath, openExternalUrl, safeHttpUrl } from './openExternal';
+import { installExternalLinkHandler, openExternalUrl, safeHttpUrl } from './openExternal';
 
 describe('safeHttpUrl', () => {
   it('http(s) kabul', () => {
@@ -29,17 +29,22 @@ describe('openExternalUrl', () => {
   });
 });
 
-describe('isOpenablePath', () => {
-  it('dizin ve metin dosyaları açılabilir', () => {
-    expect(isOpenablePath('C:\\Users\\x\\proj')).toBe(true);
-    expect(isOpenablePath('C:\\Users\\x\\notes.md')).toBe(true);
-    expect(isOpenablePath('C:/Users/x/log.txt')).toBe(true);
+describe('mailto + link handler', () => {
+  it('mailto kabul', () => {
+    expect(safeHttpUrl('mailto:a@b.dev')).toBe('mailto:a@b.dev');
   });
-  it('çalıştırılabilir / handler uzantıları ve UNC reddedilir', () => {
-    for (const ext of ['exe', 'js', 'hta', 'vbe', 'reg', 'url', 'cpl', 'msc', 'lnk', 'ps1', 'search-ms']) {
-      expect(isOpenablePath(`C:\\x\\a.${ext}`)).toBe(false);
-    }
-    expect(isOpenablePath('\\\\host\\share\\a.txt')).toBe(false);
-    expect(isOpenablePath('./relative/a.txt')).toBe(false);
+  it('a[href] tıklaması varsayılanı engeller ve dışarıda açar', async () => {
+    const off = installExternalLinkHandler();
+    const a = document.createElement('a');
+    a.href = 'https://example.org/x';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+    a.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    await Promise.resolve();
+    expect(shellOpen).toHaveBeenCalledWith('https://example.org/x');
+    off();
+    a.remove();
   });
 });

@@ -6,8 +6,10 @@ import App from './App.vue';
 import { availableLocales } from '@/locales';
 import { i18n } from '@/i18n';
 import { installGlobalErrorHandlers, createLogger } from '@/utils/logger';
+import { installExternalLinkHandler } from '@/utils/openExternal';
 
 installGlobalErrorHandlers();
+installExternalLinkHandler();
 const log = createLogger('main');
 log.info('frontend bootstrap');
 

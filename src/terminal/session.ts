@@ -17,7 +17,6 @@ import { effectScope, ref, watch, type Ref } from 'vue';
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { ImageAddon } from '@xterm/addon-image';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { CanvasAddon } from '@xterm/addon-canvas';
@@ -50,7 +49,7 @@ import { useModals } from '@/composables/useModals';
 import { builtinShellInitArgs } from '@/shellInit';
 import { formatError } from '@/utils/error';
 import { stripAnsi } from '@/utils/ansi';
-import { isOpenablePath, openExternalUrl } from '@/utils/openExternal';
+import { openExternalUrl } from '@/utils/openExternal';
 import { confirmAsk } from '@/utils/dialog';
 import { keybindings } from '@/keybindings/registry';
 import { tGlobal as t } from '@/i18n';
@@ -168,7 +167,9 @@ function createTerminalSession(leafId: string): TerminalSession {
       void openExternalUrl(uri);
     }),
   );
-  term.loadAddon(new ImageAddon({ enableSizeReports: true, sixelSupport: true, iipSupport: true }));
+  // @xterm/addon-image yüklenmiyor: hem sixel hem iTerm2 inline image (IIP)
+  // decoder'ı WebAssembly kullanır ve production CSP'de 'wasm-unsafe-eval'
+  // yok (CSP sıkılaştırması). Inline görsel desteği bu yüzden kapalı.
   term.loadAddon(search);
   term.loadAddon(serialize);
   if (settings.state.unicode11) {
@@ -620,17 +621,10 @@ function createTerminalSession(leafId: string): TerminalSession {
         applyRenderer(settings.state.renderer);
         term.registerLinkProvider(
           createSmartLinkProvider(term, {
-            onPath: (p) => {
-              // PTY çıktısı saldırgan kontrolünde olabilir — yalnızca yerel,
-              // çalıştırılamaz yolları aç; diğerlerini panoya kopyala.
-              if (!isOpenablePath(p)) {
-                copyText(p, t('terminal.pathCopied'));
-                return;
-              }
-              import('@tauri-apps/plugin-shell')
-                .then(({ open }) => open(p))
-                .catch(() => copyText(p, t('terminal.pathCopied')));
-            },
+            // PTY çıktısı saldırgan kontrolünde olabilir; shell scope'u yalnızca
+            // http(s)/mailto açar — yollar her zaman panoya kopyalanır (tek tık
+            // ile dosya/uygulama çalıştırma vektörü yok).
+            onPath: (p) => copyText(p, t('terminal.pathCopied')),
             onGitRef: (sha) => copyText(sha, t('terminal.shaCopied', { sha: sha.slice(0, 8) })),
             onHost: (h) => copyText(h, t('terminal.hostCopied')),
           }),

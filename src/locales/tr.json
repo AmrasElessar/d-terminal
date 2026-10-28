@@ -97,7 +97,9 @@
       "add": "Grup etiketi ekle",
       "edit": "Grup etiketini düzenle",
       "placeholder": "grup adı"
-    }
+    },
+    "sidecarLost": "Terminal arka ucu (sidecar) durdu; bu shell kayboldu. Pane'i kapatıp yenisini açın.",
+    "spawnFailed": "Shell başlatılamadı: {message}"
   },
   "ai": {
     "usage": {
@@ -504,7 +506,7 @@
     }
   },
   "quake": {
-    "hint": "F1 ile pencereyi gizle/göster"
+    "hint": "Ctrl+Shift+F1 ile pencereyi gizle/göster"
   },
   "commandPalette": {
     "placeholder": "Komut veya panel ara…",

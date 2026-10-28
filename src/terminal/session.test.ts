@@ -47,12 +47,6 @@ vi.mock('@xterm/addon-canvas', () => ({
     }
   },
 }));
-vi.mock('@xterm/addon-image', () => ({
-  ImageAddon: class {
-    activate() {}
-    dispose() {}
-  },
-}));
 
 import { usePanesStore } from '@/stores/panes';
 import { useProfilesStore } from '@/stores/profiles';
