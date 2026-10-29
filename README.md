@@ -471,7 +471,7 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | **v0.10.0** | ✅ yayında / shipped | GPL-3.0-or-later relisans, tab git aggregate, close confirm dialogs, AgentView global mode, post-audit hardening |
 | **v0.11.0** | ✅ yayında / shipped | In-app ConfirmDialog (Win32 TaskDialog yerine), MigrationDialog (MSIX hazırlığı), comprehensive test suite (370 vitest + 112 cargo), 5-agent security audit kapatıldı, GitHub Pages bilingual TR/EN |
 | **v0.12.0** | ✅ yayında / shipped | Çok-ajanlı güvenlik + kararlılık denetimi: AI anahtar bağlama, SSRF/git/UNC sertleştirme, sidecar sağlamlığı, imzalama ayrı korumalı job'da, Windows ConPTY e2e testleri / multi-agent security + stability audit |
-| **v1.0** | 2-3 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
+| **v1.0** | 2-3 ay / months | 🛒 **Microsoft Store submission** (MSIX — Store kendi sertifikasıyla imzalar / signed by the Store), GitHub MSI/NSIS için SignPath FOSS imzalama / signing for GitHub installers, release polish + test + docs |
 | **v1.0.5** | +2 ay / months | vue-i18n 11 migration (CSP `unsafe-eval` kaldır / drop), Log Stream pane, snippet senkron / sync |
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
