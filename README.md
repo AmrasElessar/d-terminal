@@ -71,7 +71,33 @@ It is a **personal-use** D Brand project under the **GPL-3.0-or-later** license.
 
 ---
 
-## 🆕 Yenilikler — v0.11.x serisi
+## 🆕 Yenilikler — v0.12.x serisi
+
+> **v0.12.0 (2026-10-29)** — Kapsamlı güvenlik + kararlılık geçişi (çok-ajanlı tam repo denetimi sonrası):
+> - 🔐 **AI anahtar bağlama + SSRF sertleştirme** — saklanan API anahtarı yalnızca kendi sağlayıcısının host'una gider; SSRF filtresi IPv4-mapped IPv6, CGNAT/reserved aralıklar ve redirect'lere karşı sıkılaştırıldı.
+> - 🌿 **Git + dosya yüzeyi** — `safe.directory=*` kaldırıldı, `core.fsmonitor`/harici diff kapalı, UNC yolları reddedilir; OSC 7 cwd yalnızca yerel yol (NTLM hash sızıntısı önlendi).
+> - ⌨️ **Terminal girdisi** — parola istemleri geçmişe yazılmaz, AI'ya giden çıktı `redact()`'ten geçer, çok satırlı AI "Insert" çalıştırmadan eklenir.
+> - 🏗️ **Release pipeline** — imzalama korumalı `release` ortamında ayrı job'da; release yalnızca main + yeşil CI tag'lerinden; tüm Actions SHA'ya pinli.
+> - 🐛 **Düzeltmeler** — pane değişince tuşların yanlış shell'e gitmesi, Esc dinleyici sızıntısı, sidecar frame/spawn/backpressure hataları, Windows'ta Log Stream tail'i, Ollama çok baytlı karakter bozulması.
+> - ⚙️ **Davranış değişiklikleri** — Quake kısayolu **Ctrl+Shift+F1**; satır içi öneri yalnızca **→** ile kabul edilir (Tab shell'e gider); sixel/iTerm2 satır içi resim kaldırıldı.
+> - 🧪 **444 vitest** (48 dosya) + Windows CI'da gerçek ConPTY uçtan uca testleri (cmd/PowerShell, Türkçe UTF-8, büyük çıktı, DPAPI).
+
+<details>
+<summary>🇬🇧 What's new in v0.12.0</summary>
+
+- 🔐 **AI key binding + SSRF hardening** — a stored API key is only ever sent to its own provider's host; the SSRF filter now covers IPv4-mapped IPv6, CGNAT/reserved ranges and redirects.
+- 🌿 **Git + file surface** — no more `safe.directory=*`, `core.fsmonitor`/external diff disabled, UNC paths rejected; OSC 7 cwd accepted only as a local path (prevents NTLM hash leaks).
+- ⌨️ **Terminal input** — password prompts are never written to history, output sent to AI goes through `redact()`, multi-line AI "Insert" no longer auto-executes.
+- 🏗️ **Release pipeline** — signing runs in a separate job behind the protected `release` environment; releases only from tags on main with green CI; all Actions pinned to commit SHAs.
+- 🐛 **Fixes** — keystrokes going to the wrong shell after switching panes, leaked Esc listener, sidecar frame/spawn/backpressure bugs, Log Stream tailing on Windows, multi-byte corruption in Ollama streams.
+- ⚙️ **Behaviour changes** — Quake hotkey is now **Ctrl+Shift+F1**; inline suggestions accept with **→** only (Tab goes to the shell); inline sixel/iTerm2 images removed.
+- 🧪 **444 vitest tests** (48 files) + real ConPTY end-to-end tests on Windows CI (cmd/PowerShell, Turkish UTF-8, large output, DPAPI).
+
+Full list: [CHANGELOG.md](./CHANGELOG.md)
+
+</details>
+
+### v0.11.0 (2026-05-27) — önceki minor / previous minor
 
 > **v0.11.0 (2026-05-27)** — In-app dialogs + MSIX-ready migration + comprehensive test suite + 5-agent audit kapatıldı:
 > - 🎨 **In-app ConfirmDialog** — Win32 TaskDialog (eski Windows estetiği) yerine Mica/Acrylic uyumlu, accent renkli, ARIA-tam in-app modal. Tüm 8 onay noktası (pane/tab kapat, snippet/session sil, Settings restart/import, AI cost/Block clear) artık uygulama temasıyla render edilir.
@@ -416,7 +442,7 @@ Windows Terminal provides a solid tab/split foundation; D-Terminal builds on top
 | **node-pty** | sidecar PTY köprüsü / bridge (`@yao-pkg/pkg` ile standalone exe) |
 | **rusqlite** | yerel storage / local storage (WAL mode) |
 | **Windows DPAPI** | secret storage (AI key encryption, kullanıcı oturumuna bağlı) |
-| **Tests** | **370 vitest** (35 dosya) + **112 cargo test** — stores, composables, components, OSC 133, regex, focus trap, migration |
+| **Tests** | **444 vitest** (48 dosya) + **cargo test** + Windows CI ConPTY e2e — stores, composables, components, OSC 133, regex, focus trap, migration, sidecar |
 | **CI/CD** | GitHub Actions (CI 5/5: Sidecar + Frontend + Rust x64 + Rust ARM64 + Security audit) |
 
 ### 📐 Mimari Belgeler / Architecture Documents
@@ -444,7 +470,8 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 | **v0.9.x** | ✅ yayında / shipped | Frameless, Agent Watch, AI native, ARM64+x64 dual-arch, auto-updater |
 | **v0.10.0** | ✅ yayında / shipped | GPL-3.0-or-later relisans, tab git aggregate, close confirm dialogs, AgentView global mode, post-audit hardening |
 | **v0.11.0** | ✅ yayında / shipped | In-app ConfirmDialog (Win32 TaskDialog yerine), MigrationDialog (MSIX hazırlığı), comprehensive test suite (370 vitest + 112 cargo), 5-agent security audit kapatıldı, GitHub Pages bilingual TR/EN |
-| **v1.0** | 2-3 ay / months | 🛒 **Microsoft Store submission** (MSIX), code signing (SignPath FOSS), release polish + test + docs |
+| **v0.12.0** | ✅ yayında / shipped | Çok-ajanlı güvenlik + kararlılık denetimi: AI anahtar bağlama, SSRF/git/UNC sertleştirme, sidecar sağlamlığı, imzalama ayrı korumalı job'da, Windows ConPTY e2e testleri / multi-agent security + stability audit |
+| **v1.0** | 2-3 ay / months | 🛒 **Microsoft Store submission** (MSIX — Store kendi sertifikasıyla imzalar / signed by the Store), GitHub MSI/NSIS için SignPath FOSS imzalama / signing for GitHub installers, release polish + test + docs |
 | **v1.0.5** | +2 ay / months | vue-i18n 11 migration (CSP `unsafe-eval` kaldır / drop), Log Stream pane, snippet senkron / sync |
 | **v1.1** | +3 ay / months | Gelişmiş SSH (config.ssh okuyucu / reader), free-form grid layout, Lua/JS programmatic config |
 | **v2.0** | — | Multi-agent orkestrasyon / orchestration, terminal AI assist (Warp Drive style team sharing), Kitty graphics protocol |
@@ -455,12 +482,12 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 ## 📥 Kurulum / Installation
 
-### En çok kullanılan / Most common (v0.11.0)
+### En çok kullanılan / Most common (v0.12.0)
 
 | Senin için / For you | İndir / Download |
 |---|---|
-| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.11.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.11.0_x64_tr-TR.msi) |
-| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.11.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.11.0_arm64_tr-TR.msi) |
+| 💻 **Modern Windows PC** (Intel / AMD) | [`D-Terminal_0.12.0_x64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.12.0_x64_tr-TR.msi) |
+| 🪶 **ARM64 cihaz** (Surface Pro X, Snapdragon laptop) | [`D-Terminal_0.12.0_arm64_tr-TR.msi`](https://github.com/AmrasElessar/d-terminal/releases/latest/download/D-Terminal_0.12.0_arm64_tr-TR.msi) |
 | 🛒 **Microsoft Store** (yakında / coming soon) | v1.0 hedefli MSIX paketi — [hazırlık durumu / progress](./docs/store/submission-checklist.md) |
 
 > Hangi mimariye sahip olduğundan emin değilsen / Not sure which arch?  
@@ -476,10 +503,10 @@ Mimari kararlar ve detaylı tasarım için: [docs/architecture-v1.1.md](./docs/a
 
 | Dosya / File | Mimari / Arch | Açıklama / Description |
 |---|---|---|
-| `D-Terminal_0.11.0_x64_en-US.msi` | x86_64 | English MSI installer |
-| `D-Terminal_0.11.0_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
-| `D-Terminal_0.11.0_arm64_en-US.msi` | aarch64 | ARM64 English |
-| `D-Terminal_0.11.0_arm64-setup.exe` | aarch64 | ARM64 NSIS |
+| `D-Terminal_0.12.0_x64_en-US.msi` | x86_64 | English MSI installer |
+| `D-Terminal_0.12.0_x64-setup.exe` | x86_64 | NSIS — TR/EN dil seçici tek dosya / single file with TR/EN language picker |
+| `D-Terminal_0.12.0_arm64_en-US.msi` | aarch64 | ARM64 English |
+| `D-Terminal_0.12.0_arm64-setup.exe` | aarch64 | ARM64 NSIS |
 
 > 🇹🇷 Boyut artışı (önceki ~22 MB → 40 MB MSI) Node.js runtime'ın bundle'a gömülmesinden kaynaklanır — kullanıcıda Node.js gereksinim **kalktı**.  
 > 🇬🇧 The size increase (previously ~22 MB → 40 MB MSI) comes from embedding the Node.js runtime — there is **no longer any Node.js requirement** on the user's side.
@@ -519,12 +546,12 @@ After installing, here are **5 quick things** to try when you first open D-Termi
 
 ---
 
-## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.11.0 — 2026-05-27)
+## 🛡️ Güvenlik Tarama Sonuçları / Security Scan Results (v0.12.0 — 2026-10-29)
 
-> 🇹🇷 v0.11.0 sürümü VirusTotal + Hybrid Analysis'a release.yml security-scan job'ı tarafından otomatik gönderildi (`hashes.txt` release sayfasında). Aşağıdaki linkler v0.10.0 binary'leri için **canlı VT raporlarına** çıkar; v0.11.0 raporları için release sayfasındaki `hashes.txt` üzerinden SHA-256 lookup yapılabilir. Tauri/Rust toolchain v0.10.0 ile aynı; aynı toolchain + yeni dep yüzeyi yok → sonuç stabil bekleniyor (sertifika olmayan NSIS Microsoft ML imzasız uyarısı her sürümde aynı).  
-> 🇬🇧 v0.11.0 was auto-submitted to VirusTotal + Hybrid Analysis by the release.yml security-scan job (`hashes.txt` on the release page). Links below point to v0.10.0 reports as baseline; for v0.11.0 use the `hashes.txt` on the release page for direct SHA-256 lookup. Same toolchain + no new dep surface → stable results expected.
+> 🇹🇷 v0.12.0 sürümü VirusTotal + Hybrid Analysis'a release.yml security-scan job'ı tarafından otomatik gönderildi (`hashes.txt` release sayfasında). Aşağıdaki linkler v0.10.0 binary'leri için **canlı VT raporlarına** çıkar; v0.12.0 raporları için release sayfasındaki `hashes.txt` üzerinden SHA-256 lookup yapılabilir. Tauri/Rust toolchain v0.10.0 ile aynı → sonuç stabil bekleniyor (sertifika olmayan NSIS Microsoft ML imzasız uyarısı her sürümde aynı).  
+> 🇬🇧 v0.12.0 was auto-submitted to VirusTotal + Hybrid Analysis by the release.yml security-scan job (`hashes.txt` on the release page). Links below point to v0.10.0 reports as baseline; for v0.12.0 use the `hashes.txt` on the release page for direct SHA-256 lookup. Same toolchain → stable results expected.
 
-v0.11.0 — Tüm 6 installer (x64 + arm64 × MSI-TR / MSI-EN / NSIS) yayında. SHA-256 hashleri ve VT/HA submission durumu: [v0.11.0 release page](https://github.com/AmrasElessar/d-terminal/releases/tag/v0.11.0) · [hashes.txt](https://github.com/AmrasElessar/d-terminal/releases/download/v0.11.0/hashes.txt)
+v0.12.0 — Tüm 6 installer (x64 + arm64 × MSI-TR / MSI-EN / NSIS) yayında. SHA-256 hashleri ve VT/HA submission durumu: [v0.12.0 release page](https://github.com/AmrasElessar/d-terminal/releases/tag/v0.12.0) · [hashes.txt](https://github.com/AmrasElessar/d-terminal/releases/download/v0.12.0/hashes.txt)
 
 v0.10.0 (baseline, aşağıdaki rozet linkleri için):
 
@@ -589,10 +616,13 @@ D-Terminal, D Brand ailesinin Windows ayağıdır. Aile üyeleri "Denizhan" adı
 
 | Ürün / Product | Platform | Açıklama / Description |
 |---|---|---|
+| **D-Terminal** | Windows | Agent-aware terminal *(this project, v0.12.0)* |
+| **[D-Medic](https://github.com/AmrasElessar/d-medic)** | Windows | Tanı koyan sistem optimizasyon aracı / diagnose-first system optimizer *(pre-alpha)* |
+| **[Admin PDF Toolkit](https://github.com/AmrasElessar/adminpdftoolkit)** | Windows · macOS · Linux | Çevrimdışı, LAN içi PDF platformu / offline, LAN-first PDF platform *(v2.1.0)* |
+| **[D-Transfer](https://github.com/AmrasElessar/d-transfer)** | Windows · Linux | SFTP / S3 / WebDAV dosya aktarım istemcisi / file-transfer client *(pre-alpha)* |
 | **D-Player** | Android | Kişisel müzik çalar, DSP motoru / personal music player with DSP engine *(in development)* |
 | **DCar Launcher** | Android (Auto) | Head Unit araç içi OS katmanı / Head Unit in-car OS layer *(in development)* |
-| **D-Watchtower** | — | Gözetim ve izleme platformu / surveillance & monitoring platform *(in development)* |
-| **D-Terminal** | Windows | Agent-aware terminal *(this project, pre-alpha)* |
+| **D-Watchtower** | Android | Yerel HIDS / local-first host intrusion detection *(in development)* |
 
 ---
 
@@ -647,9 +677,9 @@ Active development, 6+ app ideas in queue.
 
 ### 🛒 Yakında Store'da / Coming to Store
 
-Microsoft Store submission hazırlığı **v1.0** hedefli, **8/13 madde tamam**.  
+Microsoft Store submission hazırlığı **v1.0** hedefli, **10/13 madde tamam**.  
 Backend + UI + dokümantasyon hazır; identity reservation + screenshot kaldı.  
-Microsoft Store submission prep ongoing for **v1.0** — **8/13 items done**.
+Microsoft Store submission prep ongoing for **v1.0** — **10/13 items done**.
 
 [🛒 Detaylar / Details](./docs/store/) · [Checklist](./docs/store/submission-checklist.md) · [MSIX Build Guide](./docs/store/msix-build-guide.md)
 
